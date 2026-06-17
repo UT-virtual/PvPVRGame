@@ -2,6 +2,7 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 
 [RequireComponent(typeof(CharacterController))]
+[RequireComponent(typeof(PlayerHealth))]
 public class PlayerController : MonoBehaviour
 {
     [Header("Move")]
@@ -11,12 +12,28 @@ public class PlayerController : MonoBehaviour
     [SerializeField] private float keyboardLookSpeed = 90.0f;
     [SerializeField] private float mouseLookSpeed = 0.12f;
     [SerializeField] private float gamepadLookSpeed = 120.0f;
-    [SerializeField] private float minPitch = -60.0f;
-    [SerializeField] private float maxPitch = 70.0f;
+
+    [Header("Camera Pitch")]
+    [SerializeField] private float minCameraPitch = -25.0f;
+    [SerializeField] private float maxCameraPitch = 35.0f;
 
     [Header("Gravity / Jump")]
     [SerializeField] private float gravity = 25.0f;
     [SerializeField] private float jumpSpeed = 8.0f;
+
+    [Header("Shoot")]
+    [SerializeField] private GameObject projectilePrefab;
+    [SerializeField] private Camera aimCamera;
+    [SerializeField] private float projectileSpeed = 18.0f;
+    [SerializeField] private float projectileLifeTime = 3.0f;
+    [SerializeField] private int projectileDamage = 1;
+    [SerializeField] private float projectileSpawnHeight = 1.2f;
+    [SerializeField] private float projectileSpawnForwardOffset = 0.8f;
+    [SerializeField] private float projectileScale = 0.15f;
+
+    [Header("Ammo")]
+    [SerializeField] private int maxAmmo = 20;
+    [SerializeField] private float fireInterval = 0.15f;
 
     [Header("Ground Check")]
     [SerializeField] private Transform planetCenter;
@@ -32,28 +49,49 @@ public class PlayerController : MonoBehaviour
 
     [Header("Camera")]
     [SerializeField] private Transform cameraTarget;
-    [SerializeField] private float cameraTargetHeight = 1.3f;
+    [SerializeField] private float cameraBackDistance = 6.0f;
+    [SerializeField] private float cameraHeight = 4.0f;
+    [SerializeField] private float cameraSideOffset = 0.0f;
+    [SerializeField] private float cameraLookAtHeight = 1.2f;
+    [SerializeField] private float cameraLookAheadDistance = 2.5f;
 
     private CharacterController controller;
+    private PlayerHealth playerHealth;
 
     private Vector3 surfaceUp = Vector3.up;
     private Vector3 aimForward = Vector3.forward;
     private Vector3 aimRight = Vector3.right;
 
     private float verticalSpeed;
-    private float pitch;
+    private float cameraPitch;
 
     private bool hasGroundHit;
     private bool isGrounded;
     private float groundDistance;
     private RaycastHit groundHit;
 
+    private int currentAmmo;
+    private float fireTimer;
+    private bool wasLeftTriggerPressed;
+
+    public int CurrentAmmo => currentAmmo;
+    public int MaxAmmo => maxAmmo;
+
     private void Awake()
     {
         controller = GetComponent<CharacterController>();
+        playerHealth = GetComponent<PlayerHealth>();
+
+        if (aimCamera == null && Camera.main != null)
+        {
+            aimCamera = Camera.main;
+        }
+
+        currentAmmo = maxAmmo;
+        fireTimer = 0.0f;
 
         InitializeSurfaceVectors();
-        InitializeCameraTarget();
+        UpdateCameraTargetImmediate();
 
         Cursor.lockState = CursorLockMode.Locked;
         Cursor.visible = false;
@@ -61,19 +99,39 @@ public class PlayerController : MonoBehaviour
 
     private void Update()
     {
+        if (playerHealth != null && playerHealth.IsDead)
+        {
+            return;
+        }
+
+        if (fireTimer > 0.0f)
+        {
+            fireTimer -= Time.deltaTime;
+        }
+
         ProbeGround();
         UpdateAimBasis();
 
         Look();
+
+        if (ReadReloadInput())
+        {
+            ReloadAmmo();
+        }
+
+        if (ReadFireHeldInput())
+        {
+            TryFireProjectile();
+        }
+
         MoveOnSurface();
 
-        // 横移動後にもう一度地面を確認する
         ProbeGround();
         UpdateAimBasis();
 
         AlignToSurface();
         ApplyGravityAndJump();
-        UpdateCameraTarget();
+        UpdateCameraTargetImmediate();
     }
 
     private void InitializeSurfaceVectors()
@@ -105,19 +163,6 @@ public class PlayerController : MonoBehaviour
         aimForward = Vector3.Cross(aimRight, surfaceUp).normalized;
     }
 
-    private void InitializeCameraTarget()
-    {
-        if (cameraTarget == null)
-        {
-            return;
-        }
-
-        Vector3 targetPosition = transform.position + surfaceUp * cameraTargetHeight;
-        Quaternion targetRotation = Quaternion.LookRotation(aimForward, surfaceUp);
-
-        cameraTarget.SetPositionAndRotation(targetPosition, targetRotation);
-    }
-
     private void ProbeGround()
     {
         Vector3 probeOrigin = transform.position + surfaceUp * groundProbeStartOffset;
@@ -140,7 +185,6 @@ public class PlayerController : MonoBehaviour
             Vector3 desiredPosition = groundHit.point + surfaceUp * GetDesiredGroundOffset();
             groundDistance = Vector3.Dot(transform.position - desiredPosition, surfaceUp);
 
-            // 上昇中は、地面が近くても接地扱いにしない
             isGrounded =
                 verticalSpeed <= 0.0f &&
                 groundDistance <= groundSnapDistance;
@@ -159,14 +203,7 @@ public class PlayerController : MonoBehaviour
 
     private float GetDesiredGroundOffset()
     {
-        // CharacterControllerの足元が地面に接するように、
-        // transform.positionから地面まで必要な距離を計算する。
-        //
-        // 例:
-        // height = 2, center.y = 1 の場合、transform.positionは足元付近なので offset はほぼ0。
-        // height = 2, center.y = 0 の場合、transform.positionは中心付近なので offset は約1。
         float offset = controller.height * 0.5f - controller.center.y + controller.skinWidth;
-
         return Mathf.Max(0.02f, offset);
     }
 
@@ -214,8 +251,8 @@ public class PlayerController : MonoBehaviour
 
         if (Mathf.Abs(pitchAmount) > 0.001f)
         {
-            pitch -= pitchAmount;
-            pitch = Mathf.Clamp(pitch, minPitch, maxPitch);
+            cameraPitch -= pitchAmount;
+            cameraPitch = Mathf.Clamp(cameraPitch, minCameraPitch, maxCameraPitch);
         }
     }
 
@@ -348,13 +385,147 @@ public class PlayerController : MonoBehaviour
             return true;
         }
 
-        // ゲームパッドのAボタン
         if (Gamepad.current != null && Gamepad.current.buttonSouth.wasPressedThisFrame)
         {
             return true;
         }
 
         return false;
+    }
+
+    private bool ReadFireHeldInput()
+    {
+        if (Keyboard.current != null && Keyboard.current.jKey.isPressed)
+        {
+            return true;
+        }
+
+        if (Gamepad.current != null)
+        {
+            return Gamepad.current.rightTrigger.ReadValue() > 0.5f;
+        }
+
+        return false;
+    }
+
+    private bool ReadReloadInput()
+    {
+        bool reload = false;
+
+        if (Keyboard.current != null && Keyboard.current.kKey.wasPressedThisFrame)
+        {
+            reload = true;
+        }
+
+        if (Gamepad.current != null)
+        {
+            float leftTriggerValue = Gamepad.current.leftTrigger.ReadValue();
+            bool leftTriggerPressed = leftTriggerValue > 0.5f;
+
+            if (leftTriggerPressed && !wasLeftTriggerPressed)
+            {
+                reload = true;
+            }
+
+            wasLeftTriggerPressed = leftTriggerPressed;
+        }
+        else
+        {
+            wasLeftTriggerPressed = false;
+        }
+
+        return reload;
+    }
+
+    private void ReloadAmmo()
+    {
+        currentAmmo = maxAmmo;
+        Debug.Log($"Reloaded: {currentAmmo}/{maxAmmo}");
+    }
+
+    private void TryFireProjectile()
+    {
+        if (fireTimer > 0.0f)
+        {
+            return;
+        }
+
+        if (currentAmmo <= 0)
+        {
+            Debug.Log("No ammo. Press K or ZL to reload.");
+            fireTimer = fireInterval;
+            return;
+        }
+
+        FireProjectile();
+
+        currentAmmo--;
+        fireTimer = fireInterval;
+
+        Debug.Log($"Ammo: {currentAmmo}/{maxAmmo}");
+    }
+
+    private void FireProjectile()
+    {
+        Vector3 fireDirection = GetScreenCenterFireDirection();
+
+        Vector3 spawnPosition =
+            transform.position
+            + surfaceUp * projectileSpawnHeight
+            + fireDirection * projectileSpawnForwardOffset;
+
+        Quaternion spawnRotation = Quaternion.LookRotation(fireDirection, surfaceUp);
+
+        GameObject projectileObject;
+
+        if (projectilePrefab != null)
+        {
+            projectileObject = Instantiate(projectilePrefab, spawnPosition, spawnRotation);
+        }
+        else
+        {
+            projectileObject = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            projectileObject.transform.SetPositionAndRotation(spawnPosition, spawnRotation);
+            projectileObject.transform.localScale = Vector3.one * projectileScale;
+
+            Renderer renderer = projectileObject.GetComponent<Renderer>();
+            if (renderer != null)
+            {
+                renderer.material.color = Color.yellow;
+            }
+        }
+
+        Projectile projectile = projectileObject.GetComponent<Projectile>();
+
+        if (projectile == null)
+        {
+            projectile = projectileObject.AddComponent<Projectile>();
+        }
+
+        projectile.Initialize(
+            fireDirection,
+            projectileSpeed,
+            projectileLifeTime,
+            projectileDamage,
+            playerHealth
+        );
+    }
+
+    private Vector3 GetScreenCenterFireDirection()
+    {
+        if (aimCamera == null)
+        {
+            return aimForward;
+        }
+
+        Ray centerRay = aimCamera.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0.0f));
+
+        if (centerRay.direction.sqrMagnitude < 0.001f)
+        {
+            return aimForward;
+        }
+
+        return centerRay.direction.normalized;
     }
 
     private void AlignToSurface()
@@ -377,9 +548,6 @@ public class PlayerController : MonoBehaviour
         }
         else if (isGrounded)
         {
-            // 接地中は毎フレーム下向きに押し込まない。
-            // これを0にしないと、CharacterControllerがPlanetに押し込まれて
-            // 反発でY座標が増え続けることがある。
             verticalSpeed = 0.0f;
 
             SnapToGround();
@@ -415,32 +583,49 @@ public class PlayerController : MonoBehaviour
 
         if (groundDistance > 0.0f)
         {
-            // 地面より少し浮いているので地面方向へ寄せる
             snapDirection = -surfaceUp;
         }
         else
         {
-            // 地面に少しめり込んでいるので外側へ戻す
             snapDirection = surfaceUp;
         }
 
         controller.Move(snapDirection * snapAmount);
     }
 
-    private void UpdateCameraTarget()
+    private void UpdateCameraTargetImmediate()
     {
         if (cameraTarget == null)
         {
             return;
         }
 
-        Vector3 pitchedForward = Quaternion.AngleAxis(pitch, aimRight) * aimForward;
-        pitchedForward.Normalize();
+        Vector3 baseOffset =
+            surfaceUp * cameraHeight
+            - aimForward * cameraBackDistance
+            + aimRight * cameraSideOffset;
 
-        Vector3 targetPosition = transform.position + surfaceUp * cameraTargetHeight;
-        Quaternion targetRotation = Quaternion.LookRotation(pitchedForward, surfaceUp);
+        Vector3 pitchedOffset = Quaternion.AngleAxis(cameraPitch, aimRight) * baseOffset;
 
-        cameraTarget.SetPositionAndRotation(targetPosition, targetRotation);
+        Vector3 cameraPosition = transform.position + pitchedOffset;
+
+        Vector3 lookPoint =
+            transform.position
+            + surfaceUp * cameraLookAtHeight
+            + aimForward * cameraLookAheadDistance;
+
+        Vector3 cameraForward = lookPoint - cameraPosition;
+
+        if (cameraForward.sqrMagnitude < 0.001f)
+        {
+            cameraForward = aimForward;
+        }
+
+        cameraForward.Normalize();
+
+        Quaternion cameraRotation = Quaternion.LookRotation(cameraForward, surfaceUp);
+
+        cameraTarget.SetPositionAndRotation(cameraPosition, cameraRotation);
     }
 
     private void OnDrawGizmosSelected()
@@ -462,5 +647,11 @@ public class PlayerController : MonoBehaviour
 
         Gizmos.color = Color.blue;
         Gizmos.DrawLine(transform.position, transform.position + surfaceUp * 2.0f);
+
+        if (cameraTarget != null)
+        {
+            Gizmos.color = Color.magenta;
+            Gizmos.DrawWireSphere(cameraTarget.position, 0.2f);
+        }
     }
 }
