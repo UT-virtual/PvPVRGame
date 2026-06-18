@@ -7,7 +7,7 @@ public class PlayerLook : MonoBehaviour
     [SerializeField] private float minPitch = -85.0f;
     [SerializeField] private float maxPitch = 85.0f;
 
-    private PlayerMove motor;
+    private PlayerMove playerMove;
     private float pitch;
 
     public float Pitch => pitch;
@@ -16,7 +16,7 @@ public class PlayerLook : MonoBehaviour
 
     private void Awake()
     {
-        motor = GetComponent<PlayerMove>();
+        playerMove = GetComponent<PlayerMove>();
     }
 
     public void ApplyLook(Vector2 lookInput)
@@ -24,7 +24,7 @@ public class PlayerLook : MonoBehaviour
         float yawAmount = lookInput.x;
         float pitchAmount = lookInput.y;
 
-        motor.RotateYaw(yawAmount);
+        playerMove.RotateYaw(yawAmount);
 
         if (Mathf.Abs(pitchAmount) > 0.001f)
         {
@@ -35,11 +35,11 @@ public class PlayerLook : MonoBehaviour
 
     private Vector3 GetViewForward()
     {
-        Vector3 viewForward = Quaternion.AngleAxis(pitch, motor.AimRight) * motor.AimForward;
+        Vector3 viewForward = Quaternion.AngleAxis(pitch, playerMove.AimRight) * playerMove.AimForward;
 
         if (viewForward.sqrMagnitude < 0.001f)
         {
-            return motor.AimForward;
+            return playerMove.AimForward;
         }
 
         return viewForward.normalized;
@@ -48,11 +48,11 @@ public class PlayerLook : MonoBehaviour
     private Vector3 GetViewUp()
     {
         Vector3 viewForward = GetViewForward();
-        Vector3 viewRight = Vector3.Cross(motor.SurfaceUp, viewForward);
+        Vector3 viewRight = Vector3.Cross(playerMove.SurfaceUp, viewForward);
 
         if (viewRight.sqrMagnitude < 0.001f)
         {
-            viewRight = motor.AimRight;
+            viewRight = playerMove.AimRight;
         }
 
         viewRight.Normalize();
@@ -61,9 +61,26 @@ public class PlayerLook : MonoBehaviour
 
         if (viewUp.sqrMagnitude < 0.001f)
         {
-            return motor.SurfaceUp;
+            return playerMove.SurfaceUp;
         }
 
         return viewUp.normalized;
     }
+
+    public void SetPitchFromViewForward(Vector3 viewForward)
+{
+    if (viewForward.sqrMagnitude < 0.001f)
+    {
+        return;
+    }
+
+    Vector3 normalizedViewForward = viewForward.normalized;
+    float newPitch = Vector3.SignedAngle(
+        playerMove.AimForward,
+        normalizedViewForward,
+        playerMove.AimRight
+    );
+
+    pitch = Mathf.Clamp(newPitch, minPitch, maxPitch);
+}
 }

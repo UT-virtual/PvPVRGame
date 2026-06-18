@@ -1,4 +1,5 @@
 using UnityEngine;
+using Unity.Cinemachine;
 
 [RequireComponent(typeof(PlayerMove))]
 [RequireComponent(typeof(PlayerLook))]
@@ -10,15 +11,44 @@ public class PlayerCamera : MonoBehaviour
     [SerializeField] private float cameraForwardOffset = 0.0f;
     [SerializeField] private float cameraSideOffset = 0.0f;
 
-    private PlayerMove motor;
+    [Header("Cinemachine")]
+    [SerializeField] private CinemachineCamera cinemachineCamera;
+
+    private PlayerMove playerMove;
     private PlayerLook playerLook;
 
     public Vector3 CameraPosition => GetCameraPosition();
+    public Transform CameraTarget => cameraTarget;
 
     private void Awake()
     {
-        motor = GetComponent<PlayerMove>();
+        playerMove = GetComponent<PlayerMove>();
         playerLook = GetComponent<PlayerLook>();
+    }
+
+    public void SetupLocalCamera()
+    {
+        if (cameraTarget == null)
+        {
+            Debug.LogError($"{name}: CameraTarget is not assigned.");
+            return;
+        }
+
+        if (cinemachineCamera == null)
+        {
+            cinemachineCamera = FindFirstObjectByType<CinemachineCamera>();
+        }
+
+        if (cinemachineCamera == null)
+        {
+            Debug.LogError($"{name}: CinemachineCamera was not found in this scene.");
+            return;
+        }
+
+        cinemachineCamera.Target.TrackingTarget = cameraTarget;
+        cinemachineCamera.Target.LookAtTarget = cameraTarget;
+
+        Debug.Log($"{name}: Cinemachine target set to {cameraTarget.name}");
     }
 
     public void UpdateCameraTarget()
@@ -40,19 +70,8 @@ public class PlayerCamera : MonoBehaviour
     private Vector3 GetCameraPosition()
     {
         return transform.position
-            + motor.SurfaceUp * cameraEyeHeight
-            + motor.AimForward * cameraForwardOffset
-            + motor.AimRight * cameraSideOffset;
-    }
-
-    private void OnDrawGizmosSelected()
-    {
-        if (cameraTarget == null)
-        {
-            return;
-        }
-
-        Gizmos.color = Color.magenta;
-        Gizmos.DrawWireSphere(cameraTarget.position, 0.2f);
+            + playerMove.SurfaceUp * cameraEyeHeight
+            + playerMove.AimForward * cameraForwardOffset
+            + playerMove.AimRight * cameraSideOffset;
     }
 }
