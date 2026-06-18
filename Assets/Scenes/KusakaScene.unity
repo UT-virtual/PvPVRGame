@@ -853,6 +853,63 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1001 &1520501889
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 0}
+    m_Modifications:
+    - target: {fileID: 1112338128624330, guid: e7965cb5f3b6b49439772edd4131b2b0, type: 3}
+      propertyPath: m_Name
+      value: space_man_model
+      objectReference: {fileID: 0}
+    - target: {fileID: 4427613559659150, guid: e7965cb5f3b6b49439772edd4131b2b0, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: 1.7695299
+      objectReference: {fileID: 0}
+    - target: {fileID: 4427613559659150, guid: e7965cb5f3b6b49439772edd4131b2b0, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: -2.4571867
+      objectReference: {fileID: 0}
+    - target: {fileID: 4427613559659150, guid: e7965cb5f3b6b49439772edd4131b2b0, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1.0916852
+      objectReference: {fileID: 0}
+    - target: {fileID: 4427613559659150, guid: e7965cb5f3b6b49439772edd4131b2b0, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 4427613559659150, guid: e7965cb5f3b6b49439772edd4131b2b0, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4427613559659150, guid: e7965cb5f3b6b49439772edd4131b2b0, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4427613559659150, guid: e7965cb5f3b6b49439772edd4131b2b0, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4427613559659150, guid: e7965cb5f3b6b49439772edd4131b2b0, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4427613559659150, guid: e7965cb5f3b6b49439772edd4131b2b0, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4427613559659150, guid: e7965cb5f3b6b49439772edd4131b2b0, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: e7965cb5f3b6b49439772edd4131b2b0, type: 3}
 --- !u!1 &1593899779
 GameObject:
   m_ObjectHideFlags: 0
@@ -929,17 +986,20 @@ MonoBehaviour:
   keyboardLookSpeed: 90
   mouseLookSpeed: 0.12
   gamepadLookSpeed: 120
+  minCameraPitch: -25
+  maxCameraPitch: 35
   gravity: 4
   jumpSpeed: 4
   projectilePrefab: {fileID: 0}
   aimCamera: {fileID: 0}
-  screenAimDistance: 100
   projectileSpeed: 18
   projectileLifeTime: 3
   projectileDamage: 1
   projectileSpawnHeight: 1.2
   projectileSpawnForwardOffset: 0.8
   projectileScale: 0.15
+  maxAmmo: 20
+  fireInterval: 0.15
   planetCenter: {fileID: 422615375}
   planetLayer:
     serializedVersion: 2
@@ -1186,17 +1246,20 @@ MonoBehaviour:
   keyboardLookSpeed: 90
   mouseLookSpeed: 0.12
   gamepadLookSpeed: 120
+  minCameraPitch: -25
+  maxCameraPitch: 35
   gravity: 4
   jumpSpeed: 4
   projectilePrefab: {fileID: 0}
   aimCamera: {fileID: 0}
-  screenAimDistance: 100
   projectileSpeed: 18
   projectileLifeTime: 3
   projectileDamage: 1
   projectileSpawnHeight: 1.2
   projectileSpawnForwardOffset: 0.8
   projectileScale: 0.15
+  maxAmmo: 20
+  fireInterval: 0.15
   planetCenter: {fileID: 422615375}
   planetLayer:
     serializedVersion: 2
@@ -1263,3 +1326,4 @@ SceneRoots:
   - {fileID: 88808431}
   - {fileID: 422615375}
   - {fileID: 1159818219}
+  - {fileID: 1520501889}
