@@ -1,6 +1,8 @@
+using Fusion;
 using UnityEngine;
 
-public class Projectile : MonoBehaviour
+[RequireComponent(typeof(NetworkObject))]
+public class Projectile : NetworkBehaviour
 {
     private Vector3 moveDirection;
     private float moveSpeed;
@@ -11,6 +13,11 @@ public class Projectile : MonoBehaviour
     private PlayerHealth owner;
     private bool initialized;
 
+    public override void Spawned()
+    {
+        SetupCollision();
+    }
+
     public void Initialize(
         Vector3 direction,
         float speed,
@@ -18,6 +25,11 @@ public class Projectile : MonoBehaviour
         int projectileDamage,
         PlayerHealth projectileOwner)
     {
+        if (!Object.HasStateAuthority)
+        {
+            return;
+        }
+
         moveDirection = direction.normalized;
         moveSpeed = speed;
         lifeTime = duration;
@@ -30,25 +42,35 @@ public class Projectile : MonoBehaviour
         SetupCollision();
     }
 
-    private void Update()
+    public override void FixedUpdateNetwork()
     {
+        if (!Object.HasStateAuthority)
+        {
+            return;
+        }
+
         if (!initialized)
         {
             return;
         }
 
-        transform.position += moveDirection * moveSpeed * Time.deltaTime;
+        transform.position += moveDirection * moveSpeed * Runner.DeltaTime;
 
-        timer += Time.deltaTime;
+        timer += Runner.DeltaTime;
 
         if (timer >= lifeTime)
         {
-            Destroy(gameObject);
+            Runner.Despawn(Object);
         }
     }
 
     private void OnTriggerEnter(Collider other)
     {
+        if (Object == null || !Object.HasStateAuthority)
+        {
+            return;
+        }
+
         if (!initialized)
         {
             return;
@@ -68,7 +90,7 @@ public class Projectile : MonoBehaviour
 
         targetHealth.TakeDamage(damage);
 
-        Destroy(gameObject);
+        Runner.Despawn(Object);
     }
 
     private void SetupCollision()
