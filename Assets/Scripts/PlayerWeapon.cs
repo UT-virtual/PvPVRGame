@@ -1,18 +1,18 @@
 using System;
+using Fusion;
 using UnityEngine;
 
 [RequireComponent(typeof(PlayerHealth))]
 [RequireComponent(typeof(PlayerLook))]
 [RequireComponent(typeof(PlayerCamera))]
-public class PlayerWeapon : MonoBehaviour
+public class PlayerWeapon : NetworkBehaviour
 {
     [Header("Shoot")]
-    [SerializeField] private GameObject projectilePrefab;
+    [SerializeField] private NetworkPrefabRef projectilePrefab;
     [SerializeField] private float projectileSpeed = 18.0f;
     [SerializeField] private float projectileLifeTime = 3.0f;
     [SerializeField] private int projectileDamage = 1;
     [SerializeField] private float projectileSpawnDistance = 0.8f;
-    [SerializeField] private float projectileScale = 0.15f;
 
     [Header("Ammo")]
     [SerializeField] private int maxAmmo = 20;
@@ -20,7 +20,7 @@ public class PlayerWeapon : MonoBehaviour
 
     private PlayerHealth playerHealth;
     private PlayerLook playerLook;
-    private PlayerCamera PlayerCamera;
+    private PlayerCamera playerCamera;
 
     private int currentAmmo;
     private float fireTimer;
@@ -37,7 +37,7 @@ public class PlayerWeapon : MonoBehaviour
     {
         playerHealth = GetComponent<PlayerHealth>();
         playerLook = GetComponent<PlayerLook>();
-        PlayerCamera = GetComponent<PlayerCamera>();
+        playerCamera = GetComponent<PlayerCamera>();
 
         currentAmmo = maxAmmo;
         fireTimer = 0.0f;
@@ -58,6 +58,11 @@ public class PlayerWeapon : MonoBehaviour
 
     public void ReloadAmmo()
     {
+        if (!Object.HasStateAuthority)
+        {
+            return;
+        }
+
         currentAmmo = maxAmmo;
 
         OnReloaded?.Invoke();
@@ -68,6 +73,11 @@ public class PlayerWeapon : MonoBehaviour
 
     public void TryFireProjectile()
     {
+        if (!Object.HasStateAuthority)
+        {
+            return;
+        }
+
         if (fireTimer > 0.0f)
         {
             return;
@@ -96,38 +106,34 @@ public class PlayerWeapon : MonoBehaviour
 
     private void FireProjectile()
     {
+        if (!projectilePrefab.IsValid)
+        {
+            Debug.LogError($"{name}: Projectile Prefab is not assigned or is not a NetworkPrefabRef.");
+            return;
+        }
+
         Vector3 fireDirection = playerLook.ViewForward;
 
         Vector3 spawnPosition =
-            PlayerCamera.CameraPosition
+            playerCamera.CameraPosition
             + fireDirection * projectileSpawnDistance;
 
         Quaternion spawnRotation = Quaternion.LookRotation(fireDirection, playerLook.ViewUp);
 
-        GameObject projectileObject;
-
-        if (projectilePrefab != null)
-        {
-            projectileObject = Instantiate(projectilePrefab, spawnPosition, spawnRotation);
-        }
-        else
-        {
-            projectileObject = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-            projectileObject.transform.SetPositionAndRotation(spawnPosition, spawnRotation);
-            projectileObject.transform.localScale = Vector3.one * projectileScale;
-
-            Renderer renderer = projectileObject.GetComponent<Renderer>();
-            if (renderer != null)
-            {
-                renderer.material.color = Color.yellow;
-            }
-        }
+        NetworkObject projectileObject = Runner.Spawn(
+            projectilePrefab,
+            spawnPosition,
+            spawnRotation,
+            Object.InputAuthority
+        );
 
         Projectile projectile = projectileObject.GetComponent<Projectile>();
 
         if (projectile == null)
         {
-            projectile = projectileObject.AddComponent<Projectile>();
+            Debug.LogError($"{name}: Spawned projectile does not have Projectile component.");
+            Runner.Despawn(projectileObject);
+            return;
         }
 
         projectile.Initialize(

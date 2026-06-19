@@ -267,7 +267,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d29aa7d5ed7124b52812c2e12576fece, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerMove
-  moveSpeed: 6
+  moveSpeed: 8
   gravity: 6
   jumpSpeed: 6
   planetCenter: {fileID: 5110394550287685901, guid: 6efab54670793466cb5125952d5cd355, type: 3}
@@ -323,12 +323,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 27dec7f931a8947ddb07b399d5b35dbb, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerWeapon
-  projectilePrefab: {fileID: 0}
+  projectilePrefab:
+    RawGuidValue: 656e6d695bfca498e95fd35ea032dbad
   projectileSpeed: 18
   projectileLifeTime: 3
   projectileDamage: 1
   projectileSpawnDistance: 0.8
-  projectileScale: 0.15
   maxAmmo: 20
   fireInterval: 0.15
 --- !u!114 &7364985783213358917
@@ -349,6 +349,7 @@ MonoBehaviour:
   NestedObjects: []
   NetworkedBehaviours:
   - {fileID: 3109998553241953340}
+  - {fileID: 732832035580652995}
   - {fileID: 4508338257469429350}
   - {fileID: 731677185610588365}
   ForceRemoteRenderTimeframe: 0

@@ -59,19 +59,6 @@ public class PlayerController : NetworkBehaviour
     float deltaTime = Runner.DeltaTime;
 
     /*
-     * Client側の自分のPlayerでは、カメラ反応用に視点だけ先に更新する。
-     * 移動はここではしない。
-     */
-    if (Object.HasInputAuthority && !Object.HasStateAuthority)
-    {
-        playerMove.ProbeGround();
-        playerMove.UpdateAimBasis();
-
-        // Client側の見た目・カメラ用の向き
-        playerLook.ApplyLook(input.LookInput);
-    }
-
-    /*
      * 移動・ジャンプ・射撃・リロードの正式処理はHostだけ。
      */
     if (!Object.HasStateAuthority)
@@ -92,31 +79,23 @@ public class PlayerController : NetworkBehaviour
     playerMove.UpdateAimBasis();
 
     /*
-     * Host側の正式な向き更新。
+     * Hostから見たClient Playerの向き。
      *
-     * Host自身のPlayer:
-     *   Hostは自分で入力を処理するので LookInput を使う。
-     *
-     * ClientのPlayer:
-     *   Clientが実際に向いている AimForward / ViewForward を使う。
-     *   これにより、Client画面の向きとHostから見える向きがズレにくくなる。
+     * Host自身のPlayerは、すでに上の Object.HasInputAuthority ブロックで
+     * ApplyLook済みなので、ここで二重にApplyLookしない。
      */
-    if (Object.HasInputAuthority)
+    if (!Object.HasInputAuthority)
+{
+    if (input.HasLookDirection != 0)
     {
-        // Host自身のPlayer用。二重回転はしない。
-        playerLook.ApplyLook(input.LookInput);
-    }
-    else if (input.HasLookDirection != 0)
-    {
-        // ClientのPlayer用。Clientが送ってきた実際の向きに合わせる。
         playerMove.SetAimForward(input.AimForward);
         playerLook.SetPitchFromViewForward(input.ViewForward);
     }
     else
     {
-        // 念のためのフォールバック
         playerLook.ApplyLook(input.LookInput);
     }
+}
 
     playerMove.MoveOnSurface(input.MoveInput, deltaTime);
 
@@ -155,5 +134,22 @@ public class PlayerController : NetworkBehaviour
 public Vector3 GetNetworkViewForward()
 {
     return playerLook.ViewForward;
+}
+
+public void ApplyLocalLook(Vector2 lookInput)
+{
+    if (playerHealth != null && playerHealth.IsDead)
+    {
+        return;
+    }
+
+    if (lookInput.sqrMagnitude < 0.000001f)
+    {
+        return;
+    }
+
+    playerMove.ProbeGround();
+    playerMove.UpdateAimBasis();
+    playerLook.ApplyLook(lookInput);
 }
 }

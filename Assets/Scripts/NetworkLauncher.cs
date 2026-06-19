@@ -96,7 +96,14 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
 
     private void Update()
 {
-    queuedLookInput += ReadLookInput();
+    Vector2 lookInput = ReadLookInput();
+
+    queuedLookInput += lookInput;
+
+    if (localPlayerController != null)
+    {
+        localPlayerController.ApplyLocalLook(lookInput);
+    }
 
     if (Keyboard.current != null)
     {
