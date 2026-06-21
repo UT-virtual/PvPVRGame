@@ -6,6 +6,7 @@ public class PlayerHealth : MonoBehaviour
 
     private int currentHealth;
     private bool isDead;
+    public event System.Action<int, int> OnHealthChanged;
 
     public int CurrentHealth => currentHealth;
     public int MaxHealth => maxHealth;
@@ -30,6 +31,7 @@ public class PlayerHealth : MonoBehaviour
 
         currentHealth -= damage;
         currentHealth = Mathf.Max(currentHealth, 0);
+        OnHealthChanged?.Invoke(currentHealth, maxHealth);
 
         Debug.Log($"{gameObject.name} HP: {currentHealth}/{maxHealth}");
 

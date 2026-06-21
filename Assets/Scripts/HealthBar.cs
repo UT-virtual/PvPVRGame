@@ -5,6 +5,7 @@ using UnityEngine.UI;
 
 public class HealthBar : MonoBehaviour {
     [SerializeField] private int maxHealth = 10;
+    [SerializeField] private PlayerHealth playerHealth;
 
     private float currentHealth;
     private float DisplayHealth;
@@ -25,6 +26,11 @@ public class HealthBar : MonoBehaviour {
         originalPos = barTransform.localPosition;
     }
 
+    private void Start()
+    {
+        playerHealth.OnHealthChanged += UpdateBar;
+    }
+
     void Update()
     {
         DisplayHealth = Mathf.Lerp(DisplayHealth, currentHealth, healthLerpSpeed);
@@ -38,9 +44,10 @@ public class HealthBar : MonoBehaviour {
                 barTransform.localPosition = originalPos; // 元の位置に戻す
         }
     }
-    public void TakeDamage(int damage)
+
+    private void UpdateBar(int current, int max)
     {
-        currentHealth -= damage;
+        currentHealth = current;
         shakeTimer = shakeDuration;
     }
 }
