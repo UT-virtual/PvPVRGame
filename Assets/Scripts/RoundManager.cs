@@ -8,21 +8,51 @@ public class RoundManager : MonoBehaviour
 {
     public static RoundManager Instance { get; private set; }
 
+    private enum GamePhase
+    {
+        WaitingForReady,
+        RoundPlaying,
+        RoundEnding,
+        MatchFinished
+    }
+
+    [Header("Ready")]
+    [SerializeField] private int minPlayersToStart = 2;
+
     [Header("Round")]
     [SerializeField] private int maxRoundCount = 3;
     [SerializeField] private float nextRoundDelay = 2.0f;
+
+    [Header("Match Reset")]
+    [SerializeField] private float returnToWaitingDelay = 3.0f;
 
     [Header("Respawn")]
     [SerializeField] private Transform spawnPointsRoot;
     [SerializeField] private List<Transform> spawnPoints = new();
     [SerializeField] private bool shuffleSpawnPointsEachRound = true;
 
+    [Header("Health Items")]
+    [SerializeField] private HealthItemSpawner healthItemSpawner;
+
     private readonly List<PlayerHealth> players = new();
     private readonly Dictionary<PlayerHealth, int> points = new();
+    private readonly Dictionary<PlayerHealth, bool> readyStates = new();
 
     private int currentRound = 1;
-    private bool isRoundEnding;
-    private bool isMatchFinished;
+    private GamePhase phase = GamePhase.WaitingForReady;
+
+    public bool CanUseWeapons => phase == GamePhase.RoundPlaying;
+    public bool IsWaitingForReady => phase == GamePhase.WaitingForReady;
+    public bool IsRoundPlaying => phase == GamePhase.RoundPlaying;
+    public bool IsMatchFinished => phase == GamePhase.MatchFinished;
+
+    public int RegisteredPlayerCount
+    {
+        get
+        {
+            return players.Count(player => player != null);
+        }
+    }
 
     private void Awake()
     {
@@ -33,12 +63,16 @@ public class RoundManager : MonoBehaviour
         }
 
         Instance = this;
+
         Debug.Log("[RoundManager] Awake");
     }
 
     private void Start()
     {
-        Debug.Log($"Round {currentRound} Start");
+        phase = GamePhase.WaitingForReady;
+
+        Debug.Log("[RoundManager] Waiting for players to ready.");
+        Debug.Log("[RoundManager] Press Enter or ZL to ready.");
 
         LogSpawnPointSettings();
     }
@@ -57,10 +91,14 @@ public class RoundManager : MonoBehaviour
 
         players.Add(player);
         points[player] = 0;
+        readyStates[player] = false;
 
         player.OnDied += HandlePlayerDied;
 
-        Debug.Log($"[RoundManager] Registered: {player.gameObject.name}, Count={players.Count}");
+        Debug.Log(
+            $"[RoundManager] Registered: {player.gameObject.name}, " +
+            $"Count={players.Count}, Ready=False"
+        );
     }
 
     public void UnregisterPlayer(PlayerHealth player)
@@ -74,17 +112,100 @@ public class RoundManager : MonoBehaviour
 
         players.Remove(player);
         points.Remove(player);
+        readyStates.Remove(player);
 
         Debug.Log($"[RoundManager] Unregistered: {player.gameObject.name}, Count={players.Count}");
+
+        TryStartFirstRound();
+    }
+
+    public void SetPlayerReady(PlayerHealth player)
+    {
+        if (player == null)
+        {
+            return;
+        }
+
+        if (phase != GamePhase.WaitingForReady)
+        {
+            return;
+        }
+
+        if (!players.Contains(player))
+        {
+            Debug.LogWarning($"[RoundManager] Ready ignored. Player is not registered: {player.gameObject.name}");
+            return;
+        }
+
+        if (readyStates.TryGetValue(player, out bool alreadyReady) && alreadyReady)
+        {
+            return;
+        }
+
+        readyStates[player] = true;
+
+        Debug.Log($"[RoundManager] Ready: {player.gameObject.name}");
+
+        LogReadyStates();
+        TryStartFirstRound();
+    }
+
+    private void TryStartFirstRound()
+    {
+        if (phase != GamePhase.WaitingForReady)
+        {
+            return;
+        }
+
+        List<PlayerHealth> validPlayers = players
+            .Where(player => player != null)
+            .ToList();
+
+        if (validPlayers.Count < minPlayersToStart)
+        {
+            Debug.Log(
+                $"[RoundManager] Waiting for players. " +
+                $"Players={validPlayers.Count}, Required={minPlayersToStart}"
+            );
+            return;
+        }
+
+        foreach (PlayerHealth player in validPlayers)
+        {
+            if (!readyStates.TryGetValue(player, out bool ready) || !ready)
+            {
+                Debug.Log("[RoundManager] Waiting for all players to ready.");
+                return;
+            }
+        }
+
+        StartFirstRound();
+    }
+
+    private void StartFirstRound()
+    {
+        currentRound = 1;
+        phase = GamePhase.RoundPlaying;
+
+        DespawnProjectiles();
+        RespawnAllPlayersWithoutOverlap();
+        SetupHealthItemsForCurrentPlayers();
+
+        Debug.Log($"Round {currentRound} Start");
     }
 
     private void HandlePlayerDied(PlayerHealth deadPlayer)
     {
+        if (deadPlayer == null)
+        {
+            return;
+        }
+
         Debug.Log($"[RoundManager] HandlePlayerDied: {deadPlayer.gameObject.name}");
 
-        if (isRoundEnding || isMatchFinished)
+        if (phase != GamePhase.RoundPlaying)
         {
-            Debug.Log("[RoundManager] Ignored because round is ending or match finished.");
+            Debug.Log($"[RoundManager] Death ignored. Current phase={phase}");
             return;
         }
 
@@ -113,7 +234,9 @@ public class RoundManager : MonoBehaviour
     {
         Debug.Log("[RoundManager] EndRoundCoroutine started");
 
-        isRoundEnding = true;
+        phase = GamePhase.RoundEnding;
+
+        ClearHealthItems();
 
         if (roundWinner != null)
         {
@@ -135,7 +258,7 @@ public class RoundManager : MonoBehaviour
 
         if (currentRound >= maxRoundCount)
         {
-            FinishMatch();
+            yield return StartCoroutine(FinishMatchAndReturnToWaitingCoroutine());
             yield break;
         }
 
@@ -143,9 +266,80 @@ public class RoundManager : MonoBehaviour
 
         RespawnAllPlayersWithoutOverlap();
 
-        isRoundEnding = false;
+        phase = GamePhase.RoundPlaying;
+
+        SetupHealthItemsForCurrentPlayers();
 
         Debug.Log($"Round {currentRound} Start");
+    }
+
+    private IEnumerator FinishMatchAndReturnToWaitingCoroutine()
+    {
+        phase = GamePhase.MatchFinished;
+
+        ClearHealthItems();
+        DespawnProjectiles();
+
+        LogMatchResult();
+
+        Debug.Log($"[RoundManager] Match finished. Returning to waiting state in {returnToWaitingDelay} seconds.");
+
+        yield return new WaitForSeconds(returnToWaitingDelay);
+
+        ResetMatchStateToWaiting();
+    }
+
+    private void ResetMatchStateToWaiting()
+    {
+        ClearHealthItems();
+        DespawnProjectiles();
+
+        currentRound = 1;
+
+        List<PlayerHealth> validPlayers = players
+            .Where(player => player != null)
+            .ToList();
+
+        foreach (PlayerHealth player in validPlayers)
+        {
+            points[player] = 0;
+            readyStates[player] = false;
+        }
+
+        RespawnAllPlayersWithoutOverlap();
+
+        phase = GamePhase.WaitingForReady;
+
+        Debug.Log("[RoundManager] Returned to waiting state.");
+        Debug.Log("[RoundManager] Press Enter or ZL to ready.");
+        LogReadyStates();
+    }
+
+    private void LogMatchResult()
+    {
+        if (points.Count == 0)
+        {
+            Debug.Log("Match finished, but no players were registered.");
+            return;
+        }
+
+        int highestPoint = points.Values.Max();
+
+        List<PlayerHealth> winners = points
+            .Where(pair => pair.Value == highestPoint)
+            .Select(pair => pair.Key)
+            .Where(player => player != null)
+            .ToList();
+
+        if (winners.Count == 1)
+        {
+            Debug.Log($"Match Winner: {winners[0].gameObject.name}, Point: {highestPoint}");
+        }
+        else
+        {
+            string winnerNames = string.Join(", ", winners.Select(player => player.gameObject.name));
+            Debug.Log($"Match Draw: {winnerNames}, Point: {highestPoint}");
+        }
     }
 
     private void RespawnAllPlayersWithoutOverlap()
@@ -264,6 +458,71 @@ public class RoundManager : MonoBehaviour
         }
     }
 
+    private void SetupHealthItemsForCurrentPlayers()
+    {
+        HealthItemSpawner itemSpawner = GetHealthItemSpawner();
+
+        if (itemSpawner == null)
+        {
+            Debug.LogWarning("[RoundManager] HealthItemSpawner was not found.");
+            return;
+        }
+
+        itemSpawner.SetupItemsForPlayerCount(RegisteredPlayerCount);
+    }
+
+    private void ClearHealthItems()
+    {
+        HealthItemSpawner itemSpawner = GetHealthItemSpawner();
+
+        if (itemSpawner == null)
+        {
+            return;
+        }
+
+        itemSpawner.ClearAllItems();
+    }
+
+    private HealthItemSpawner GetHealthItemSpawner()
+    {
+        if (healthItemSpawner != null)
+        {
+            return healthItemSpawner;
+        }
+
+        healthItemSpawner = FindFirstObjectByType<HealthItemSpawner>();
+        return healthItemSpawner;
+    }
+
+    private void LogReadyStates()
+    {
+        List<PlayerHealth> validPlayers = players
+            .Where(player => player != null)
+            .ToList();
+
+        int readyCount = 0;
+
+        foreach (PlayerHealth player in validPlayers)
+        {
+            bool ready = readyStates.TryGetValue(player, out bool value) && value;
+
+            if (ready)
+            {
+                readyCount++;
+            }
+
+            Debug.Log(
+                $"[RoundManager] ReadyState: " +
+                $"{player.gameObject.name}, Ready={ready}"
+            );
+        }
+
+        Debug.Log(
+            $"[RoundManager] Ready Count: " +
+            $"{readyCount}/{validPlayers.Count}, RequiredPlayers={minPlayersToStart}"
+        );
+    }
+
     private void LogSpawnPointSettings()
     {
         List<Transform> availableSpawnPoints = GetAvailableSpawnPoints();
@@ -336,35 +595,6 @@ public class RoundManager : MonoBehaviour
             }
 
             projectile.Runner.Despawn(networkObject);
-        }
-    }
-
-    private void FinishMatch()
-    {
-        isMatchFinished = true;
-
-        if (points.Count == 0)
-        {
-            Debug.Log("Match finished, but no players were registered.");
-            return;
-        }
-
-        int highestPoint = points.Values.Max();
-
-        List<PlayerHealth> winners = points
-            .Where(pair => pair.Value == highestPoint)
-            .Select(pair => pair.Key)
-            .Where(player => player != null)
-            .ToList();
-
-        if (winners.Count == 1)
-        {
-            Debug.Log($"Match Winner: {winners[0].gameObject.name}, Point: {highestPoint}");
-        }
-        else
-        {
-            string winnerNames = string.Join(", ", winners.Select(player => player.gameObject.name));
-            Debug.Log($"Match Draw: {winnerNames}, Point: {highestPoint}");
         }
     }
 }
