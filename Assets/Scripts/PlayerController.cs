@@ -1,6 +1,6 @@
+using System;
 using Fusion;
 using UnityEngine;
-using System;
 
 [RequireComponent(typeof(NetworkObject))]
 [RequireComponent(typeof(CharacterController))]
@@ -19,10 +19,8 @@ public class PlayerController : NetworkBehaviour
 
     [Networked] private NetworkButtons PreviousButtons { get; set; }
 
-    // イベント宣言
-    public event Action OnTookDamage;   //被弾
-    public event Action OnDied;         //死亡
-    
+    public event Action OnTookDamage;
+    public event Action OnDied;
 
     private void Awake()
     {
@@ -64,9 +62,6 @@ public class PlayerController : NetworkBehaviour
 
         float deltaTime = Runner.DeltaTime;
 
-        /*
-        * 移動・ジャンプ・射撃・リロードの正式処理はHostだけ。
-        */
         if (!Object.HasStateAuthority)
         {
             return;
@@ -77,19 +72,19 @@ public class PlayerController : NetworkBehaviour
 
         bool jumpPressed = pressedButtons.IsSet((int)PlayerInputButton.Jump);
         bool reloadPressed = pressedButtons.IsSet((int)PlayerInputButton.Reload);
+        bool readyPressed = pressedButtons.IsSet((int)PlayerInputButton.Ready);
         bool fireHeld = input.Buttons.IsSet((int)PlayerInputButton.Fire);
+
+        if (readyPressed && RoundManager.Instance != null)
+        {
+            RoundManager.Instance.SetPlayerReady(playerHealth);
+        }
 
         playerWeapon.Tick(deltaTime);
 
         playerMove.ProbeGround();
         playerMove.UpdateAimBasis();
 
-        /*
-        * Hostから見たClient Playerの向き。
-        *
-        * Host自身のPlayerは、すでに上の Object.HasInputAuthority ブロックで
-        * ApplyLook済みなので、ここで二重にApplyLookしない。
-        */
         if (!Object.HasInputAuthority)
         {
             if (input.HasLookDirection != 0)
@@ -100,7 +95,7 @@ public class PlayerController : NetworkBehaviour
             else
             {
                 playerLook.ApplyLook(input.LookInput);
-            }  
+            }
         }
 
         playerMove.MoveOnSurface(input.MoveInput, deltaTime);
@@ -110,6 +105,13 @@ public class PlayerController : NetworkBehaviour
 
         playerMove.AlignToSurface(deltaTime);
         playerMove.ApplyGravityAndJump(jumpPressed, deltaTime);
+
+        bool canUseWeapon = RoundManager.Instance == null || RoundManager.Instance.CanUseWeapons;
+
+        if (!canUseWeapon)
+        {
+            return;
+        }
 
         if (reloadPressed)
         {
