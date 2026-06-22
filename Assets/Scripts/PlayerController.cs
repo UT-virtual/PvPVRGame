@@ -11,6 +11,9 @@ using UnityEngine;
 [RequireComponent(typeof(PlayerWeapon))]
 public class PlayerController : NetworkBehaviour
 {
+    [Header("Animation")]
+    [SerializeField] private Animator animator;
+
     private PlayerHealth playerHealth;
     private PlayerMove playerMove;
     private PlayerLook playerLook;
@@ -18,6 +21,10 @@ public class PlayerController : NetworkBehaviour
     private PlayerWeapon playerWeapon;
 
     [Networked] private NetworkButtons PreviousButtons { get; set; }
+
+    [Networked] private NetworkBool NetworkedIsRunning { get; set; }
+    [Networked] private float NetworkedMoveX { get; set; }
+    [Networked] private float NetworkedMoveY { get; set; }
 
     public event Action OnTookDamage;
     public event Action OnDied;
@@ -29,6 +36,11 @@ public class PlayerController : NetworkBehaviour
         playerLook = GetComponent<PlayerLook>();
         playerCamera = GetComponent<PlayerCamera>();
         playerWeapon = GetComponent<PlayerWeapon>();
+
+        if (animator == null)
+        {
+            animator = GetComponentInChildren<Animator>();
+        }
     }
 
     public override void Spawned()
@@ -52,6 +64,13 @@ public class PlayerController : NetworkBehaviour
     {
         if (playerHealth != null && playerHealth.IsDead)
         {
+            if (Object.HasStateAuthority)
+            {
+                NetworkedIsRunning = false;
+                NetworkedMoveX = 0.0f;
+                NetworkedMoveY = 0.0f;
+            }
+
             return;
         }
 
@@ -74,6 +93,17 @@ public class PlayerController : NetworkBehaviour
         bool reloadPressed = pressedButtons.IsSet((int)PlayerInputButton.Reload);
         bool readyPressed = pressedButtons.IsSet((int)PlayerInputButton.Ready);
         bool fireHeld = input.Buttons.IsSet((int)PlayerInputButton.Fire);
+
+        Vector2 moveInput = input.MoveInput;
+
+        if (moveInput.sqrMagnitude > 1.0f)
+        {
+            moveInput.Normalize();
+        }
+
+        NetworkedMoveX = moveInput.x;
+        NetworkedMoveY = moveInput.y;
+        NetworkedIsRunning = moveInput.sqrMagnitude > 0.01f;
 
         if (readyPressed && RoundManager.Instance != null)
         {
@@ -98,7 +128,7 @@ public class PlayerController : NetworkBehaviour
             }
         }
 
-        playerMove.MoveOnSurface(input.MoveInput, deltaTime);
+        playerMove.MoveOnSurface(moveInput, deltaTime);
 
         playerMove.ProbeGround();
         playerMove.UpdateAimBasis();
@@ -122,6 +152,20 @@ public class PlayerController : NetworkBehaviour
         {
             playerWeapon.TryFireProjectile();
         }
+    }
+
+    public override void Render()
+    {
+        if (animator == null)
+        {
+            return;
+        }
+
+        bool isRunning = NetworkedIsRunning && (playerHealth == null || !playerHealth.IsDead);
+
+        animator.SetBool("isRunning", isRunning);
+        animator.SetFloat("moveX", NetworkedMoveX);
+        animator.SetFloat("moveY", NetworkedMoveY);
     }
 
     private void LateUpdate()

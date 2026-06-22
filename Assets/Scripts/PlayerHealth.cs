@@ -118,6 +118,41 @@ public class PlayerHealth : NetworkBehaviour
         }
     }
 
+    public bool Heal(int amount)
+    {
+        if (Object != null && !Object.HasStateAuthority)
+        {
+            return false;
+        }
+
+        if (IsDead)
+        {
+            return false;
+        }
+
+        if (amount <= 0)
+        {
+            return false;
+        }
+
+        if (NetworkedCurrentHealth >= maxHealth)
+        {
+            return false;
+        }
+
+        int beforeHealth = NetworkedCurrentHealth;
+
+        NetworkedCurrentHealth += amount;
+        NetworkedCurrentHealth = Mathf.Min(NetworkedCurrentHealth, maxHealth);
+
+        Debug.Log(
+            $"{gameObject.name} healed: " +
+            $"{beforeHealth} -> {NetworkedCurrentHealth}/{maxHealth}"
+        );
+
+        return NetworkedCurrentHealth > beforeHealth;
+    }
+
     private void Die()
     {
         if (IsDead)
