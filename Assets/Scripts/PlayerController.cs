@@ -131,16 +131,30 @@ public class PlayerController : NetworkBehaviour
             return;
         }
 
+        if (playerHealth != null && playerHealth.IsDead)
+        {
+            return;
+        }
+
+        playerMove.ProbeGround();
+        playerMove.UpdateAimBasis();
+
         playerCamera.UpdateCameraTarget();
     }
 
     public Vector3 GetNetworkAimForward()
     {
+        playerMove.ProbeGround();
+        playerMove.UpdateAimBasis();
+
         return playerMove.AimForward;
     }
 
     public Vector3 GetNetworkViewForward()
     {
+        playerMove.ProbeGround();
+        playerMove.UpdateAimBasis();
+
         return playerLook.ViewForward;
     }
 
@@ -151,13 +165,14 @@ public class PlayerController : NetworkBehaviour
             return;
         }
 
+        playerMove.ProbeGround();
+        playerMove.UpdateAimBasis();
+
         if (lookInput.sqrMagnitude < 0.000001f)
         {
             return;
         }
 
-        playerMove.ProbeGround();
-        playerMove.UpdateAimBasis();
         playerLook.ApplyLook(lookInput);
     }
 }
