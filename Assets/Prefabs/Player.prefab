@@ -240,6 +240,10 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerHealth
   maxHealth: 10
+  visualRoot: {fileID: 0}
+  _NetworkedCurrentHealth: 0
+  _NetworkedIsDead:
+    _value: 0
 --- !u!114 &2834914355632253801
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -267,7 +271,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d29aa7d5ed7124b52812c2e12576fece, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerMove
-  moveSpeed: 8
+  moveSpeed: 20
   gravity: 6
   jumpSpeed: 6
   planetCenter: {fileID: 5110394550287685901, guid: 6efab54670793466cb5125952d5cd355, type: 3}
@@ -349,6 +353,7 @@ MonoBehaviour:
   NestedObjects: []
   NetworkedBehaviours:
   - {fileID: 3109998553241953340}
+  - {fileID: 6087450692815741008}
   - {fileID: 732832035580652995}
   - {fileID: 4508338257469429350}
   - {fileID: 731677185610588365}
