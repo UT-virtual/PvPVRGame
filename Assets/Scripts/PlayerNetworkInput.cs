@@ -17,4 +17,8 @@ public struct PlayerNetworkInput : INetworkInput
     public Vector3 AimForward;
     public Vector3 ViewForward;
     public byte HasLookDirection;
+    
+    //VR用のデータ
+    public NetworkBool IsVR;
+    public Quaternion HMDRotation;
 }

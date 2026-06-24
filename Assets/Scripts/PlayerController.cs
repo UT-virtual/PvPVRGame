@@ -92,15 +92,24 @@ public class PlayerController : NetworkBehaviour
         */
         if (!Object.HasInputAuthority)
         {
-            if (input.HasLookDirection != 0)
+            if (input.IsVR)
             {
-                playerMove.SetAimForward(input.AimForward);
-                playerLook.SetPitchFromViewForward(input.ViewForward);
+                // Hostから見たVRプレイヤーの処理
+                playerLook.ApplyLook(input.LookInput, true, input.HMDRotation);
             }
             else
             {
-                playerLook.ApplyLook(input.LookInput);
-            }  
+                //既存処理
+                if (input.HasLookDirection != 0)
+                {
+                    playerMove.SetAimForward(input.AimForward);
+                    playerLook.SetPitchFromViewForward(input.ViewForward);
+                }
+                else
+                {
+                    playerLook.ApplyLook(input.LookInput, false, Quaternion.identity);
+                }  
+            }
         }
 
         playerMove.MoveOnSurface(input.MoveInput, deltaTime);
@@ -142,20 +151,20 @@ public class PlayerController : NetworkBehaviour
         return playerLook.ViewForward;
     }
 
-    public void ApplyLocalLook(Vector2 lookInput)
+    public void ApplyLocalLook(Vector2 lookInput, bool isVR, Quaternion hmdRotation)
     {
         if (playerHealth != null && playerHealth.IsDead)
         {
             return;
         }
 
-        if (lookInput.sqrMagnitude < 0.000001f)
+        if (!isVR && lookInput.sqrMagnitude < 0.000001f)
         {
             return;
         }
 
         playerMove.ProbeGround();
         playerMove.UpdateAimBasis();
-        playerLook.ApplyLook(lookInput);
+        playerLook.ApplyLook(lookInput, isVR, hmdRotation);
     }
 }
