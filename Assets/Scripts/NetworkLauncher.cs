@@ -22,10 +22,14 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
     private readonly Dictionary<PlayerRef, NetworkObject> spawnedPlayers = new();
 
     private string statusText = "Ready";
-    private bool wasLeftTriggerPressed;
+
     private Vector2 queuedLookInput;
     private bool jumpQueued;
     private bool reloadQueued;
+    private bool readyQueued;
+    private bool wasLeftTriggerPressed;
+
+    private PlayerController localPlayerController;
 
     private async void StartGame(GameMode gameMode)
     {
@@ -95,42 +99,62 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
     }
 
     private void Update()
-{
-    Vector2 lookInput = ReadLookInput();
-
-    queuedLookInput += lookInput;
-
-    if (localPlayerController != null)
     {
-        localPlayerController.ApplyLocalLook(lookInput);
+        Vector2 lookInput = ReadLookInput();
+
+        queuedLookInput += lookInput;
+
+        if (localPlayerController != null)
+        {
+            localPlayerController.ApplyLocalLook(lookInput);
+        }
+
+        if (Keyboard.current != null)
+        {
+            if (Keyboard.current.spaceKey.wasPressedThisFrame)
+            {
+                jumpQueued = true;
+            }
+
+            if (Keyboard.current.kKey.wasPressedThisFrame)
+            {
+                reloadQueued = true;
+            }
+
+            if (Keyboard.current.enterKey.wasPressedThisFrame)
+            {
+                readyQueued = true;
+            }
+
+            if (Keyboard.current.numpadEnterKey.wasPressedThisFrame)
+            {
+                readyQueued = true;
+            }
+        }
+
+        if (Gamepad.current != null)
+        {
+            if (Gamepad.current.buttonEast.wasPressedThisFrame)
+            {
+                jumpQueued = true;
+            }
+
+            float leftTriggerValue = Gamepad.current.leftTrigger.ReadValue();
+            bool leftTriggerPressed = leftTriggerValue > 0.5f;
+
+            if (leftTriggerPressed && !wasLeftTriggerPressed)
+            {
+                readyQueued = true;
+                reloadQueued = true;
+            }
+
+            wasLeftTriggerPressed = leftTriggerPressed;
+        }
+        else
+        {
+            wasLeftTriggerPressed = false;
+        }
     }
-
-    if (Keyboard.current != null)
-    {
-        if (Keyboard.current.spaceKey.wasPressedThisFrame)
-        {
-            jumpQueued = true;
-        }
-
-        if (Keyboard.current.kKey.wasPressedThisFrame)
-        {
-            reloadQueued = true;
-        }
-    }
-
-    if (Gamepad.current != null)
-    {
-        if (Gamepad.current.buttonEast.wasPressedThisFrame)
-        {
-            jumpQueued = true;
-        }
-
-        if (Gamepad.current.leftTrigger.ReadValue() > 0.5f)
-        {
-            reloadQueued = true;
-        }
-    }
-}
 
     private void OnGUI()
     {
@@ -196,39 +220,41 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
     }
 
     public void OnInput(NetworkRunner runner, NetworkInput input)
-{
-    PlayerNetworkInput data = new PlayerNetworkInput();
-
-    data.MoveInput = ReadMoveInput();
-    data.LookInput = queuedLookInput;
-
-    if (localPlayerController != null)
     {
-        data.AimForward = localPlayerController.GetNetworkAimForward();
-        data.ViewForward = localPlayerController.GetNetworkViewForward();
-        data.HasLookDirection = 1;
+        PlayerNetworkInput data = new PlayerNetworkInput();
+
+        data.MoveInput = ReadMoveInput();
+        data.LookInput = queuedLookInput;
+
+        if (localPlayerController != null)
+        {
+            data.AimForward = localPlayerController.GetNetworkAimForward();
+            data.ViewForward = localPlayerController.GetNetworkViewForward();
+            data.HasLookDirection = 1;
+        }
+        else
+        {
+            data.AimForward = Vector3.zero;
+            data.ViewForward = Vector3.zero;
+            data.HasLookDirection = 0;
+        }
+
+        NetworkButtons buttons = default;
+
+        buttons.Set((int)PlayerInputButton.Jump, jumpQueued);
+        buttons.Set((int)PlayerInputButton.Fire, ReadFireHeldInput());
+        buttons.Set((int)PlayerInputButton.Reload, reloadQueued);
+        buttons.Set((int)PlayerInputButton.Ready, readyQueued);
+
+        data.Buttons = buttons;
+
+        input.Set(data);
+
+        queuedLookInput = Vector2.zero;
+        jumpQueued = false;
+        reloadQueued = false;
+        readyQueued = false;
     }
-    else
-    {
-        data.AimForward = Vector3.zero;
-        data.ViewForward = Vector3.zero;
-        data.HasLookDirection = 0;
-    }
-
-    NetworkButtons buttons = default;
-
-    buttons.Set((int)PlayerInputButton.Jump, jumpQueued);
-    buttons.Set((int)PlayerInputButton.Fire, ReadFireHeldInput());
-    buttons.Set((int)PlayerInputButton.Reload, reloadQueued);
-
-    data.Buttons = buttons;
-
-    input.Set(data);
-
-    queuedLookInput = Vector2.zero;
-    jumpQueued = false;
-    reloadQueued = false;
-}
 
     private Vector2 ReadMoveInput()
     {
@@ -243,10 +269,25 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
         {
             Vector2 keyboardInput = Vector2.zero;
 
-            if (Keyboard.current.wKey.isPressed) keyboardInput.y += 1.0f;
-            if (Keyboard.current.sKey.isPressed) keyboardInput.y -= 1.0f;
-            if (Keyboard.current.dKey.isPressed) keyboardInput.x += 1.0f;
-            if (Keyboard.current.aKey.isPressed) keyboardInput.x -= 1.0f;
+            if (Keyboard.current.wKey.isPressed)
+            {
+                keyboardInput.y += 1.0f;
+            }
+
+            if (Keyboard.current.sKey.isPressed)
+            {
+                keyboardInput.y -= 1.0f;
+            }
+
+            if (Keyboard.current.dKey.isPressed)
+            {
+                keyboardInput.x += 1.0f;
+            }
+
+            if (Keyboard.current.aKey.isPressed)
+            {
+                keyboardInput.x -= 1.0f;
+            }
 
             if (keyboardInput.sqrMagnitude > 1.0f)
             {
@@ -276,10 +317,25 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
 
         if (Keyboard.current != null)
         {
-            if (Keyboard.current.leftArrowKey.isPressed) lookInput.x -= keyboardLookSpeed * Time.deltaTime;
-            if (Keyboard.current.rightArrowKey.isPressed) lookInput.x += keyboardLookSpeed * Time.deltaTime;
-            if (Keyboard.current.upArrowKey.isPressed) lookInput.y += keyboardLookSpeed * Time.deltaTime;
-            if (Keyboard.current.downArrowKey.isPressed) lookInput.y -= keyboardLookSpeed * Time.deltaTime;
+            if (Keyboard.current.leftArrowKey.isPressed)
+            {
+                lookInput.x -= keyboardLookSpeed * Time.deltaTime;
+            }
+
+            if (Keyboard.current.rightArrowKey.isPressed)
+            {
+                lookInput.x += keyboardLookSpeed * Time.deltaTime;
+            }
+
+            if (Keyboard.current.upArrowKey.isPressed)
+            {
+                lookInput.y += keyboardLookSpeed * Time.deltaTime;
+            }
+
+            if (Keyboard.current.downArrowKey.isPressed)
+            {
+                lookInput.y -= keyboardLookSpeed * Time.deltaTime;
+            }
         }
 
         if (Gamepad.current != null)
@@ -291,21 +347,6 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
         }
 
         return lookInput;
-    }
-
-    private bool ReadJumpInput()
-    {
-        if (Keyboard.current != null && Keyboard.current.spaceKey.wasPressedThisFrame)
-        {
-            return true;
-        }
-
-        if (Gamepad.current != null && Gamepad.current.buttonEast.wasPressedThisFrame)
-        {
-            return true;
-        }
-
-        return false;
     }
 
     private bool ReadFireHeldInput()
@@ -323,50 +364,19 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
         return false;
     }
 
-    private bool ReadReloadInput()
+    public void RegisterLocalPlayer(PlayerController playerController)
     {
-        bool reload = false;
-
-        if (Keyboard.current != null && Keyboard.current.kKey.wasPressedThisFrame)
-        {
-            reload = true;
-        }
-
-        if (Gamepad.current != null)
-        {
-            float leftTriggerValue = Gamepad.current.leftTrigger.ReadValue();
-            bool leftTriggerPressed = leftTriggerValue > 0.5f;
-
-            if (leftTriggerPressed && !wasLeftTriggerPressed)
-            {
-                reload = true;
-            }
-
-            wasLeftTriggerPressed = leftTriggerPressed;
-        }
-        else
-        {
-            wasLeftTriggerPressed = false;
-        }
-
-        return reload;
+        localPlayerController = playerController;
+        Debug.Log($"Registered local player: {playerController.name}");
     }
 
-    private PlayerController localPlayerController;
-
-public void RegisterLocalPlayer(PlayerController playerController)
-{
-    localPlayerController = playerController;
-    Debug.Log($"Registered local player: {playerController.name}");
-}
-
-public void UnregisterLocalPlayer(PlayerController playerController)
-{
-    if (localPlayerController == playerController)
+    public void UnregisterLocalPlayer(PlayerController playerController)
     {
-        localPlayerController = null;
+        if (localPlayerController == playerController)
+        {
+            localPlayerController = null;
+        }
     }
-}
 
     public void OnInputMissing(NetworkRunner runner, PlayerRef player, NetworkInput input) {}
     public void OnShutdown(NetworkRunner runner, ShutdownReason shutdownReason) {}
