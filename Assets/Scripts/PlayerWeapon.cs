@@ -46,6 +46,7 @@ public class PlayerWeapon : NetworkBehaviour
     private void Start()
     {
         OnAmmoChanged?.Invoke(currentAmmo, maxAmmo);
+        Debug.Log($"Reloaded: {currentAmmo}/{maxAmmo}");
     }
 
     public void Tick(float deltaTime)
@@ -67,8 +68,6 @@ public class PlayerWeapon : NetworkBehaviour
 
         OnReloaded?.Invoke();
         OnAmmoChanged?.Invoke(currentAmmo, maxAmmo);
-
-        Debug.Log($"Reloaded: {currentAmmo}/{maxAmmo}");
     }
 
     public void TryFireProjectile()

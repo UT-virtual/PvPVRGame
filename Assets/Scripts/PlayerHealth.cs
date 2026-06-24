@@ -10,6 +10,8 @@ public class PlayerHealth : NetworkBehaviour
     [Header("Health")]
     [SerializeField] private int maxHealth = 10;
 
+    public event System.Action<int, int> OnHealthChanged;
+    
     [Header("Death Visibility")]
     [SerializeField] private GameObject visualRoot;
 
@@ -109,6 +111,7 @@ public class PlayerHealth : NetworkBehaviour
 
         NetworkedCurrentHealth -= damage;
         NetworkedCurrentHealth = Mathf.Max(NetworkedCurrentHealth, 0);
+        OnHealthChanged?.Invoke(NetworkedCurrentHealth, maxHealth);
 
         Debug.Log($"{gameObject.name} HP: {NetworkedCurrentHealth}/{maxHealth}");
 
