@@ -5,7 +5,8 @@ public enum PlayerInputButton
 {
     Jump,
     Fire,
-    Reload
+    Reload,
+    Ready
 }
 
 public struct PlayerNetworkInput : INetworkInput

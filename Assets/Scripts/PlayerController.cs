@@ -1,6 +1,5 @@
 using Fusion;
 using UnityEngine;
-using System;
 
 [RequireComponent(typeof(NetworkObject))]
 [RequireComponent(typeof(CharacterController))]
@@ -11,6 +10,9 @@ using System;
 [RequireComponent(typeof(PlayerWeapon))]
 public class PlayerController : NetworkBehaviour
 {
+    [Header("Animation")]
+    [SerializeField] private Animator animator;
+
     private PlayerHealth playerHealth;
     private PlayerMove playerMove;
     private PlayerLook playerLook;
@@ -19,10 +21,9 @@ public class PlayerController : NetworkBehaviour
 
     [Networked] private NetworkButtons PreviousButtons { get; set; }
 
-    // イベント宣言
-    public event Action OnTookDamage;   //被弾
-    public event Action OnDied;         //死亡
-    
+    [Networked] private NetworkBool NetworkedIsRunning { get; set; }
+    [Networked] private float NetworkedMoveX { get; set; }
+    [Networked] private float NetworkedMoveY { get; set; }
 
     private void Awake()
     {
@@ -31,6 +32,11 @@ public class PlayerController : NetworkBehaviour
         playerLook = GetComponent<PlayerLook>();
         playerCamera = GetComponent<PlayerCamera>();
         playerWeapon = GetComponent<PlayerWeapon>();
+
+        if (animator == null)
+        {
+            animator = GetComponentInChildren<Animator>();
+        }
     }
 
     public override void Spawned()
@@ -54,6 +60,13 @@ public class PlayerController : NetworkBehaviour
     {
         if (playerHealth != null && playerHealth.IsDead)
         {
+            if (Object.HasStateAuthority)
+            {
+                NetworkedIsRunning = false;
+                NetworkedMoveX = 0.0f;
+                NetworkedMoveY = 0.0f;
+            }
+
             return;
         }
 
@@ -64,9 +77,6 @@ public class PlayerController : NetworkBehaviour
 
         float deltaTime = Runner.DeltaTime;
 
-        /*
-        * 移動・ジャンプ・射撃・リロードの正式処理はHostだけ。
-        */
         if (!Object.HasStateAuthority)
         {
             return;
@@ -77,7 +87,24 @@ public class PlayerController : NetworkBehaviour
 
         bool jumpPressed = pressedButtons.IsSet((int)PlayerInputButton.Jump);
         bool reloadPressed = pressedButtons.IsSet((int)PlayerInputButton.Reload);
+        bool readyPressed = pressedButtons.IsSet((int)PlayerInputButton.Ready);
         bool fireHeld = input.Buttons.IsSet((int)PlayerInputButton.Fire);
+
+        Vector2 moveInput = input.MoveInput;
+
+        if (moveInput.sqrMagnitude > 1.0f)
+        {
+            moveInput.Normalize();
+        }
+
+        NetworkedMoveX = moveInput.x;
+        NetworkedMoveY = moveInput.y;
+        NetworkedIsRunning = moveInput.sqrMagnitude > 0.01f;
+
+        if (readyPressed && RoundManager.Instance != null)
+        {
+            RoundManager.Instance.SetPlayerReady(playerHealth);
+        }
 
         playerWeapon.Tick(deltaTime);
 
@@ -85,21 +112,17 @@ public class PlayerController : NetworkBehaviour
         playerMove.UpdateAimBasis();
 
         /*
-        * Hostから見たClient Playerの向き。
-        *
-        * Host自身のPlayerは、すでに上の Object.HasInputAuthority ブロックで
-        * ApplyLook済みなので、ここで二重にApplyLookしない。
-        */
+         * Hostから見たClient Playerの向き。
+         * Host自身のPlayerは、ローカル側でApplyLocalLook済みなのでここでは二重に回さない。
+         */
         if (!Object.HasInputAuthority)
         {
             if (input.IsVR)
             {
-                // Hostから見たVRプレイヤーの処理
                 playerLook.ApplyLook(input.LookInput, true, input.HMDRotation);
             }
             else
             {
-                //既存処理
                 if (input.HasLookDirection != 0)
                 {
                     playerMove.SetAimForward(input.AimForward);
@@ -108,17 +131,24 @@ public class PlayerController : NetworkBehaviour
                 else
                 {
                     playerLook.ApplyLook(input.LookInput, false, Quaternion.identity);
-                }  
+                }
             }
         }
 
-        playerMove.MoveOnSurface(input.MoveInput, deltaTime);
+        playerMove.MoveOnSurface(moveInput, deltaTime);
 
         playerMove.ProbeGround();
         playerMove.UpdateAimBasis();
 
         playerMove.AlignToSurface(deltaTime);
         playerMove.ApplyGravityAndJump(jumpPressed, deltaTime);
+
+        bool canUseWeapon = RoundManager.Instance == null || RoundManager.Instance.CanUseWeapons;
+
+        if (!canUseWeapon)
+        {
+            return;
+        }
 
         if (reloadPressed)
         {
@@ -131,6 +161,20 @@ public class PlayerController : NetworkBehaviour
         }
     }
 
+    public override void Render()
+    {
+        if (animator == null)
+        {
+            return;
+        }
+
+        bool isRunning = NetworkedIsRunning && (playerHealth == null || !playerHealth.IsDead);
+
+        animator.SetBool("isRunning", isRunning);
+        animator.SetFloat("moveX", NetworkedMoveX);
+        animator.SetFloat("moveY", NetworkedMoveY);
+    }
+
     private void LateUpdate()
     {
         if (Object == null || !Object.HasInputAuthority)
@@ -138,16 +182,34 @@ public class PlayerController : NetworkBehaviour
             return;
         }
 
+        if (playerHealth != null && playerHealth.IsDead)
+        {
+            return;
+        }
+
+        /*
+         * ClientはStateAuthorityを持たないので、
+         * カメラ用のSurfaceUp / AimBasisをローカル側でも更新する。
+         */
+        playerMove.ProbeGround();
+        playerMove.UpdateAimBasis();
+
         playerCamera.UpdateCameraTarget();
     }
 
     public Vector3 GetNetworkAimForward()
     {
+        playerMove.ProbeGround();
+        playerMove.UpdateAimBasis();
+
         return playerMove.AimForward;
     }
 
     public Vector3 GetNetworkViewForward()
     {
+        playerMove.ProbeGround();
+        playerMove.UpdateAimBasis();
+
         return playerLook.ViewForward;
     }
 
@@ -158,13 +220,18 @@ public class PlayerController : NetworkBehaviour
             return;
         }
 
+        /*
+         * lookInputが0でも、球体上を移動するとSurfaceUpが変わる。
+         * そのため、return判定より前に地面方向を更新する。
+         */
+        playerMove.ProbeGround();
+        playerMove.UpdateAimBasis();
+
         if (!isVR && lookInput.sqrMagnitude < 0.000001f)
         {
             return;
         }
 
-        playerMove.ProbeGround();
-        playerMove.UpdateAimBasis();
         playerLook.ApplyLook(lookInput, isVR, hmdRotation);
     }
 }

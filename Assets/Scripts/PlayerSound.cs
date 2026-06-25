@@ -5,6 +5,7 @@ using Fusion;
 // アタッチし忘れを防ぐ便利な記述です
 [RequireComponent(typeof(PlayerController))]
 [RequireComponent(typeof(AudioSource))]
+[RequireComponent(typeof(PlayerHealth))]
 public class PlayerSound : NetworkBehaviour
 {
     [Header("サウンド設定（インスペクターで割り当ててください）")]
@@ -17,6 +18,7 @@ public class PlayerSound : NetworkBehaviour
     private PlayerController playerController;
     private PlayerMove playerMove;
     private PlayerWeapon playerWeapon;
+    private PlayerHealth playerHealth;
     private AudioSource audioSource;
 
     private void Awake()
@@ -26,6 +28,7 @@ public class PlayerSound : NetworkBehaviour
         audioSource = GetComponent<AudioSource>();
         playerMove = GetComponent<PlayerMove>();
         playerWeapon = GetComponent<PlayerWeapon>();
+        playerHealth = GetComponent<PlayerHealth>();
 
     }
 
@@ -38,6 +41,8 @@ public class PlayerSound : NetworkBehaviour
             playerMove.OnJumped += PlayJumpSound;
             playerWeapon.OnShot += PlayFireSound;
             playerWeapon.OnReloaded += PlayReloadSound;
+            playerHealth.OnHealthChanged += PlayDamageSound;
+            playerHealth.OnDied += PlayDiedSound;
         }
     }
 
@@ -49,6 +54,8 @@ public class PlayerSound : NetworkBehaviour
             playerMove.OnJumped -= PlayJumpSound;
             playerWeapon.OnShot -= PlayFireSound;
             playerWeapon.OnReloaded -= PlayReloadSound;
+            playerHealth.OnHealthChanged -= PlayDamageSound;
+            playerHealth.OnDied -= PlayDiedSound;
         }
     }
 
@@ -67,5 +74,15 @@ public class PlayerSound : NetworkBehaviour
     private void PlayReloadSound()
     {
         if (reloadSE != null) audioSource.PlayOneShot(reloadSE);
+    }
+
+    private void PlayDamageSound(int current, int max)
+    {
+        if (tookDamageSE != null) audioSource.PlayOneShot(tookDamageSE);
+    }
+    
+    private void PlayDiedSound(PlayerHealth target)
+    {
+        if (diedSE != null) audioSource.PlayOneShot(diedSE);
     }
 }

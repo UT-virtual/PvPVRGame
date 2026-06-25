@@ -25,38 +25,62 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
     [SerializeField] private InputActionReference jumpAction;
     [SerializeField] private InputActionReference fireAction;
     [SerializeField] private InputActionReference reloadAction;
-    
+
     private NetworkRunner runner;
     private NetworkSceneManagerDefault sceneManager;
     private readonly Dictionary<PlayerRef, NetworkObject> spawnedPlayers = new();
 
     private string statusText = "Ready";
-    private bool wasLeftTriggerPressed;
+
     private Vector2 queuedLookInput;
     private bool jumpQueued;
     private bool reloadQueued;
+    private bool readyQueued;
+    private bool wasLeftTriggerPressed;
 
-    // VRかどうかを判定する一時変数
+    private PlayerController localPlayerController;
+
     private bool isVRActive => UnityEngine.XR.XRSettings.isDeviceActive;
     private Quaternion currentHMD = Quaternion.identity;
 
-
     private void OnEnable()
     {
-        moveAction.action.Enable();
-        lookAction.action.Enable();
-        jumpAction.action.Enable();
-        fireAction.action.Enable();
-        reloadAction.action.Enable();
+        EnableAction(moveAction);
+        EnableAction(lookAction);
+        EnableAction(hmdRotationAction);
+        EnableAction(jumpAction);
+        EnableAction(fireAction);
+        EnableAction(reloadAction);
     }
 
     private void OnDisable()
     {
-        moveAction.action.Disable();
-        lookAction.action.Disable();
-        jumpAction.action.Disable();
-        fireAction.action.Disable();
-        reloadAction.action.Disable();
+        DisableAction(moveAction);
+        DisableAction(lookAction);
+        DisableAction(hmdRotationAction);
+        DisableAction(jumpAction);
+        DisableAction(fireAction);
+        DisableAction(reloadAction);
+    }
+
+    private void EnableAction(InputActionReference actionReference)
+    {
+        if (actionReference == null || actionReference.action == null)
+        {
+            return;
+        }
+
+        actionReference.action.Enable();
+    }
+
+    private void DisableAction(InputActionReference actionReference)
+    {
+        if (actionReference == null || actionReference.action == null)
+        {
+            return;
+        }
+
+        actionReference.action.Disable();
     }
 
     private async void StartGame(GameMode gameMode)
@@ -128,11 +152,7 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
 
     private void Update()
     {
-        // VRならHMDの回転を取得
-        if (isVRActive && hmdRotationAction != null)
-        {
-            currentHMD = hmdRotationAction.action.ReadValue<Quaternion>();
-        }
+        UpdateHMD();
 
         Vector2 lookInput = ReadLookInput();
 
@@ -143,16 +163,42 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
             localPlayerController.ApplyLocalLook(lookInput, isVRActive, currentHMD);
         }
 
-        if (jumpAction.action.WasPressedThisFrame())
+        if (ReadJumpPressed())
         {
             jumpQueued = true;
         }
 
-        if (reloadAction.action.WasPressedThisFrame())
+        if (ReadReloadPressed())
         {
             reloadQueued = true;
+
+            if (isVRActive)
+            {
+                readyQueued = true;
+            }
         }
 
+        if (ReadReadyPressed())
+        {
+            readyQueued = true;
+        }
+    }
+
+    private void UpdateHMD()
+    {
+        if (!isVRActive)
+        {
+            currentHMD = Quaternion.identity;
+            return;
+        }
+
+        if (hmdRotationAction == null || hmdRotationAction.action == null)
+        {
+            currentHMD = Quaternion.identity;
+            return;
+        }
+
+        currentHMD = hmdRotationAction.action.ReadValue<Quaternion>();
     }
 
     private void OnGUI()
@@ -219,54 +265,53 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
     }
 
     public void OnInput(NetworkRunner runner, NetworkInput input)
-{
-    PlayerNetworkInput data = new PlayerNetworkInput();
+    {
+        PlayerNetworkInput data = new PlayerNetworkInput();
 
-    data.IsVR = isVRActive;
-    data.HMDRotation = currentHMD;
+        data.IsVR = isVRActive;
+        data.HMDRotation = currentHMD;
 
-    data.MoveInput = ReadMoveInput();
-    //data.LookInput = queuedLookInput;
-
-    // VRの時はUpdate内で加工済みのものを使わず、ローカルと同じ計算で送る（同期ズレ防止）
-    if (isVRActive) {
-        Vector2 rawLook = lookAction != null ? lookAction.action.ReadValue<Vector2>() : Vector2.zero;
-        data.LookInput = new Vector2(rawLook.x * vrStickTurnSpeed * Time.deltaTime, 0);
-    } else {
+        data.MoveInput = ReadMoveInput();
         data.LookInput = queuedLookInput;
+
+        if (localPlayerController != null)
+        {
+            data.AimForward = localPlayerController.GetNetworkAimForward();
+            data.ViewForward = localPlayerController.GetNetworkViewForward();
+            data.HasLookDirection = 1;
+        }
+        else
+        {
+            data.AimForward = Vector3.zero;
+            data.ViewForward = Vector3.zero;
+            data.HasLookDirection = 0;
+        }
+
+        NetworkButtons buttons = default;
+
+        buttons.Set((int)PlayerInputButton.Jump, jumpQueued);
+        buttons.Set((int)PlayerInputButton.Fire, ReadFireHeldInput());
+        buttons.Set((int)PlayerInputButton.Reload, reloadQueued);
+        buttons.Set((int)PlayerInputButton.Ready, readyQueued);
+
+        data.Buttons = buttons;
+
+        input.Set(data);
+
+        queuedLookInput = Vector2.zero;
+        jumpQueued = false;
+        reloadQueued = false;
+        readyQueued = false;
     }
-
-    if (localPlayerController != null)
-    {
-        data.AimForward = localPlayerController.GetNetworkAimForward();
-        data.ViewForward = localPlayerController.GetNetworkViewForward();
-        data.HasLookDirection = 1;
-    }
-    else
-    {
-        data.AimForward = Vector3.zero;
-        data.ViewForward = Vector3.zero;
-        data.HasLookDirection = 0;
-    }
-
-    NetworkButtons buttons = default;
-
-    buttons.Set((int)PlayerInputButton.Jump, jumpQueued);
-    buttons.Set((int)PlayerInputButton.Fire, ReadFireHeldInput());
-    buttons.Set((int)PlayerInputButton.Reload, reloadQueued);
-
-    data.Buttons = buttons;
-
-    input.Set(data);
-
-    queuedLookInput = Vector2.zero;
-    jumpQueued = false;
-    reloadQueued = false;
-}
 
     private Vector2 ReadMoveInput()
     {
-        /*Vector2 input = Vector2.zero;
+        if (moveAction != null && moveAction.action != null)
+        {
+            return moveAction.action.ReadValue<Vector2>();
+        }
+
+        Vector2 input = Vector2.zero;
 
         if (Gamepad.current != null)
         {
@@ -277,10 +322,25 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
         {
             Vector2 keyboardInput = Vector2.zero;
 
-            if (Keyboard.current.wKey.isPressed) keyboardInput.y += 1.0f;
-            if (Keyboard.current.sKey.isPressed) keyboardInput.y -= 1.0f;
-            if (Keyboard.current.dKey.isPressed) keyboardInput.x += 1.0f;
-            if (Keyboard.current.aKey.isPressed) keyboardInput.x -= 1.0f;
+            if (Keyboard.current.wKey.isPressed)
+            {
+                keyboardInput.y += 1.0f;
+            }
+
+            if (Keyboard.current.sKey.isPressed)
+            {
+                keyboardInput.y -= 1.0f;
+            }
+
+            if (Keyboard.current.dKey.isPressed)
+            {
+                keyboardInput.x += 1.0f;
+            }
+
+            if (Keyboard.current.aKey.isPressed)
+            {
+                keyboardInput.x -= 1.0f;
+            }
 
             if (keyboardInput.sqrMagnitude > 1.0f)
             {
@@ -293,14 +353,29 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
             }
         }
 
-        return input;*/
-        if (moveAction == null) return Vector2.zero;
-        return moveAction.action.ReadValue<Vector2>();
+        return input;
     }
 
     private Vector2 ReadLookInput()
     {
-        /*Vector2 lookInput = Vector2.zero;
+        if (lookAction != null && lookAction.action != null)
+        {
+            Vector2 rawLook = lookAction.action.ReadValue<Vector2>();
+
+            if (isVRActive)
+            {
+                return new Vector2(rawLook.x * vrStickTurnSpeed * Time.deltaTime, 0.0f);
+            }
+
+            if (Mouse.current != null && lookAction.action.activeControl?.device == Mouse.current)
+            {
+                return rawLook * mouseLookSpeed;
+            }
+
+            return rawLook * gamepadLookSpeed * Time.deltaTime;
+        }
+
+        Vector2 lookInput = Vector2.zero;
 
         if (Mouse.current != null)
         {
@@ -312,10 +387,25 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
 
         if (Keyboard.current != null)
         {
-            if (Keyboard.current.leftArrowKey.isPressed) lookInput.x -= keyboardLookSpeed * Time.deltaTime;
-            if (Keyboard.current.rightArrowKey.isPressed) lookInput.x += keyboardLookSpeed * Time.deltaTime;
-            if (Keyboard.current.upArrowKey.isPressed) lookInput.y += keyboardLookSpeed * Time.deltaTime;
-            if (Keyboard.current.downArrowKey.isPressed) lookInput.y -= keyboardLookSpeed * Time.deltaTime;
+            if (Keyboard.current.leftArrowKey.isPressed)
+            {
+                lookInput.x -= keyboardLookSpeed * Time.deltaTime;
+            }
+
+            if (Keyboard.current.rightArrowKey.isPressed)
+            {
+                lookInput.x += keyboardLookSpeed * Time.deltaTime;
+            }
+
+            if (Keyboard.current.upArrowKey.isPressed)
+            {
+                lookInput.y += keyboardLookSpeed * Time.deltaTime;
+            }
+
+            if (Keyboard.current.downArrowKey.isPressed)
+            {
+                lookInput.y -= keyboardLookSpeed * Time.deltaTime;
+            }
         }
 
         if (Gamepad.current != null)
@@ -326,28 +416,16 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
             lookInput.y += stick.y * gamepadLookSpeed * Time.deltaTime;
         }
 
-        return lookInput;*/
-
-        if (lookAction == null) return Vector2.zero;
-        Vector2 rawLook = lookAction.action.ReadValue<Vector2>();
-        // マウスの時だけ、感度（mouseLookSpeed）を適用する
-        if (isVRActive)
-        {
-            // VR: 右スティックのX軸（左右）のみを使用し、VR専用の感度を適用する
-            return new Vector2(rawLook.x * vrStickTurnSpeed * Time.deltaTime, 0);
-        }
-        else
-        {
-            // PCデバッグ: 既存のマウス/ゲームパッドの感度処理
-            if (Mouse.current != null && lookAction.action.activeControl?.device == Mouse.current)
-                return rawLook * mouseLookSpeed;
-
-            return rawLook * gamepadLookSpeed * Time.deltaTime;
-        }
+        return lookInput;
     }
 
-    /*private bool ReadJumpInput()
+    private bool ReadJumpPressed()
     {
+        if (jumpAction != null && jumpAction.action != null && jumpAction.action.WasPressedThisFrame())
+        {
+            return true;
+        }
+
         if (Keyboard.current != null && Keyboard.current.spaceKey.wasPressedThisFrame)
         {
             return true;
@@ -359,40 +437,38 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
         }
 
         return false;
-    }*/
+    }
 
-    private bool ReadFireHeldInput()
+    private bool ReadReloadPressed()
     {
-        /*if (Keyboard.current != null && Keyboard.current.jKey.isPressed)
+        if (reloadAction != null && reloadAction.action != null && reloadAction.action.WasPressedThisFrame())
         {
             return true;
         }
 
-        if (Gamepad.current != null)
-        {
-            return Gamepad.current.rightTrigger.ReadValue() > 0.5f;
-        }
-
-        return false;*/
-        if (fireAction == null) return false;
-
-        // トリガーの押し込み量、またはボタンが押されているかを判定（0.5以上で発砲）
-        // Value (Axis) と Button の両方に対応
-        var control = fireAction.action.activeControl;
-        if (control is UnityEngine.InputSystem.Controls.ButtonControl)
-        {
-            return fireAction.action.IsPressed();
-        }
-        return fireAction.action.ReadValue<float>() > 0.5f;
-    }
-
-    /*private bool ReadReloadInput()
-    {
-        bool reload = false;
-
         if (Keyboard.current != null && Keyboard.current.kKey.wasPressedThisFrame)
         {
-            reload = true;
+            return true;
+        }
+
+        return false;
+    }
+
+    private bool ReadReadyPressed()
+    {
+        bool readyPressed = false;
+
+        if (Keyboard.current != null)
+        {
+            if (Keyboard.current.enterKey.wasPressedThisFrame)
+            {
+                readyPressed = true;
+            }
+
+            if (Keyboard.current.numpadEnterKey.wasPressedThisFrame)
+            {
+                readyPressed = true;
+            }
         }
 
         if (Gamepad.current != null)
@@ -402,7 +478,8 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
 
             if (leftTriggerPressed && !wasLeftTriggerPressed)
             {
-                reload = true;
+                readyPressed = true;
+                reloadQueued = true;
             }
 
             wasLeftTriggerPressed = leftTriggerPressed;
@@ -412,24 +489,49 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
             wasLeftTriggerPressed = false;
         }
 
-        return reload;
-    }*/
-
-    private PlayerController localPlayerController;
-
-public void RegisterLocalPlayer(PlayerController playerController)
-{
-    localPlayerController = playerController;
-    Debug.Log($"Registered local player: {playerController.name}");
-}
-
-public void UnregisterLocalPlayer(PlayerController playerController)
-{
-    if (localPlayerController == playerController)
-    {
-        localPlayerController = null;
+        return readyPressed;
     }
-}
+
+    private bool ReadFireHeldInput()
+    {
+        if (fireAction != null && fireAction.action != null)
+        {
+            InputControl control = fireAction.action.activeControl;
+
+            if (control is UnityEngine.InputSystem.Controls.ButtonControl)
+            {
+                return fireAction.action.IsPressed();
+            }
+
+            return fireAction.action.ReadValue<float>() > 0.5f;
+        }
+
+        if (Keyboard.current != null && Keyboard.current.jKey.isPressed)
+        {
+            return true;
+        }
+
+        if (Gamepad.current != null)
+        {
+            return Gamepad.current.rightTrigger.ReadValue() > 0.5f;
+        }
+
+        return false;
+    }
+
+    public void RegisterLocalPlayer(PlayerController playerController)
+    {
+        localPlayerController = playerController;
+        Debug.Log($"Registered local player: {playerController.name}");
+    }
+
+    public void UnregisterLocalPlayer(PlayerController playerController)
+    {
+        if (localPlayerController == playerController)
+        {
+            localPlayerController = null;
+        }
+    }
 
     public void OnInputMissing(NetworkRunner runner, PlayerRef player, NetworkInput input) {}
     public void OnShutdown(NetworkRunner runner, ShutdownReason shutdownReason) {}
