@@ -26,8 +26,6 @@ public class PlayerController : NetworkBehaviour
     [Networked] private float NetworkedMoveX { get; set; }
     [Networked] private float NetworkedMoveY { get; set; }
 
-    public event Action OnTookDamage;
-    public event Action OnDied;
 
     private void Awake()
     {
