@@ -1,4 +1,3 @@
-using System;
 using Fusion;
 using UnityEngine;
 
@@ -25,9 +24,6 @@ public class PlayerController : NetworkBehaviour
     [Networked] private NetworkBool NetworkedIsRunning { get; set; }
     [Networked] private float NetworkedMoveX { get; set; }
     [Networked] private float NetworkedMoveY { get; set; }
-
-    public event Action OnTookDamage;
-    public event Action OnDied;
 
     private void Awake()
     {
@@ -115,16 +111,27 @@ public class PlayerController : NetworkBehaviour
         playerMove.ProbeGround();
         playerMove.UpdateAimBasis();
 
+        /*
+         * Hostから見たClient Playerの向き。
+         * Host自身のPlayerは、ローカル側でApplyLocalLook済みなのでここでは二重に回さない。
+         */
         if (!Object.HasInputAuthority)
         {
-            if (input.HasLookDirection != 0)
+            if (input.IsVR)
             {
-                playerMove.SetAimForward(input.AimForward);
-                playerLook.SetPitchFromViewForward(input.ViewForward);
+                playerLook.ApplyLook(input.LookInput, true, input.HMDRotation);
             }
             else
             {
-                playerLook.ApplyLook(input.LookInput);
+                if (input.HasLookDirection != 0)
+                {
+                    playerMove.SetAimForward(input.AimForward);
+                    playerLook.SetPitchFromViewForward(input.ViewForward);
+                }
+                else
+                {
+                    playerLook.ApplyLook(input.LookInput, false, Quaternion.identity);
+                }
             }
         }
 
@@ -180,6 +187,10 @@ public class PlayerController : NetworkBehaviour
             return;
         }
 
+        /*
+         * ClientはStateAuthorityを持たないので、
+         * カメラ用のSurfaceUp / AimBasisをローカル側でも更新する。
+         */
         playerMove.ProbeGround();
         playerMove.UpdateAimBasis();
 
@@ -202,21 +213,25 @@ public class PlayerController : NetworkBehaviour
         return playerLook.ViewForward;
     }
 
-    public void ApplyLocalLook(Vector2 lookInput)
+    public void ApplyLocalLook(Vector2 lookInput, bool isVR, Quaternion hmdRotation)
     {
         if (playerHealth != null && playerHealth.IsDead)
         {
             return;
         }
 
+        /*
+         * lookInputが0でも、球体上を移動するとSurfaceUpが変わる。
+         * そのため、return判定より前に地面方向を更新する。
+         */
         playerMove.ProbeGround();
         playerMove.UpdateAimBasis();
 
-        if (lookInput.sqrMagnitude < 0.000001f)
+        if (!isVR && lookInput.sqrMagnitude < 0.000001f)
         {
             return;
         }
 
-        playerLook.ApplyLook(lookInput);
+        playerLook.ApplyLook(lookInput, isVR, hmdRotation);
     }
 }
