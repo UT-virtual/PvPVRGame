@@ -8,14 +8,14 @@ using UnityEngine;
 public class PlayerHealth : NetworkBehaviour
 {
     [Header("Health")]
-    [SerializeField] private int maxHealth = 10;
+    [SerializeField] private float maxHealth = 10.0f;
 
-    public event System.Action<int, int> OnHealthChanged;
+    public event Action<float, float> OnHealthChanged;
     
     [Header("Death Visibility")]
     [SerializeField] private GameObject visualRoot;
 
-    [Networked] public int NetworkedCurrentHealth { get; private set; }
+    [Networked] public float NetworkedCurrentHealth { get; private set; }
     [Networked] public NetworkBool NetworkedIsDead { get; private set; }
 
     private NetworkTransform networkTransform;
@@ -27,8 +27,10 @@ public class PlayerHealth : NetworkBehaviour
     private Renderer[] renderers;
     private Collider[] colliders;
 
-    public int CurrentHealth => NetworkedCurrentHealth;
-    public int MaxHealth => maxHealth;
+    private float damageTakenMultiplier = 1.0f;
+
+    public float CurrentHealth => NetworkedCurrentHealth;
+    public float MaxHealth => maxHealth;
     public bool IsDead => NetworkedIsDead;
 
     public event Action<PlayerHealth> OnDied;
@@ -59,9 +61,11 @@ public class PlayerHealth : NetworkBehaviour
         {
             NetworkedCurrentHealth = maxHealth;
             NetworkedIsDead = false;
+            damageTakenMultiplier = 1.0f;
         }
 
         ApplyAliveState(true);
+        OnHealthChanged?.Invoke(NetworkedCurrentHealth, maxHealth);
 
         if (!Object.HasStateAuthority)
         {
@@ -92,7 +96,17 @@ public class PlayerHealth : NetworkBehaviour
         }
     }
 
-    public void TakeDamage(int damage)
+    public void SetDamageTakenMultiplier(float multiplier)
+    {
+        if (Object != null && !Object.HasStateAuthority)
+        {
+            return;
+        }
+
+        damageTakenMultiplier = Mathf.Clamp(multiplier, 0.0f, 10.0f);
+    }
+
+    public void TakeDamage(float damage)
     {
         if (Object != null && !Object.HasStateAuthority)
         {
@@ -104,24 +118,41 @@ public class PlayerHealth : NetworkBehaviour
             return;
         }
 
-        if (damage <= 0)
+        if (damage <= 0.0f)
         {
             return;
         }
 
-        NetworkedCurrentHealth -= damage;
-        NetworkedCurrentHealth = Mathf.Max(NetworkedCurrentHealth, 0);
+        float actualDamage = damage * damageTakenMultiplier;
+        actualDamage = Mathf.Max(actualDamage, 0.0f);
+
+        if (actualDamage <= 0.0f)
+        {
+            Debug.Log(
+                $"{gameObject.name} damage ignored. " +
+                $"BaseDamage={damage}, Multiplier={damageTakenMultiplier}"
+            );
+            return;
+        }
+
+        NetworkedCurrentHealth -= actualDamage;
+        NetworkedCurrentHealth = Mathf.Max(NetworkedCurrentHealth, 0.0f);
         OnHealthChanged?.Invoke(NetworkedCurrentHealth, maxHealth);
 
-        Debug.Log($"{gameObject.name} HP: {NetworkedCurrentHealth}/{maxHealth}");
+        Debug.Log(
+            $"{gameObject.name} HP: {NetworkedCurrentHealth:0.00}/{maxHealth:0.00}, " +
+            $"BaseDamage={damage:0.00}, " +
+            $"ActualDamage={actualDamage:0.00}, " +
+            $"DamageTakenMultiplier={damageTakenMultiplier:0.00}"
+        );
 
-        if (NetworkedCurrentHealth <= 0)
+        if (NetworkedCurrentHealth <= 0.0f)
         {
             Die();
         }
     }
 
-    public bool Heal(int amount)
+    public bool Heal(float amount)
     {
         if (Object != null && !Object.HasStateAuthority)
         {
@@ -133,7 +164,7 @@ public class PlayerHealth : NetworkBehaviour
             return false;
         }
 
-        if (amount <= 0)
+        if (amount <= 0.0f)
         {
             return false;
         }
@@ -143,14 +174,15 @@ public class PlayerHealth : NetworkBehaviour
             return false;
         }
 
-        int beforeHealth = NetworkedCurrentHealth;
+        float beforeHealth = NetworkedCurrentHealth;
 
         NetworkedCurrentHealth += amount;
         NetworkedCurrentHealth = Mathf.Min(NetworkedCurrentHealth, maxHealth);
+        OnHealthChanged?.Invoke(NetworkedCurrentHealth, maxHealth);
 
         Debug.Log(
             $"{gameObject.name} healed: " +
-            $"{beforeHealth} -> {NetworkedCurrentHealth}/{maxHealth}"
+            $"{beforeHealth:0.00} -> {NetworkedCurrentHealth:0.00}/{maxHealth:0.00}"
         );
 
         return NetworkedCurrentHealth > beforeHealth;
@@ -191,6 +223,8 @@ public class PlayerHealth : NetworkBehaviour
 
         NetworkedCurrentHealth = maxHealth;
         NetworkedIsDead = false;
+        damageTakenMultiplier = 1.0f;
+        OnHealthChanged?.Invoke(NetworkedCurrentHealth, maxHealth);
 
         Debug.Log(
             $"{gameObject.name} respawn request. " +
@@ -204,10 +238,10 @@ public class PlayerHealth : NetworkBehaviour
 
         if (playerWeapon != null)
         {
-            playerWeapon.ReloadAmmo();
+            playerWeapon.RefillAmmoImmediately();
         }
 
-        Debug.Log($"{gameObject.name} respawned. HP: {NetworkedCurrentHealth}/{maxHealth}");
+        Debug.Log($"{gameObject.name} respawned. HP: {NetworkedCurrentHealth:0.00}/{maxHealth:0.00}");
     }
 
     private void ApplyAuthoritativeTeleport(Vector3 position, Quaternion rotation)

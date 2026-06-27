@@ -6,7 +6,12 @@ public enum PlayerInputButton
     Jump,
     Fire,
     Reload,
-    Ready
+    Ready,
+    Skill,
+    SelectSkill1,
+    SelectSkill2,
+    SelectSkill3,
+    SelectSkill4
 }
 
 public struct PlayerNetworkInput : INetworkInput
@@ -18,8 +23,7 @@ public struct PlayerNetworkInput : INetworkInput
     public Vector3 AimForward;
     public Vector3 ViewForward;
     public byte HasLookDirection;
-    
-    //VR用のデータ
+
     public NetworkBool IsVR;
     public Quaternion HMDRotation;
 }

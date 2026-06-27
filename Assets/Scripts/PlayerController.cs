@@ -8,6 +8,7 @@ using UnityEngine;
 [RequireComponent(typeof(PlayerLook))]
 [RequireComponent(typeof(PlayerCamera))]
 [RequireComponent(typeof(PlayerWeapon))]
+[RequireComponent(typeof(PlayerSkillController))]
 public class PlayerController : NetworkBehaviour
 {
     [Header("Animation")]
@@ -18,6 +19,7 @@ public class PlayerController : NetworkBehaviour
     private PlayerLook playerLook;
     private PlayerCamera playerCamera;
     private PlayerWeapon playerWeapon;
+    private PlayerSkillController playerSkillController;
 
     [Networked] private NetworkButtons PreviousButtons { get; set; }
 
@@ -32,6 +34,7 @@ public class PlayerController : NetworkBehaviour
         playerLook = GetComponent<PlayerLook>();
         playerCamera = GetComponent<PlayerCamera>();
         playerWeapon = GetComponent<PlayerWeapon>();
+        playerSkillController = GetComponent<PlayerSkillController>();
 
         if (animator == null)
         {
@@ -88,7 +91,36 @@ public class PlayerController : NetworkBehaviour
         bool jumpPressed = pressedButtons.IsSet((int)PlayerInputButton.Jump);
         bool reloadPressed = pressedButtons.IsSet((int)PlayerInputButton.Reload);
         bool readyPressed = pressedButtons.IsSet((int)PlayerInputButton.Ready);
+        bool skillPressed = pressedButtons.IsSet((int)PlayerInputButton.Skill);
         bool fireHeld = input.Buttons.IsSet((int)PlayerInputButton.Fire);
+
+        if (readyPressed && RoundManager.Instance != null)
+        {
+            RoundManager.Instance.SetPlayerReady(playerHealth);
+        }
+
+        if (RoundManager.Instance != null && RoundManager.Instance.IsSkillSelecting)
+        {
+            HandleSkillSelectionInput(pressedButtons);
+
+            NetworkedMoveX = 0.0f;
+            NetworkedMoveY = 0.0f;
+            NetworkedIsRunning = false;
+
+            return;
+        }
+
+        bool canControlPlayer = RoundManager.Instance == null || RoundManager.Instance.CanControlPlayers;
+
+        if (!canControlPlayer)
+        {
+            NetworkedMoveX = 0.0f;
+            NetworkedMoveY = 0.0f;
+            NetworkedIsRunning = false;
+
+            playerWeapon.Tick(deltaTime);
+            return;
+        }
 
         Vector2 moveInput = input.MoveInput;
 
@@ -101,20 +133,11 @@ public class PlayerController : NetworkBehaviour
         NetworkedMoveY = moveInput.y;
         NetworkedIsRunning = moveInput.sqrMagnitude > 0.01f;
 
-        if (readyPressed && RoundManager.Instance != null)
-        {
-            RoundManager.Instance.SetPlayerReady(playerHealth);
-        }
-
         playerWeapon.Tick(deltaTime);
 
         playerMove.ProbeGround();
         playerMove.UpdateAimBasis();
 
-        /*
-         * Hostから見たClient Playerの向き。
-         * Host自身のPlayerは、ローカル側でApplyLocalLook済みなのでここでは二重に回さない。
-         */
         if (!Object.HasInputAuthority)
         {
             if (input.IsVR)
@@ -150,6 +173,11 @@ public class PlayerController : NetworkBehaviour
             return;
         }
 
+        if (skillPressed && playerSkillController != null)
+        {
+            playerSkillController.TryActivateSkill();
+        }
+
         if (reloadPressed)
         {
             playerWeapon.ReloadAmmo();
@@ -158,6 +186,34 @@ public class PlayerController : NetworkBehaviour
         if (fireHeld)
         {
             playerWeapon.TryFireProjectile();
+        }
+    }
+
+    private void HandleSkillSelectionInput(NetworkButtons pressedButtons)
+    {
+        if (RoundManager.Instance == null)
+        {
+            return;
+        }
+
+        if (pressedButtons.IsSet((int)PlayerInputButton.SelectSkill1))
+        {
+            RoundManager.Instance.SelectSkillBySlot(playerHealth, 0);
+        }
+
+        if (pressedButtons.IsSet((int)PlayerInputButton.SelectSkill2))
+        {
+            RoundManager.Instance.SelectSkillBySlot(playerHealth, 1);
+        }
+
+        if (pressedButtons.IsSet((int)PlayerInputButton.SelectSkill3))
+        {
+            RoundManager.Instance.SelectSkillBySlot(playerHealth, 2);
+        }
+
+        if (pressedButtons.IsSet((int)PlayerInputButton.SelectSkill4))
+        {
+            RoundManager.Instance.SelectSkillBySlot(playerHealth, 3);
         }
     }
 
@@ -187,10 +243,6 @@ public class PlayerController : NetworkBehaviour
             return;
         }
 
-        /*
-         * ClientはStateAuthorityを持たないので、
-         * カメラ用のSurfaceUp / AimBasisをローカル側でも更新する。
-         */
         playerMove.ProbeGround();
         playerMove.UpdateAimBasis();
 
@@ -220,10 +272,6 @@ public class PlayerController : NetworkBehaviour
             return;
         }
 
-        /*
-         * lookInputが0でも、球体上を移動するとSurfaceUpが変わる。
-         * そのため、return判定より前に地面方向を更新する。
-         */
         playerMove.ProbeGround();
         playerMove.UpdateAimBasis();
 

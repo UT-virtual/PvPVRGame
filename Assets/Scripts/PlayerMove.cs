@@ -40,6 +40,8 @@ public class PlayerMove : MonoBehaviour
     public Vector3 AimForward => aimForward;
     public Vector3 AimRight => aimRight;
     public bool IsGrounded => isGrounded;
+    private int extraAirJumpCount;
+    private int remainingAirJumps;
 
     public event Action OnJumped;
 
@@ -212,10 +214,23 @@ public class PlayerMove : MonoBehaviour
 
     public void ApplyGravityAndJump(bool jumpPressed, float deltaTime)
     {
+        if (isGrounded)
+        {
+            remainingAirJumps = extraAirJumpCount;
+        }
+
         if (isGrounded && jumpPressed)
         {
             verticalSpeed = jumpSpeed;
             isGrounded = false;
+            remainingAirJumps = extraAirJumpCount;
+
+            OnJumped?.Invoke();
+        }
+        else if (!isGrounded && jumpPressed && remainingAirJumps > 0)
+        {
+            verticalSpeed = jumpSpeed;
+            remainingAirJumps--;
 
             OnJumped?.Invoke();
         }
@@ -286,6 +301,7 @@ public class PlayerMove : MonoBehaviour
         hasGroundHit = false;
         isGrounded = false;
         groundDistance = 0.0f;
+        remainingAirJumps = extraAirJumpCount;
     }
 
     public void ResetAfterRespawn()
@@ -294,6 +310,7 @@ public class PlayerMove : MonoBehaviour
         hasGroundHit = false;
         isGrounded = false;
         groundDistance = 0.0f;
+        remainingAirJumps = extraAirJumpCount;
 
         InitializeSurfaceVectors();
         ProbeGround();
@@ -342,5 +359,26 @@ public class PlayerMove : MonoBehaviour
 
         Gizmos.color = Color.blue;
         Gizmos.DrawLine(transform.position, transform.position + surfaceUp * 2.0f);
+    }
+
+    public void SetExtraAirJumpCount(int count)
+    {
+        count = Mathf.Max(0, count);
+
+        if (count > extraAirJumpCount)
+        {
+            remainingAirJumps = Mathf.Max(remainingAirJumps, count);
+        }
+        else if (count < extraAirJumpCount)
+        {
+            remainingAirJumps = Mathf.Min(remainingAirJumps, count);
+        }
+
+        extraAirJumpCount = count;
+
+        if (isGrounded)
+        {
+            remainingAirJumps = extraAirJumpCount;
+        }
     }
 }

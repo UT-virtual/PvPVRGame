@@ -212,7 +212,7 @@ RectTransform:
   m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 0, y: 0, z: 0}
   m_ConstrainProportionsScale: 0
-  m_Children:
+  m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
@@ -837,6 +837,13 @@ MonoBehaviour:
   keyboardLookSpeed: 90
   mouseLookSpeed: 0.12
   gamepadLookSpeed: 120
+  vrStickTurnSpeed: 150
+  moveAction: {fileID: 0}
+  lookAction: {fileID: 0}
+  hmdRotationAction: {fileID: 0}
+  jumpAction: {fileID: 0}
+  fireAction: {fileID: 0}
+  reloadAction: {fileID: 0}
 --- !u!4 &993431733
 Transform:
   m_ObjectHideFlags: 0
@@ -1638,3 +1645,4 @@ SceneRoots:
   - {fileID: 517633779}
   - {fileID: 2141652804}
   - {fileID: 2032686965}
+  - {fileID: 15124127}

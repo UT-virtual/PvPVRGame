@@ -585,6 +585,7 @@ GameObject:
   - component: {fileID: 731677185610588365}
   - component: {fileID: -7183140537700069115}
   - component: {fileID: -147337984969019308}
+  - component: {fileID: 4086869925511800428}
   m_Layer: 0
   m_Name: Player
   m_TagString: Untagged
@@ -791,6 +792,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::PlayerLook
   minPitch: -85
   maxPitch: 85
+  hmdSensitivity: 1
 --- !u!114 &1904617270884353107
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -851,6 +853,7 @@ MonoBehaviour:
   - {fileID: 4508338257469429350}
   - {fileID: 731677185610588365}
   - {fileID: -147337984969019308}
+  - {fileID: 4086869925511800428}
   ForceRemoteRenderTimeframe: 0
 --- !u!114 &4508338257469429350
 MonoBehaviour:
@@ -999,6 +1002,24 @@ MonoBehaviour:
   reloadSE: {fileID: 8300000, guid: b596c93e4fec841f1aa31233f36f77d2, type: 3}
   tookDamageSE: {fileID: 8300000, guid: 7c6b927b9997141a994e647700a57cc0, type: 3}
   diedSE: {fileID: 8300000, guid: cf3e9623b169e4445a33e67ff7a9dbc7, type: 3}
+--- !u!114 &4086869925511800428
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8006935000496757985}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d48e6af6961f1473ab020c943fc9ed31, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerSkillController
+  doubleJumpDuration: 10
+  cooldownAfterSkillEnd: 20
+  allowSameSkillConsecutiveForDebug: 0
+  _CurrentRoundSkill: 0
+  _LastRoundSkill: 0
+  _ActiveSkill: 0
 --- !u!1001 &3822675487581666541
 PrefabInstance:
   m_ObjectHideFlags: 0
