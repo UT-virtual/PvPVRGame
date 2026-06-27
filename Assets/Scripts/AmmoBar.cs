@@ -37,6 +37,7 @@ public class AmmoBar : MonoBehaviour
         {
             int indexFromRight = cells.Count - 1 - i;
             bool isActive = i < currentAmmo;
+            Debug.Log(currentAmmo);
 
             cells[indexFromRight].color = isActive
                 ? Color.white
