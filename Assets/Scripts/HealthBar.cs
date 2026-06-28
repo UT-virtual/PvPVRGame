@@ -5,42 +5,53 @@ using Fusion;
 
 public class HealthBar : MonoBehaviour
 {
-    [SerializeField] private int maxHealth = 10;
-
-    private PlayerHealth playerHealth;
+    [SerializeField] private float maxHealth = 10.0f;
+    [SerializeField] private PlayerHealth playerHealth;
 
     private float currentHealth;
     private float displayHealth;
+
     [SerializeField] private float healthLerpSpeed = 0.15f;
 
     public Slider HealthSlider;
 
     public RectTransform barTransform;
-    public float shakeAmount = 5f;      // 揺れの強さ
-    public float shakeDuration = 0.1f;  // 揺れる時間
+    public float shakeAmount = 5f;     // 揺れの強さ
+    public float shakeDuration = 0.1f; // 揺れる時間
 
     private Vector3 originalPos;
     private float shakeTimer = 0f;
 
-    void Awake()
+    private void Awake()
     {
         currentHealth = maxHealth;
         displayHealth = maxHealth;
 
-        HealthSlider.maxValue = maxHealth;
-        HealthSlider.value = maxHealth;
+        if (HealthSlider != null)
+        {
+            HealthSlider.maxValue = maxHealth;
+            HealthSlider.value = displayHealth;
+        }
 
-        originalPos = barTransform.localPosition;
+        if (barTransform != null)
+        {
+            originalPos = barTransform.localPosition;
+        }
     }
 
     private void Start()
     {
+        if (playerHealth != null)
+        {
+            SetupPlayerHealth(playerHealth);
+            return;
+        }
+
         StartCoroutine(FindLocalPlayer());
     }
 
     private IEnumerator FindLocalPlayer()
     {
-        // 自分が操作しているプレイヤーを探す
         while (playerHealth == null)
         {
             PlayerHealth[] players = FindObjectsOfType<PlayerHealth>();
@@ -51,16 +62,7 @@ public class HealthBar : MonoBehaviour
 
                 if (netObj != null && netObj.HasInputAuthority)
                 {
-                    playerHealth = health;
-
-                    // 現在HPを取得（初期表示用）
-                    currentHealth = maxHealth;
-                    displayHealth = currentHealth;
-
-                    HealthSlider.maxValue = maxHealth;
-                    HealthSlider.value = currentHealth;
-
-                    playerHealth.OnHealthChanged += UpdateBar;
+                    SetupPlayerHealth(health);
 
                     Debug.Log("Local Player Found");
                     yield break;
@@ -71,36 +73,66 @@ public class HealthBar : MonoBehaviour
         }
     }
 
-    void Update()
+    private void SetupPlayerHealth(PlayerHealth health)
+    {
+        playerHealth = health;
+
+        maxHealth = playerHealth.MaxHealth;
+        currentHealth = playerHealth.CurrentHealth;
+        displayHealth = currentHealth;
+
+        if (HealthSlider != null)
+        {
+            HealthSlider.maxValue = maxHealth;
+            HealthSlider.value = displayHealth;
+        }
+
+        playerHealth.OnHealthChanged += UpdateBar;
+    }
+
+    private void Update()
     {
         displayHealth = Mathf.Lerp(
             displayHealth,
             currentHealth,
-            healthLerpSpeed);
+            healthLerpSpeed
+        );
 
-        HealthSlider.value = displayHealth;
+        if (HealthSlider != null)
+        {
+            HealthSlider.value = displayHealth;
+        }
 
         if (shakeTimer > 0)
         {
-            barTransform.localPosition =
-                originalPos +
-                (Vector3)Random.insideUnitCircle * shakeAmount;
+            if (barTransform != null)
+            {
+                barTransform.localPosition =
+                    originalPos +
+                    (Vector3)Random.insideUnitCircle * shakeAmount;
+            }
 
             shakeTimer -= Time.deltaTime;
 
             if (shakeTimer <= 0)
             {
-                barTransform.localPosition = originalPos;
+                if (barTransform != null)
+                {
+                    barTransform.localPosition = originalPos;
+                }
             }
         }
     }
 
-    private void UpdateBar(int current, int max)
+    private void UpdateBar(float current, float max)
     {
         maxHealth = max;
         currentHealth = current;
 
-        HealthSlider.maxValue = maxHealth;
+        if (HealthSlider != null)
+        {
+            HealthSlider.maxValue = maxHealth;
+        }
 
         shakeTimer = shakeDuration;
     }

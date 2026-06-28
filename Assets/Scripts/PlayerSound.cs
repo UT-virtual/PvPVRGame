@@ -76,7 +76,7 @@ public class PlayerSound : NetworkBehaviour
         if (reloadSE != null) audioSource.PlayOneShot(reloadSE);
     }
 
-    private void PlayDamageSound(int current, int max)
+    private void PlayDamageSound(float current, float max)
     {
         if (tookDamageSE != null) audioSource.PlayOneShot(tookDamageSE);
     }

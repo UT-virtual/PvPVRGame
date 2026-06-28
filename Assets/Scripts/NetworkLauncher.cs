@@ -37,6 +37,11 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
     private bool jumpQueued;
     private bool reloadQueued;
     private bool readyQueued;
+    private bool skillQueued;
+    private bool selectSkill1Queued;
+    private bool selectSkill2Queued;
+    private bool selectSkill3Queued;
+    private bool selectSkill4Queued;
     private bool wasLeftTriggerPressed;
 
     private PlayerController localPlayerController;
@@ -192,6 +197,31 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
         {
             readyQueued = true;
         }
+
+        if (ReadSkillPressed())
+        {
+            skillQueued = true;
+        }
+
+        if (ReadSelectSkill1Pressed())
+        {
+            selectSkill1Queued = true;
+        }
+
+        if (ReadSelectSkill2Pressed())
+        {
+            selectSkill2Queued = true;
+        }
+
+        if (ReadSelectSkill3Pressed())
+        {
+            selectSkill3Queued = true;
+        }
+
+        if (ReadSelectSkill4Pressed())
+        {
+            selectSkill4Queued = true;
+        }
     }
 
     private void UpdateHMD()
@@ -299,6 +329,11 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
         buttons.Set((int)PlayerInputButton.Fire, ReadFireHeldInput());
         buttons.Set((int)PlayerInputButton.Reload, reloadQueued);
         buttons.Set((int)PlayerInputButton.Ready, readyQueued);
+        buttons.Set((int)PlayerInputButton.Skill, skillQueued);
+        buttons.Set((int)PlayerInputButton.SelectSkill1, selectSkill1Queued);
+        buttons.Set((int)PlayerInputButton.SelectSkill2, selectSkill2Queued);
+        buttons.Set((int)PlayerInputButton.SelectSkill3, selectSkill3Queued);
+        buttons.Set((int)PlayerInputButton.SelectSkill4, selectSkill4Queued);
 
         data.Buttons = buttons;
 
@@ -308,6 +343,11 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
         jumpQueued = false;
         reloadQueued = false;
         readyQueued = false;
+        skillQueued = false;
+        selectSkill1Queued = false;
+        selectSkill2Queued = false;
+        selectSkill3Queued = false;
+        selectSkill4Queued = false;
     }
 
     private Vector2 ReadMoveInput()
@@ -496,6 +536,113 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
         }
 
         return readyPressed;
+    }
+
+    private bool ReadSkillPressed()
+    {
+        if (Keyboard.current != null && Keyboard.current.uKey.wasPressedThisFrame)
+        {
+            return true;
+        }
+
+        if (Gamepad.current != null && Gamepad.current.leftShoulder.wasPressedThisFrame)
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    private bool ReadSelectSkill1Pressed()
+    {
+        if (Keyboard.current != null)
+        {
+            if (Keyboard.current.digit1Key.wasPressedThisFrame)
+            {
+                return true;
+            }
+
+            if (Keyboard.current.numpad1Key.wasPressedThisFrame)
+            {
+                return true;
+            }
+        }
+
+        if (Gamepad.current != null && Gamepad.current.dpad.up.wasPressedThisFrame)
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    private bool ReadSelectSkill2Pressed()
+    {
+        if (Keyboard.current != null)
+        {
+            if (Keyboard.current.digit2Key.wasPressedThisFrame)
+            {
+                return true;
+            }
+
+            if (Keyboard.current.numpad2Key.wasPressedThisFrame)
+            {
+                return true;
+            }
+        }
+
+        if (Gamepad.current != null && Gamepad.current.dpad.right.wasPressedThisFrame)
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    private bool ReadSelectSkill3Pressed()
+    {
+        if (Keyboard.current != null)
+        {
+            if (Keyboard.current.digit3Key.wasPressedThisFrame)
+            {
+                return true;
+            }
+
+            if (Keyboard.current.numpad3Key.wasPressedThisFrame)
+            {
+                return true;
+            }
+        }
+
+        if (Gamepad.current != null && Gamepad.current.dpad.down.wasPressedThisFrame)
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    private bool ReadSelectSkill4Pressed()
+    {
+        if (Keyboard.current != null)
+        {
+            if (Keyboard.current.digit4Key.wasPressedThisFrame)
+            {
+                return true;
+            }
+
+            if (Keyboard.current.numpad4Key.wasPressedThisFrame)
+            {
+                return true;
+            }
+        }
+
+        if (Gamepad.current != null && Gamepad.current.dpad.left.wasPressedThisFrame)
+        {
+            return true;
+        }
+
+        return false;
     }
 
     private bool ReadFireHeldInput()

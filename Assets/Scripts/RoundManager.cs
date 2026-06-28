@@ -7,6 +7,7 @@ using UnityEngine;
 public class RoundManager : MonoBehaviour
 {
     public static RoundManager Instance { get; private set; }
+
     public enum TeamColor
     {
         Red,
@@ -18,6 +19,8 @@ public class RoundManager : MonoBehaviour
     private enum GamePhase
     {
         WaitingForReady,
+        SkillSelecting,
+        RoundStarting,
         RoundPlaying,
         RoundEnding,
         MatchFinished
@@ -25,6 +28,17 @@ public class RoundManager : MonoBehaviour
 
     [Header("Ready")]
     [SerializeField] private int minPlayersToStart = 2;
+
+    [Header("Skill Selection")]
+    [SerializeField] private float skillSelectionDuration = 10.0f;
+    [SerializeField] private float startAfterAllSkillsSelectedDelay = 2.0f;
+    [SerializeField] private List<PlayerSkillType> availableRoundSkills = new()
+    {
+        PlayerSkillType.DoubleJump,
+        PlayerSkillType.RapidFire,
+        PlayerSkillType.BulletSpeedUp,
+        PlayerSkillType.DamageReduction
+    };
 
     [Header("Round")]
     [SerializeField] private int maxRoundCount = 3;
@@ -40,18 +54,27 @@ public class RoundManager : MonoBehaviour
 
     [Header("Health Items")]
     [SerializeField] private HealthItemSpawner healthItemSpawner;
+
+    [Header("UI")]
     [SerializeField] private WaitingRoomUI waitingRoomUI;
     [SerializeField] private BattleStartUI battleStartUI;
 
     private readonly List<PlayerHealth> players = new();
     private readonly Dictionary<PlayerHealth, int> points = new();
     private readonly Dictionary<PlayerHealth, bool> readyStates = new();
+    private readonly Dictionary<PlayerHealth, bool> skillSelectedStates = new();
+    private readonly Dictionary<PlayerHealth, PlayerSkillType> selectedSkills = new();
 
     public int currentRound = 1;
     private GamePhase phase = GamePhase.WaitingForReady;
 
+    private Coroutine skillSelectionCoroutine;
+    private Coroutine startRoundCoroutine;
+
     public bool CanUseWeapons => phase == GamePhase.RoundPlaying;
+    public bool CanControlPlayers => phase == GamePhase.WaitingForReady || phase == GamePhase.RoundPlaying;
     public bool IsWaitingForReady => phase == GamePhase.WaitingForReady;
+    public bool IsSkillSelecting => phase == GamePhase.SkillSelecting;
     public bool IsRoundPlaying => phase == GamePhase.RoundPlaying;
     public bool IsMatchFinished => phase == GamePhase.MatchFinished;
 
@@ -72,6 +95,16 @@ public class RoundManager : MonoBehaviour
             return players.Count(player => player != null);
         }
     }
+
+    public IReadOnlyList<PlayerHealth> Players => players;
+
+    private readonly TeamColor[] teamOrder =
+    {
+        TeamColor.Red,
+        TeamColor.Blue,
+        TeamColor.Green,
+        TeamColor.Yellow
+    };
 
     private void Awake()
     {
@@ -94,18 +127,16 @@ public class RoundManager : MonoBehaviour
         Debug.Log("[RoundManager] Press Enter or ZL to ready.");
 
         LogSpawnPointSettings();
+        LogSkillSlots();
     }
-
-    private readonly TeamColor[] teamOrder =
-    {
-        TeamColor.Red,
-        TeamColor.Blue,
-        TeamColor.Green,
-        TeamColor.Yellow
-    };
 
     private void AssignTeamColor(PlayerHealth player)
     {
+        if (player == null)
+        {
+            return;
+        }
+
         PlayerTeam playerTeam = player.GetComponent<PlayerTeam>();
 
         if (playerTeam == null)
@@ -115,15 +146,13 @@ public class RoundManager : MonoBehaviour
 
         int index = players.Count - 1;
 
-        TeamColor assignedColor =
-            teamOrder[index % teamOrder.Length];
+        TeamColor assignedColor = teamOrder[index % teamOrder.Length];
 
         playerTeam.SetTeam(assignedColor);
 
-        Debug.Log(
-            $"{player.gameObject.name} joined as {assignedColor}"
-        );
+        Debug.Log($"{player.gameObject.name} joined as {assignedColor}");
     }
+
     public void RegisterPlayer(PlayerHealth player)
     {
         if (player == null)
@@ -139,6 +168,9 @@ public class RoundManager : MonoBehaviour
         players.Add(player);
         points[player] = 0;
         readyStates[player] = false;
+        skillSelectedStates[player] = false;
+        selectedSkills[player] = PlayerSkillType.None;
+
         AssignTeamColor(player);
 
         player.OnDied += HandlePlayerDied;
@@ -149,12 +181,6 @@ public class RoundManager : MonoBehaviour
         );
     }
 
-    public IReadOnlyList<PlayerHealth> Players => players;
-
-    public bool IsPlayerReady(PlayerHealth player)
-    {
-        return readyStates.TryGetValue(player, out bool ready) && ready;
-    }
     public void UnregisterPlayer(PlayerHealth player)
     {
         if (player == null)
@@ -167,10 +193,24 @@ public class RoundManager : MonoBehaviour
         players.Remove(player);
         points.Remove(player);
         readyStates.Remove(player);
+        skillSelectedStates.Remove(player);
+        selectedSkills.Remove(player);
 
         Debug.Log($"[RoundManager] Unregistered: {player.gameObject.name}, Count={players.Count}");
 
-        TryStartFirstRound();
+        if (phase == GamePhase.WaitingForReady)
+        {
+            TryStartFirstRound();
+        }
+        else if (phase == GamePhase.SkillSelecting)
+        {
+            TryFinishSkillSelection();
+        }
+    }
+
+    public bool IsPlayerReady(PlayerHealth player)
+    {
+        return readyStates.TryGetValue(player, out bool ready) && ready;
     }
 
     public void SetPlayerReady(PlayerHealth player)
@@ -211,9 +251,7 @@ public class RoundManager : MonoBehaviour
             return;
         }
 
-        List<PlayerHealth> validPlayers = players
-            .Where(player => player != null)
-            .ToList();
+        List<PlayerHealth> validPlayers = GetValidPlayers();
 
         if (validPlayers.Count < minPlayersToStart)
         {
@@ -233,21 +271,283 @@ public class RoundManager : MonoBehaviour
             }
         }
 
-        battleStartUI.StartCoroutine(battleStartUI.PlaySequence());
-        StartFirstRound();
+        currentRound = 1;
+        BeginSkillSelectionForRound(currentRound);
     }
 
-    private void StartFirstRound()
+    private void BeginSkillSelectionForRound(int roundNumber)
     {
-        waitingRoomUI.HideRoomUI();
-        currentRound = 1;
-        phase = GamePhase.RoundPlaying;
+        StopSkillSelectionCoroutines();
 
+        if (waitingRoomUI != null)
+        {
+            waitingRoomUI.HideRoomUI();
+        }
+
+        currentRound = roundNumber;
+        phase = GamePhase.SkillSelecting;
+
+        ClearHealthItems();
         DespawnProjectiles();
+
         RespawnAllPlayersWithoutOverlap();
+
+        ResetSkillSelectionStates();
+
+        Debug.Log($"[RoundManager] Round {currentRound} Skill Selection Start.");
+        Debug.Log($"[RoundManager] Select skill within {skillSelectionDuration} seconds.");
+        Debug.Log("[RoundManager] During skill selection, players cannot move.");
+        LogSkillSlots();
+
+        skillSelectionCoroutine = StartCoroutine(SkillSelectionTimeoutCoroutine());
+    }
+
+    private void ResetSkillSelectionStates()
+    {
+        List<PlayerHealth> validPlayers = GetValidPlayers();
+
+        foreach (PlayerHealth player in validPlayers)
+        {
+            skillSelectedStates[player] = false;
+            selectedSkills[player] = PlayerSkillType.None;
+        }
+    }
+
+    public void SelectSkillBySlot(PlayerHealth player, int slotIndex)
+    {
+        if (phase != GamePhase.SkillSelecting)
+        {
+            return;
+        }
+
+        if (player == null)
+        {
+            return;
+        }
+
+        if (!players.Contains(player))
+        {
+            Debug.LogWarning($"[RoundManager] Skill selection ignored. Player is not registered: {player.gameObject.name}");
+            return;
+        }
+
+        if (skillSelectedStates.TryGetValue(player, out bool alreadySelected) && alreadySelected)
+        {
+            return;
+        }
+
+        if (slotIndex < 0 || slotIndex >= availableRoundSkills.Count)
+        {
+            Debug.LogWarning($"[RoundManager] Invalid skill slot: {slotIndex + 1}");
+            return;
+        }
+
+        PlayerSkillType skill = availableRoundSkills[slotIndex];
+
+        SelectSkill(player, skill, false);
+    }
+
+    private void SelectSkill(PlayerHealth player, PlayerSkillType skill, bool isAutoSelect)
+    {
+        if (player == null)
+        {
+            return;
+        }
+
+        PlayerSkillController skillController = player.GetComponent<PlayerSkillController>();
+
+        if (skillController == null)
+        {
+            Debug.LogWarning($"[RoundManager] PlayerSkillController was not found: {player.gameObject.name}");
+            skill = PlayerSkillType.None;
+        }
+        else if (!skillController.CanSelectSkill(skill))
+        {
+            Debug.Log(
+                $"[RoundManager] {player.gameObject.name} cannot select {skill} because it was used last round."
+            );
+
+            if (!isAutoSelect)
+            {
+                return;
+            }
+
+            skill = PlayerSkillType.None;
+        }
+
+        selectedSkills[player] = skill;
+        skillSelectedStates[player] = true;
+
+        Debug.Log(
+            $"[RoundManager] Skill Selected: {player.gameObject.name}, " +
+            $"Skill={skill}, Auto={isAutoSelect}"
+        );
+
+        LogSkillSelectionStates();
+        TryFinishSkillSelection();
+    }
+
+    private void TryFinishSkillSelection()
+    {
+        if (phase != GamePhase.SkillSelecting)
+        {
+            return;
+        }
+
+        List<PlayerHealth> validPlayers = GetValidPlayers();
+
+        if (validPlayers.Count == 0)
+        {
+            return;
+        }
+
+        foreach (PlayerHealth player in validPlayers)
+        {
+            if (!skillSelectedStates.TryGetValue(player, out bool selected) || !selected)
+            {
+                return;
+            }
+        }
+
+        StopSkillSelectionCoroutineOnly();
+
+        if (startRoundCoroutine != null)
+        {
+            return;
+        }
+
+        startRoundCoroutine = StartCoroutine(StartRoundAfterSkillSelectionCoroutine());
+    }
+
+    private IEnumerator SkillSelectionTimeoutCoroutine()
+    {
+        yield return new WaitForSeconds(skillSelectionDuration);
+
+        if (phase != GamePhase.SkillSelecting)
+        {
+            yield break;
+        }
+
+        Debug.Log("[RoundManager] Skill selection timeout. Auto selecting missing skills.");
+
+        AutoSelectMissingSkills();
+        TryFinishSkillSelection();
+    }
+
+    private void AutoSelectMissingSkills()
+    {
+        List<PlayerHealth> validPlayers = GetValidPlayers();
+
+        foreach (PlayerHealth player in validPlayers)
+        {
+            if (skillSelectedStates.TryGetValue(player, out bool selected) && selected)
+            {
+                continue;
+            }
+
+            PlayerSkillType autoSkill = GetAutoSelectableSkill(player);
+            SelectSkill(player, autoSkill, true);
+        }
+    }
+
+    private PlayerSkillType GetAutoSelectableSkill(PlayerHealth player)
+    {
+        if (player == null)
+        {
+            return PlayerSkillType.None;
+        }
+
+        PlayerSkillController skillController = player.GetComponent<PlayerSkillController>();
+
+        foreach (PlayerSkillType skill in availableRoundSkills)
+        {
+            if (skill == PlayerSkillType.None)
+            {
+                continue;
+            }
+
+            if (skillController == null || skillController.CanSelectSkill(skill))
+            {
+                return skill;
+            }
+        }
+
+        return PlayerSkillType.None;
+    }
+
+    private IEnumerator StartRoundAfterSkillSelectionCoroutine()
+    {
+        phase = GamePhase.RoundStarting;
+
+        ApplySelectedSkillsForCurrentRound();
+
+        Debug.Log(
+            $"[RoundManager] All players selected skills. " +
+            $"Round {currentRound} starts in {startAfterAllSkillsSelectedDelay} seconds."
+        );
+
+        yield return new WaitForSeconds(startAfterAllSkillsSelectedDelay);
+
+        phase = GamePhase.RoundPlaying;
+        startRoundCoroutine = null;
+
         SetupHealthItemsForCurrentPlayers();
-        battleStartUI.StartCoroutine(battleStartUI.PlaySequence());
+
+        if (battleStartUI != null)
+        {
+            battleStartUI.StartCoroutine(battleStartUI.PlaySequence());
+        }
+
         Debug.Log($"Round {currentRound} Start");
+    }
+
+    private void ApplySelectedSkillsForCurrentRound()
+    {
+        List<PlayerHealth> validPlayers = GetValidPlayers();
+
+        foreach (PlayerHealth player in validPlayers)
+        {
+            PlayerSkillType selectedSkill = PlayerSkillType.None;
+
+            if (selectedSkills.TryGetValue(player, out PlayerSkillType skill))
+            {
+                selectedSkill = skill;
+            }
+
+            PlayerSkillController skillController = player.GetComponent<PlayerSkillController>();
+
+            if (skillController == null)
+            {
+                Debug.LogWarning($"[RoundManager] PlayerSkillController was not found: {player.gameObject.name}");
+                continue;
+            }
+
+            skillController.PrepareForRound(selectedSkill);
+        }
+    }
+
+    private void StopSkillSelectionCoroutineOnly()
+    {
+        if (skillSelectionCoroutine != null)
+        {
+            StopCoroutine(skillSelectionCoroutine);
+            skillSelectionCoroutine = null;
+        }
+    }
+
+    private void StopSkillSelectionCoroutines()
+    {
+        if (skillSelectionCoroutine != null)
+        {
+            StopCoroutine(skillSelectionCoroutine);
+            skillSelectionCoroutine = null;
+        }
+
+        if (startRoundCoroutine != null)
+        {
+            StopCoroutine(startRoundCoroutine);
+            startRoundCoroutine = null;
+        }
     }
 
     private void HandlePlayerDied(PlayerHealth deadPlayer)
@@ -320,13 +620,7 @@ public class RoundManager : MonoBehaviour
 
         currentRound++;
 
-        RespawnAllPlayersWithoutOverlap();
-
-        phase = GamePhase.RoundPlaying;
-
-        SetupHealthItemsForCurrentPlayers();
-
-        Debug.Log($"Round {currentRound} Start");
+        BeginSkillSelectionForRound(currentRound);
     }
 
     private IEnumerator FinishMatchAndReturnToWaitingCoroutine()
@@ -335,6 +629,7 @@ public class RoundManager : MonoBehaviour
 
         ClearHealthItems();
         DespawnProjectiles();
+        StopSkillSelectionCoroutines();
 
         LogMatchResult();
 
@@ -349,22 +644,35 @@ public class RoundManager : MonoBehaviour
     {
         ClearHealthItems();
         DespawnProjectiles();
+        StopSkillSelectionCoroutines();
 
         currentRound = 1;
 
-        List<PlayerHealth> validPlayers = players
-            .Where(player => player != null)
-            .ToList();
+        List<PlayerHealth> validPlayers = GetValidPlayers();
 
         foreach (PlayerHealth player in validPlayers)
         {
             points[player] = 0;
             readyStates[player] = false;
+            skillSelectedStates[player] = false;
+            selectedSkills[player] = PlayerSkillType.None;
+
+            PlayerSkillController skillController = player.GetComponent<PlayerSkillController>();
+
+            if (skillController != null)
+            {
+                skillController.ResetSkillHistory();
+            }
         }
 
         RespawnAllPlayersWithoutOverlap();
 
         phase = GamePhase.WaitingForReady;
+
+        if (waitingRoomUI != null)
+        {
+            waitingRoomUI.ShowRoomUI();
+        }
 
         Debug.Log("[RoundManager] Returned to waiting state.");
         Debug.Log("[RoundManager] Press Enter or ZL to ready.");
@@ -400,10 +708,7 @@ public class RoundManager : MonoBehaviour
 
     private void RespawnAllPlayersWithoutOverlap()
     {
-        List<PlayerHealth> validPlayers = players
-            .Where(player => player != null)
-            .ToList();
-
+        List<PlayerHealth> validPlayers = GetValidPlayers();
         List<Transform> availableSpawnPoints = GetAvailableSpawnPoints();
 
         if (availableSpawnPoints.Count == 0)
@@ -446,6 +751,13 @@ public class RoundManager : MonoBehaviour
 
             player.RespawnForRound(spawnPoint);
         }
+    }
+
+    private List<PlayerHealth> GetValidPlayers()
+    {
+        return players
+            .Where(player => player != null)
+            .ToList();
     }
 
     private List<Transform> GetAvailableSpawnPoints()
@@ -552,9 +864,7 @@ public class RoundManager : MonoBehaviour
 
     private void LogReadyStates()
     {
-        List<PlayerHealth> validPlayers = players
-            .Where(player => player != null)
-            .ToList();
+        List<PlayerHealth> validPlayers = GetValidPlayers();
 
         int readyCount = 0;
 
@@ -577,6 +887,46 @@ public class RoundManager : MonoBehaviour
             $"[RoundManager] Ready Count: " +
             $"{readyCount}/{validPlayers.Count}, RequiredPlayers={minPlayersToStart}"
         );
+    }
+
+    private void LogSkillSelectionStates()
+    {
+        List<PlayerHealth> validPlayers = GetValidPlayers();
+
+        int selectedCount = 0;
+
+        foreach (PlayerHealth player in validPlayers)
+        {
+            bool selected = skillSelectedStates.TryGetValue(player, out bool value) && value;
+            PlayerSkillType skill = selectedSkills.TryGetValue(player, out PlayerSkillType selectedSkill)
+                ? selectedSkill
+                : PlayerSkillType.None;
+
+            if (selected)
+            {
+                selectedCount++;
+            }
+
+            Debug.Log(
+                $"[RoundManager] SkillState: " +
+                $"{player.gameObject.name}, Selected={selected}, Skill={skill}"
+            );
+        }
+
+        Debug.Log(
+            $"[RoundManager] Skill Selected Count: " +
+            $"{selectedCount}/{validPlayers.Count}"
+        );
+    }
+
+    private void LogSkillSlots()
+    {
+        Debug.Log("[RoundManager] Skill Slots:");
+
+        for (int i = 0; i < availableRoundSkills.Count; i++)
+        {
+            Debug.Log($"[RoundManager] Key {i + 1}: {availableRoundSkills[i]}");
+        }
     }
 
     private void LogSpawnPointSettings()

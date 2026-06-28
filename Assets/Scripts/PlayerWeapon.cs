@@ -11,12 +11,15 @@ public class PlayerWeapon : NetworkBehaviour
     [SerializeField] private NetworkPrefabRef projectilePrefab;
     [SerializeField] private float projectileSpeed = 18.0f;
     [SerializeField] private float projectileLifeTime = 3.0f;
-    [SerializeField] private int projectileDamage = 1;
+    [SerializeField] private float projectileDamage = 1.0f;
     [SerializeField] private float projectileSpawnDistance = 0.8f;
 
     [Header("Ammo")]
     [SerializeField] private int maxAmmo = 20;
     [SerializeField] private float fireInterval = 0.15f;
+
+    [Header("Reload")]
+    [SerializeField] private float reloadDuration = 3.0f;
 
     private PlayerHealth playerHealth;
     private PlayerLook playerLook;
@@ -24,9 +27,15 @@ public class PlayerWeapon : NetworkBehaviour
 
     private int currentAmmo;
     private float fireTimer;
+    private float reloadTimer;
+    private bool isReloading;
+
+    private float fireIntervalMultiplier = 1.0f;
+    private float projectileSpeedMultiplier = 1.0f;
 
     public int CurrentAmmo => currentAmmo;
     public int MaxAmmo => maxAmmo;
+    public bool IsReloading => isReloading;
 
     public event Action OnShot;
     public event Action OnReloaded;
@@ -41,6 +50,11 @@ public class PlayerWeapon : NetworkBehaviour
 
         currentAmmo = maxAmmo;
         fireTimer = 0.0f;
+        reloadTimer = 0.0f;
+        isReloading = false;
+
+        fireIntervalMultiplier = 1.0f;
+        projectileSpeedMultiplier = 1.0f;
     }
 
     private void Start()
@@ -55,6 +69,40 @@ public class PlayerWeapon : NetworkBehaviour
         {
             fireTimer -= deltaTime;
         }
+
+        if (!isReloading)
+        {
+            return;
+        }
+
+        reloadTimer -= deltaTime;
+
+        if (reloadTimer > 0.0f)
+        {
+            return;
+        }
+
+        CompleteReload();
+    }
+
+    public void SetFireIntervalMultiplier(float multiplier)
+    {
+        fireIntervalMultiplier = Mathf.Clamp(multiplier, 0.05f, 10.0f);
+    }
+
+    public void SetProjectileSpeedMultiplier(float multiplier)
+    {
+        projectileSpeedMultiplier = Mathf.Clamp(multiplier, 0.1f, 10.0f);
+    }
+
+    private float GetCurrentFireInterval()
+    {
+        return fireInterval * fireIntervalMultiplier;
+    }
+
+    private float GetCurrentProjectileSpeed()
+    {
+        return projectileSpeed * projectileSpeedMultiplier;
     }
 
     public void ReloadAmmo()
@@ -64,10 +112,72 @@ public class PlayerWeapon : NetworkBehaviour
             return;
         }
 
+        if (isReloading)
+        {
+            return;
+        }
+
+        if (currentAmmo >= maxAmmo)
+        {
+            return;
+        }
+
+        isReloading = true;
+        reloadTimer = reloadDuration;
+
+        Debug.Log($"Reload started. Duration={reloadDuration} seconds.");
+    }
+
+    public void RefillAmmoImmediately()
+    {
+        if (!Object.HasStateAuthority)
+        {
+            return;
+        }
+
+        isReloading = false;
+        reloadTimer = 0.0f;
         currentAmmo = maxAmmo;
 
         OnReloaded?.Invoke();
         OnAmmoChanged?.Invoke(currentAmmo, maxAmmo);
+
+        Debug.Log($"Ammo refilled immediately: {currentAmmo}/{maxAmmo}");
+    }
+
+    private void CompleteReload()
+    {
+        if (!Object.HasStateAuthority)
+        {
+            return;
+        }
+
+        isReloading = false;
+        reloadTimer = 0.0f;
+        currentAmmo = maxAmmo;
+
+        OnReloaded?.Invoke();
+        OnAmmoChanged?.Invoke(currentAmmo, maxAmmo);
+
+        Debug.Log($"Reload completed: {currentAmmo}/{maxAmmo}");
+    }
+
+    public void CancelReload()
+    {
+        if (!Object.HasStateAuthority)
+        {
+            return;
+        }
+
+        if (!isReloading)
+        {
+            return;
+        }
+
+        isReloading = false;
+        reloadTimer = 0.0f;
+
+        Debug.Log("Reload canceled.");
     }
 
     public void TryFireProjectile()
@@ -77,16 +187,24 @@ public class PlayerWeapon : NetworkBehaviour
             return;
         }
 
+        if (isReloading)
+        {
+            Debug.Log("Cannot fire while reloading.");
+            return;
+        }
+
         if (fireTimer > 0.0f)
         {
             return;
         }
 
+        float currentFireInterval = GetCurrentFireInterval();
+
         if (currentAmmo <= 0)
         {
             Debug.Log("No ammo. Press K or ZL to reload.");
 
-            fireTimer = fireInterval;
+            fireTimer = currentFireInterval;
             OnDryFire?.Invoke();
 
             return;
@@ -95,12 +213,19 @@ public class PlayerWeapon : NetworkBehaviour
         FireProjectile();
 
         currentAmmo--;
-        fireTimer = fireInterval;
+        fireTimer = currentFireInterval;
 
         OnShot?.Invoke();
         OnAmmoChanged?.Invoke(currentAmmo, maxAmmo);
 
-        Debug.Log($"Ammo: {currentAmmo}/{maxAmmo}");
+        Debug.Log(
+            $"Ammo: {currentAmmo}/{maxAmmo}, " +
+            $"FireInterval={currentFireInterval:0.00}, " +
+            $"FireIntervalMultiplier={fireIntervalMultiplier:0.00}, " +
+            $"ProjectileDamage={projectileDamage:0.00}, " +
+            $"ProjectileSpeed={GetCurrentProjectileSpeed():0.00}, " +
+            $"ProjectileSpeedMultiplier={projectileSpeedMultiplier:0.00}"
+        );
     }
 
     private void FireProjectile()
@@ -137,7 +262,7 @@ public class PlayerWeapon : NetworkBehaviour
 
         projectile.Initialize(
             fireDirection,
-            projectileSpeed,
+            GetCurrentProjectileSpeed(),
             projectileLifeTime,
             projectileDamage,
             playerHealth

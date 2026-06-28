@@ -8,7 +8,7 @@ public class Projectile : NetworkBehaviour
     private float moveSpeed;
     private float lifeTime;
     private float timer;
-    private int damage;
+    private float damage;
 
     private PlayerHealth owner;
     private bool initialized;
@@ -22,7 +22,7 @@ public class Projectile : NetworkBehaviour
         Vector3 direction,
         float speed,
         float duration,
-        int projectileDamage,
+        float projectileDamage,
         PlayerHealth projectileOwner)
     {
         if (!Object.HasStateAuthority)
