@@ -1,12 +1,20 @@
+using Fusion;
+using SlimUI.ModernMenu;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
-using Fusion;
 using UnityEngine;
 
 public class RoundManager : MonoBehaviour
 {
     public static RoundManager Instance { get; private set; }
+    public enum TeamColor
+    {
+        Red,
+        Blue,
+        Green,
+        Yellow
+    }
 
     private enum GamePhase
     {
@@ -33,6 +41,7 @@ public class RoundManager : MonoBehaviour
 
     [Header("Health Items")]
     [SerializeField] private HealthItemSpawner healthItemSpawner;
+    [SerializeField] private WaitingRoomUI waitingRoomUI;
 
     private readonly List<PlayerHealth> players = new();
     private readonly Dictionary<PlayerHealth, int> points = new();
@@ -45,6 +54,16 @@ public class RoundManager : MonoBehaviour
     public bool IsWaitingForReady => phase == GamePhase.WaitingForReady;
     public bool IsRoundPlaying => phase == GamePhase.RoundPlaying;
     public bool IsMatchFinished => phase == GamePhase.MatchFinished;
+
+    public class PlayerTeam : MonoBehaviour
+    {
+        public TeamColor Team { get; private set; }
+
+        public void SetTeam(TeamColor team)
+        {
+            Team = team;
+        }
+    }
 
     public int RegisteredPlayerCount
     {
@@ -77,6 +96,34 @@ public class RoundManager : MonoBehaviour
         LogSpawnPointSettings();
     }
 
+    private readonly TeamColor[] teamOrder =
+    {
+        TeamColor.Red,
+        TeamColor.Blue,
+        TeamColor.Green,
+        TeamColor.Yellow
+    };
+
+    private void AssignTeamColor(PlayerHealth player)
+    {
+        PlayerTeam playerTeam = player.GetComponent<PlayerTeam>();
+
+        if (playerTeam == null)
+        {
+            playerTeam = player.gameObject.AddComponent<PlayerTeam>();
+        }
+
+        int index = players.Count - 1;
+
+        TeamColor assignedColor =
+            teamOrder[index % teamOrder.Length];
+
+        playerTeam.SetTeam(assignedColor);
+
+        Debug.Log(
+            $"{player.gameObject.name} joined as {assignedColor}"
+        );
+    }
     public void RegisterPlayer(PlayerHealth player)
     {
         if (player == null)
@@ -92,6 +139,7 @@ public class RoundManager : MonoBehaviour
         players.Add(player);
         points[player] = 0;
         readyStates[player] = false;
+        AssignTeamColor(player);
 
         player.OnDied += HandlePlayerDied;
 
@@ -101,6 +149,12 @@ public class RoundManager : MonoBehaviour
         );
     }
 
+    public IReadOnlyList<PlayerHealth> Players => players;
+
+    public bool IsPlayerReady(PlayerHealth player)
+    {
+        return readyStates.TryGetValue(player, out bool ready) && ready;
+    }
     public void UnregisterPlayer(PlayerHealth player)
     {
         if (player == null)
@@ -179,11 +233,13 @@ public class RoundManager : MonoBehaviour
             }
         }
 
+
         StartFirstRound();
     }
 
     private void StartFirstRound()
     {
+        waitingRoomUI.HideRoomUI();
         currentRound = 1;
         phase = GamePhase.RoundPlaying;
 

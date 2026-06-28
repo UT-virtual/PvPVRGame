@@ -17,10 +17,6 @@ namespace SlimUI.ModernMenu{
         [Tooltip("The Menu for when the PLAY button is clicked")]
         public GameObject playMenu;
         [Tooltip("The Menu for when the EXIT button is clicked")]
-        public GameObject exitMenu;
-        [Tooltip("Optional 4th Menu")]
-        public GameObject extrasMenu;
-
         public enum Theme {custom1, custom2, custom3};
         [Header("THEME SETTINGS")]
         public Theme theme;
@@ -84,8 +80,6 @@ namespace SlimUI.ModernMenu{
 			CameraObject = transform.GetComponent<Animator>();
 
 			playMenu.SetActive(false);
-			exitMenu.SetActive(false);
-			if(extrasMenu) extrasMenu.SetActive(false);
 			firstMenu.SetActive(true);
 			mainMenu.SetActive(true);
 
@@ -118,22 +112,13 @@ namespace SlimUI.ModernMenu{
 		}
 
 		public void PlayCampaign(){
-			exitMenu.SetActive(false);
-			if(extrasMenu) extrasMenu.SetActive(false);
 			playMenu.SetActive(true);
 		}
 		
-		public void PlayCampaignMobile(){
-			exitMenu.SetActive(false);
-			if(extrasMenu) extrasMenu.SetActive(false);
-			playMenu.SetActive(true);
-			mainMenu.SetActive(false);
-		}
+
 
 		public void ReturnMenu(){
 			playMenu.SetActive(false);
-			if(extrasMenu) extrasMenu.SetActive(false);
-			exitMenu.SetActive(false);
 			mainMenu.SetActive(true);
 		}
 
@@ -231,8 +216,7 @@ namespace SlimUI.ModernMenu{
 
 		// Are You Sure - Quit Panel Pop Up
 		public void AreYouSure(){
-			exitMenu.SetActive(true);
-			if(extrasMenu) extrasMenu.SetActive(false);
+
 			DisablePlayCampaign();
 		}
 

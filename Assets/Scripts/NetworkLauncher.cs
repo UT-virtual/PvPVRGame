@@ -1,7 +1,8 @@
-using System;
-using System.Collections.Generic;
 using Fusion;
 using Fusion.Sockets;
+using SlimUI.ModernMenu;
+using System;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.SceneManagement;
@@ -25,6 +26,7 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
     [SerializeField] private InputActionReference jumpAction;
     [SerializeField] private InputActionReference fireAction;
     [SerializeField] private InputActionReference reloadAction;
+    [SerializeField] private WaitingRoomUI waitingRoomUI;
 
     private NetworkRunner runner;
     private NetworkSceneManagerDefault sceneManager;
@@ -42,6 +44,14 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
 
     private bool isVRActive => UnityEngine.XR.XRSettings.isDeviceActive;
     private Quaternion currentHMD = Quaternion.identity;
+
+
+
+
+    private void Start()
+    {
+        
+    }
 
     private void OnEnable()
     {
@@ -83,8 +93,9 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
         actionReference.action.Disable();
     }
 
-    private async void StartGame(GameMode gameMode)
+    public async void StartGame(GameMode gameMode)
     {
+        waitingRoomUI.ShowRoomUI();
         if (runner != null)
         {
             return;
@@ -205,21 +216,17 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
     {
         GUI.Label(new Rect(20, 20, 500, 30), statusText);
 
-        if (runner != null)
-        {
-            return;
-        }
+         if (runner != null)
+             return;
 
-        if (GUI.Button(new Rect(20, 60, 200, 50), "Host"))
-        {
-            StartGame(GameMode.Host);
-        }
+         if (GUI.Button(new Rect(20, 60, 200, 50), "Host"))
+             StartGame(GameMode.Host);
 
-        if (GUI.Button(new Rect(20, 120, 200, 50), "Client"))
-        {
-            StartGame(GameMode.Client);
-        }
+         if (GUI.Button(new Rect(20, 120, 200, 50), "Client"))
+             StartGame(GameMode.Client);
     }
+
+
 
     public void OnPlayerJoined(NetworkRunner runner, PlayerRef player)
     {
