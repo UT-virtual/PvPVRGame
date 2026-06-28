@@ -11,6 +11,7 @@ GameObject:
   - component: {fileID: 3620003877660307751}
   - component: {fileID: 3785362430800804803}
   - component: {fileID: 8692181963540905724}
+  - component: {fileID: 7215815010809000316}
   m_Layer: 0
   m_Name: SM_Bullet_05
   m_TagString: Untagged
@@ -90,6 +91,29 @@ MeshRenderer:
   m_SortingOrder: 0
   m_MaskInteraction: 0
   m_AdditionalVertexStreams: {fileID: 0}
+--- !u!136 &7215815010809000316
+CapsuleCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4694920995243466099}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 1
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 2
+  m_Radius: 0.015170363
+  m_Height: 0.115301415
+  m_Direction: 1
+  m_Center: {x: -0.0000000012417635, y: -0.0034956434, z: 0.0000000012417635}
 --- !u!1 &6457653946344358340
 GameObject:
   m_ObjectHideFlags: 0
@@ -118,14 +142,14 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 6457653946344358340}
   serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalRotation: {x: 0.7071068, y: -0, z: -0, w: -0.7071068}
   m_LocalPosition: {x: -1.65943, y: 0.46508998, z: 0.88483}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
+  m_LocalScale: {x: 3, y: 3, z: 3}
+  m_ConstrainProportionsScale: 1
   m_Children:
   - {fileID: 3620003877660307751}
   m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+  m_LocalEulerAnglesHint: {x: 270, y: 0, z: 0}
 --- !u!114 &3562311238915310194
 MonoBehaviour:
   m_ObjectHideFlags: 0
