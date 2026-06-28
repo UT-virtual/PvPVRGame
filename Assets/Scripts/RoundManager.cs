@@ -1,5 +1,4 @@
 using Fusion;
-using SlimUI.ModernMenu;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
@@ -42,12 +41,13 @@ public class RoundManager : MonoBehaviour
     [Header("Health Items")]
     [SerializeField] private HealthItemSpawner healthItemSpawner;
     [SerializeField] private WaitingRoomUI waitingRoomUI;
+    [SerializeField] private BattleStartUI battleStartUI;
 
     private readonly List<PlayerHealth> players = new();
     private readonly Dictionary<PlayerHealth, int> points = new();
     private readonly Dictionary<PlayerHealth, bool> readyStates = new();
 
-    private int currentRound = 1;
+    public int currentRound = 1;
     private GamePhase phase = GamePhase.WaitingForReady;
 
     public bool CanUseWeapons => phase == GamePhase.RoundPlaying;
@@ -233,7 +233,7 @@ public class RoundManager : MonoBehaviour
             }
         }
 
-
+        battleStartUI.StartCoroutine(battleStartUI.PlaySequence());
         StartFirstRound();
     }
 
@@ -246,7 +246,7 @@ public class RoundManager : MonoBehaviour
         DespawnProjectiles();
         RespawnAllPlayersWithoutOverlap();
         SetupHealthItemsForCurrentPlayers();
-
+        battleStartUI.StartCoroutine(battleStartUI.PlaySequence());
         Debug.Log($"Round {currentRound} Start");
     }
 
