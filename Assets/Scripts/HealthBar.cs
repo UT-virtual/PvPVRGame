@@ -1,7 +1,7 @@
 using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
+using Fusion;
 
 public class HealthBar : MonoBehaviour
 {
@@ -9,38 +9,132 @@ public class HealthBar : MonoBehaviour
     [SerializeField] private PlayerHealth playerHealth;
 
     private float currentHealth;
-    private float DisplayHealth;
-    private float healthLerpSpeed = 0.15f;
+    private float displayHealth;
+
+    [SerializeField] private float healthLerpSpeed = 0.15f;
+
     public Slider HealthSlider;
 
     public RectTransform barTransform;
     public float shakeAmount = 5f;     // 揺れの強さ
     public float shakeDuration = 0.1f; // 揺れる時間
+
     private Vector3 originalPos;
     private float shakeTimer = 0f;
 
-    void Awake()
+    private void Awake()
     {
         currentHealth = maxHealth;
-        DisplayHealth = maxHealth;
-        HealthSlider.maxValue = maxHealth;
-        HealthSlider.value = DisplayHealth;
-        originalPos = barTransform.localPosition;
+        displayHealth = maxHealth;
+
+        if (HealthSlider != null)
+        {
+            HealthSlider.maxValue = maxHealth;
+            HealthSlider.value = displayHealth;
+        }
+
+        if (barTransform != null)
+        {
+            originalPos = barTransform.localPosition;
+        }
     }
 
     private void Start()
     {
         if (playerHealth != null)
         {
-            maxHealth = playerHealth.MaxHealth;
-            currentHealth = playerHealth.CurrentHealth;
-            DisplayHealth = currentHealth;
-
-            HealthSlider.maxValue = maxHealth;
-            HealthSlider.value = DisplayHealth;
-
-            playerHealth.OnHealthChanged += UpdateBar;
+            SetupPlayerHealth(playerHealth);
+            return;
         }
+
+        StartCoroutine(FindLocalPlayer());
+    }
+
+    private IEnumerator FindLocalPlayer()
+    {
+        while (playerHealth == null)
+        {
+            PlayerHealth[] players = FindObjectsOfType<PlayerHealth>();
+
+            foreach (PlayerHealth health in players)
+            {
+                NetworkObject netObj = health.GetComponent<NetworkObject>();
+
+                if (netObj != null && netObj.HasInputAuthority)
+                {
+                    SetupPlayerHealth(health);
+
+                    Debug.Log("Local Player Found");
+                    yield break;
+                }
+            }
+
+            yield return null;
+        }
+    }
+
+    private void SetupPlayerHealth(PlayerHealth health)
+    {
+        playerHealth = health;
+
+        maxHealth = playerHealth.MaxHealth;
+        currentHealth = playerHealth.CurrentHealth;
+        displayHealth = currentHealth;
+
+        if (HealthSlider != null)
+        {
+            HealthSlider.maxValue = maxHealth;
+            HealthSlider.value = displayHealth;
+        }
+
+        playerHealth.OnHealthChanged += UpdateBar;
+    }
+
+    private void Update()
+    {
+        displayHealth = Mathf.Lerp(
+            displayHealth,
+            currentHealth,
+            healthLerpSpeed
+        );
+
+        if (HealthSlider != null)
+        {
+            HealthSlider.value = displayHealth;
+        }
+
+        if (shakeTimer > 0)
+        {
+            if (barTransform != null)
+            {
+                barTransform.localPosition =
+                    originalPos +
+                    (Vector3)Random.insideUnitCircle * shakeAmount;
+            }
+
+            shakeTimer -= Time.deltaTime;
+
+            if (shakeTimer <= 0)
+            {
+                if (barTransform != null)
+                {
+                    barTransform.localPosition = originalPos;
+                }
+            }
+        }
+    }
+
+    private void UpdateBar(float current, float max)
+    {
+        maxHealth = max;
+        currentHealth = current;
+
+        if (HealthSlider != null)
+        {
+            HealthSlider.maxValue = maxHealth;
+        }
+
+        shakeTimer = shakeDuration;
     }
 
     private void OnDestroy()
@@ -49,30 +143,5 @@ public class HealthBar : MonoBehaviour
         {
             playerHealth.OnHealthChanged -= UpdateBar;
         }
-    }
-
-    void Update()
-    {
-        DisplayHealth = Mathf.Lerp(DisplayHealth, currentHealth, healthLerpSpeed);
-        HealthSlider.value = DisplayHealth;
-
-        if (shakeTimer > 0)
-        {
-            barTransform.localPosition = originalPos + (Vector3)Random.insideUnitCircle * shakeAmount;
-            shakeTimer -= Time.deltaTime;
-
-            if (shakeTimer <= 0)
-            {
-                barTransform.localPosition = originalPos; // 元の位置に戻す
-            }
-        }
-    }
-
-    private void UpdateBar(float current, float max)
-    {
-        currentHealth = current;
-        maxHealth = max;
-        HealthSlider.maxValue = maxHealth;
-        shakeTimer = shakeDuration;
     }
 }

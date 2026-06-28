@@ -1,12 +1,20 @@
+using Fusion;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
-using Fusion;
 using UnityEngine;
 
 public class RoundManager : MonoBehaviour
 {
     public static RoundManager Instance { get; private set; }
+
+    public enum TeamColor
+    {
+        Red,
+        Blue,
+        Green,
+        Yellow
+    }
 
     private enum GamePhase
     {
@@ -47,13 +55,17 @@ public class RoundManager : MonoBehaviour
     [Header("Health Items")]
     [SerializeField] private HealthItemSpawner healthItemSpawner;
 
+    [Header("UI")]
+    [SerializeField] private WaitingRoomUI waitingRoomUI;
+    [SerializeField] private BattleStartUI battleStartUI;
+
     private readonly List<PlayerHealth> players = new();
     private readonly Dictionary<PlayerHealth, int> points = new();
     private readonly Dictionary<PlayerHealth, bool> readyStates = new();
     private readonly Dictionary<PlayerHealth, bool> skillSelectedStates = new();
     private readonly Dictionary<PlayerHealth, PlayerSkillType> selectedSkills = new();
 
-    private int currentRound = 1;
+    public int currentRound = 1;
     private GamePhase phase = GamePhase.WaitingForReady;
 
     private Coroutine skillSelectionCoroutine;
@@ -66,6 +78,16 @@ public class RoundManager : MonoBehaviour
     public bool IsRoundPlaying => phase == GamePhase.RoundPlaying;
     public bool IsMatchFinished => phase == GamePhase.MatchFinished;
 
+    public class PlayerTeam : MonoBehaviour
+    {
+        public TeamColor Team { get; private set; }
+
+        public void SetTeam(TeamColor team)
+        {
+            Team = team;
+        }
+    }
+
     public int RegisteredPlayerCount
     {
         get
@@ -73,6 +95,16 @@ public class RoundManager : MonoBehaviour
             return players.Count(player => player != null);
         }
     }
+
+    public IReadOnlyList<PlayerHealth> Players => players;
+
+    private readonly TeamColor[] teamOrder =
+    {
+        TeamColor.Red,
+        TeamColor.Blue,
+        TeamColor.Green,
+        TeamColor.Yellow
+    };
 
     private void Awake()
     {
@@ -98,6 +130,29 @@ public class RoundManager : MonoBehaviour
         LogSkillSlots();
     }
 
+    private void AssignTeamColor(PlayerHealth player)
+    {
+        if (player == null)
+        {
+            return;
+        }
+
+        PlayerTeam playerTeam = player.GetComponent<PlayerTeam>();
+
+        if (playerTeam == null)
+        {
+            playerTeam = player.gameObject.AddComponent<PlayerTeam>();
+        }
+
+        int index = players.Count - 1;
+
+        TeamColor assignedColor = teamOrder[index % teamOrder.Length];
+
+        playerTeam.SetTeam(assignedColor);
+
+        Debug.Log($"{player.gameObject.name} joined as {assignedColor}");
+    }
+
     public void RegisterPlayer(PlayerHealth player)
     {
         if (player == null)
@@ -115,6 +170,8 @@ public class RoundManager : MonoBehaviour
         readyStates[player] = false;
         skillSelectedStates[player] = false;
         selectedSkills[player] = PlayerSkillType.None;
+
+        AssignTeamColor(player);
 
         player.OnDied += HandlePlayerDied;
 
@@ -149,6 +206,11 @@ public class RoundManager : MonoBehaviour
         {
             TryFinishSkillSelection();
         }
+    }
+
+    public bool IsPlayerReady(PlayerHealth player)
+    {
+        return readyStates.TryGetValue(player, out bool ready) && ready;
     }
 
     public void SetPlayerReady(PlayerHealth player)
@@ -216,6 +278,11 @@ public class RoundManager : MonoBehaviour
     private void BeginSkillSelectionForRound(int roundNumber)
     {
         StopSkillSelectionCoroutines();
+
+        if (waitingRoomUI != null)
+        {
+            waitingRoomUI.HideRoomUI();
+        }
 
         currentRound = roundNumber;
         phase = GamePhase.SkillSelecting;
@@ -426,6 +493,11 @@ public class RoundManager : MonoBehaviour
 
         SetupHealthItemsForCurrentPlayers();
 
+        if (battleStartUI != null)
+        {
+            battleStartUI.StartCoroutine(battleStartUI.PlaySequence());
+        }
+
         Debug.Log($"Round {currentRound} Start");
     }
 
@@ -596,6 +668,11 @@ public class RoundManager : MonoBehaviour
         RespawnAllPlayersWithoutOverlap();
 
         phase = GamePhase.WaitingForReady;
+
+        if (waitingRoomUI != null)
+        {
+            waitingRoomUI.ShowRoomUI();
+        }
 
         Debug.Log("[RoundManager] Returned to waiting state.");
         Debug.Log("[RoundManager] Press Enter or ZL to ready.");
