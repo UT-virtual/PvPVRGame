@@ -11,12 +11,15 @@ public class PlayerHealth : NetworkBehaviour
     [SerializeField] private float maxHealth = 10.0f;
 
     public event Action<float, float> OnHealthChanged;
-    
+
     [Header("Death Visibility")]
     [SerializeField] private GameObject visualRoot;
 
-    [Networked] public float NetworkedCurrentHealth { get; private set; }
-    [Networked] public NetworkBool NetworkedIsDead { get; private set; }
+    [Networked, OnChangedRender(nameof(OnNetworkedHealthChanged))]
+    public float NetworkedCurrentHealth { get; private set; }
+
+    [Networked, OnChangedRender(nameof(OnNetworkedDeadChanged))]
+    public NetworkBool NetworkedIsDead { get; private set; }
 
     private NetworkTransform networkTransform;
     private CharacterController characterController;
@@ -65,7 +68,7 @@ public class PlayerHealth : NetworkBehaviour
         }
 
         ApplyAliveState(true);
-        OnHealthChanged?.Invoke(NetworkedCurrentHealth, maxHealth);
+        NotifyHealthChanged();
 
         if (!Object.HasStateAuthority)
         {
@@ -94,6 +97,21 @@ public class PlayerHealth : NetworkBehaviour
         {
             RoundManager.Instance.UnregisterPlayer(this);
         }
+    }
+
+    private void OnNetworkedHealthChanged()
+    {
+        NotifyHealthChanged();
+    }
+
+    private void OnNetworkedDeadChanged()
+    {
+        ApplyAliveState(!NetworkedIsDead);
+    }
+
+    private void NotifyHealthChanged()
+    {
+        OnHealthChanged?.Invoke(NetworkedCurrentHealth, maxHealth);
     }
 
     public void SetDamageTakenMultiplier(float multiplier)
@@ -137,7 +155,8 @@ public class PlayerHealth : NetworkBehaviour
 
         NetworkedCurrentHealth -= actualDamage;
         NetworkedCurrentHealth = Mathf.Max(NetworkedCurrentHealth, 0.0f);
-        OnHealthChanged?.Invoke(NetworkedCurrentHealth, maxHealth);
+
+        NotifyHealthChanged();
 
         Debug.Log(
             $"{gameObject.name} HP: {NetworkedCurrentHealth:0.00}/{maxHealth:0.00}, " +
@@ -178,7 +197,8 @@ public class PlayerHealth : NetworkBehaviour
 
         NetworkedCurrentHealth += amount;
         NetworkedCurrentHealth = Mathf.Min(NetworkedCurrentHealth, maxHealth);
-        OnHealthChanged?.Invoke(NetworkedCurrentHealth, maxHealth);
+
+        NotifyHealthChanged();
 
         Debug.Log(
             $"{gameObject.name} healed: " +
@@ -224,7 +244,8 @@ public class PlayerHealth : NetworkBehaviour
         NetworkedCurrentHealth = maxHealth;
         NetworkedIsDead = false;
         damageTakenMultiplier = 1.0f;
-        OnHealthChanged?.Invoke(NetworkedCurrentHealth, maxHealth);
+
+        NotifyHealthChanged();
 
         Debug.Log(
             $"{gameObject.name} respawn request. " +
@@ -285,6 +306,7 @@ public class PlayerHealth : NetworkBehaviour
     private void RPC_AfterRespawn(Vector3 position, Quaternion rotation)
     {
         ApplyAliveState(true);
+        NotifyHealthChanged();
 
         if (!Object.HasStateAuthority)
         {

@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 
-public class RoundManager : MonoBehaviour
+public class RoundManager : NetworkBehaviour
 {
     public static RoundManager Instance { get; private set; }
 
@@ -16,7 +16,7 @@ public class RoundManager : MonoBehaviour
         Yellow
     }
 
-    private enum GamePhase
+    public enum GamePhase
     {
         WaitingForReady,
         SkillSelecting,
@@ -66,7 +66,8 @@ public class RoundManager : MonoBehaviour
     private readonly Dictionary<PlayerHealth, PlayerSkillType> selectedSkills = new();
 
     public int currentRound = 1;
-    private GamePhase phase = GamePhase.WaitingForReady;
+    [Networked]
+    private GamePhase phase { get; set; }
 
     private Coroutine skillSelectionCoroutine;
     private Coroutine startRoundCoroutine;
@@ -121,7 +122,10 @@ public class RoundManager : MonoBehaviour
 
     private void Start()
     {
-        phase = GamePhase.WaitingForReady;
+        if (Object.HasStateAuthority)
+        {
+            phase = GamePhase.WaitingForReady;
+        }
 
         Debug.Log("[RoundManager] Waiting for players to ready.");
         Debug.Log("[RoundManager] Press Enter or ZL to ready.");
