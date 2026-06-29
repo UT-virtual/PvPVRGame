@@ -13,8 +13,14 @@ public class WaitingRoomUI : MonoBehaviour
     [SerializeField] private GameObject waitingRoomPanel;
 
     private bool isVisible = false;
+    private bool localPlayerSpawned = false;
 
     private readonly List<GameObject> currentEntries = new();
+
+    private void Awake()
+    {
+        SetPanelVisible(false);
+    }
 
     public void ShowRoomUI()
     {
@@ -24,24 +30,51 @@ public class WaitingRoomUI : MonoBehaviour
     public void HideRoomUI()
     {
         isVisible = false;
+        SetPanelVisible(false);
+    }
+
+    public void SetLocalPlayerSpawned(bool spawned)
+    {
+        localPlayerSpawned = spawned;
+
+        if (!spawned)
+        {
+            ClearEntries();
+            SetPanelVisible(false);
+        }
     }
 
     private void Update()
+    {
+        bool shouldShow =
+            isVisible &&
+            localPlayerSpawned &&
+            RoundManager.Instance != null;
+
+        SetPanelVisible(shouldShow);
+
+        if (shouldShow)
+        {
+            RefreshPlayerList();
+        }
+    }
+
+    private void SetPanelVisible(bool visible)
     {
         if (waitingRoomPanel == null)
         {
             return;
         }
 
-        waitingRoomPanel.SetActive(isVisible);
-
-        if (isVisible)
+        if (waitingRoomPanel.activeSelf == visible)
         {
-            RefreshPlayerList();
+            return;
         }
+
+        waitingRoomPanel.SetActive(visible);
     }
 
-    private void RefreshPlayerList()
+    private void ClearEntries()
     {
         foreach (GameObject entry in currentEntries)
         {
@@ -52,6 +85,16 @@ public class WaitingRoomUI : MonoBehaviour
         }
 
         currentEntries.Clear();
+
+        if (playerCountText != null)
+        {
+            playerCountText.text = "Players : 0";
+        }
+    }
+
+    private void RefreshPlayerList()
+    {
+        ClearEntries();
 
         PlayerHealth[] players = FindObjectsByType<PlayerHealth>(
             FindObjectsSortMode.None

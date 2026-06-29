@@ -135,7 +135,8 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
 
         if (waitingRoomUI != null)
         {
-            waitingRoomUI.ShowRoomUI();
+            waitingRoomUI.SetLocalPlayerSpawned(false);
+            waitingRoomUI.HideRoomUI();
         }
 
         isStartingGame = true;
@@ -741,6 +742,14 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
         return false;
     }
 
+    public void NotifyLocalPlayerSpawnedOnWaitingPlanet()
+    {
+        if (waitingRoomUI != null)
+        {
+            waitingRoomUI.SetLocalPlayerSpawned(true);
+        }
+    }
+
     public void RegisterLocalPlayer(PlayerController playerController)
     {
         localPlayerController = playerController;
@@ -752,6 +761,12 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
         if (localPlayerController == playerController)
         {
             localPlayerController = null;
+        }
+
+        if (waitingRoomUI != null)
+        {
+            waitingRoomUI.SetLocalPlayerSpawned(false);
+            waitingRoomUI.HideRoomUI();
         }
     }
     

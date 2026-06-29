@@ -76,13 +76,41 @@ public class RoundManager : NetworkBehaviour
     private Coroutine skillSelectionCoroutine;
     private Coroutine startRoundCoroutine;
 
-    public bool CanUseWeapons => phase == GamePhase.RoundPlaying;
-    public bool CanControlPlayers => phase == GamePhase.WaitingForReady || phase == GamePhase.RoundPlaying;
-    public bool IsWaitingForReady => phase == GamePhase.WaitingForReady;
-    public bool IsSkillSelecting => phase == GamePhase.SkillSelecting;
-    public bool IsRoundPlaying => phase == GamePhase.RoundPlaying;
-    public bool IsMatchFinished => phase == GamePhase.MatchFinished;
     private bool isSpawned;
+
+    private bool CanReadNetworkedPhase =>
+        isSpawned && Object != null;
+
+    public bool CanUseWeapons =>
+        CanReadNetworkedPhase &&
+        phase == GamePhase.RoundPlaying;
+
+    public bool CanControlPlayers =>
+        CanReadNetworkedPhase &&
+        (
+            phase == GamePhase.WaitingForReady ||
+            phase == GamePhase.RoundPlaying
+        );
+
+    public bool IsWaitingForReady =>
+        CanReadNetworkedPhase &&
+        phase == GamePhase.WaitingForReady;
+
+    public bool IsSkillSelecting =>
+        CanReadNetworkedPhase &&
+        phase == GamePhase.SkillSelecting;
+
+    public bool IsRoundPlaying =>
+        CanReadNetworkedPhase &&
+        phase == GamePhase.RoundPlaying;
+
+    public bool IsMatchFinished =>
+        CanReadNetworkedPhase &&
+        phase == GamePhase.MatchFinished;
+
+    public bool CanShowWaitingRoomUI =>
+        CanReadNetworkedPhase &&
+        phase == GamePhase.WaitingForReady;
 
     public class PlayerTeam : MonoBehaviour
     {

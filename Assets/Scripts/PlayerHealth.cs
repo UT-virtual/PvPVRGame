@@ -368,6 +368,16 @@ public class PlayerHealth : NetworkBehaviour
             playerCamera.UpdateCameraTarget();
         }
 
+        if (Object.HasInputAuthority)
+        {
+            NetworkLauncher launcher = FindFirstObjectByType<NetworkLauncher>();
+
+            if (launcher != null)
+            {
+                launcher.NotifyLocalPlayerSpawnedOnWaitingPlanet();
+            }
+        }
+
         Debug.Log(
             $"{gameObject.name} RPC_AfterRespawn applied. " +
             $"RunnerLocalPlayer={Runner.LocalPlayer}, " +
