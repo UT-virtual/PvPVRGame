@@ -32,7 +32,8 @@ public class RoundManager : NetworkBehaviour
     [Header("Skill Selection")]
     [SerializeField] private float skillSelectionDuration = 10.0f;
     [SerializeField] private float startAfterAllSkillsSelectedDelay = 2.0f;
-    [SerializeField] private List<PlayerSkillType> availableRoundSkills = new()
+    [SerializeField]
+    private List<PlayerSkillType> availableRoundSkills = new()
     {
         PlayerSkillType.DoubleJump,
         PlayerSkillType.RapidFire,
@@ -69,6 +70,9 @@ public class RoundManager : NetworkBehaviour
     [Networked]
     private GamePhase phase { get; set; }
 
+    private bool uiPhaseInitialized;
+    private GamePhase lastAppliedUIPhase;
+
     private Coroutine skillSelectionCoroutine;
     private Coroutine startRoundCoroutine;
 
@@ -78,6 +82,7 @@ public class RoundManager : NetworkBehaviour
     public bool IsSkillSelecting => phase == GamePhase.SkillSelecting;
     public bool IsRoundPlaying => phase == GamePhase.RoundPlaying;
     public bool IsMatchFinished => phase == GamePhase.MatchFinished;
+    private bool isSpawned;
 
     public class PlayerTeam : MonoBehaviour
     {
@@ -120,18 +125,40 @@ public class RoundManager : NetworkBehaviour
         Debug.Log("[RoundManager] Awake");
     }
 
-    private void Start()
+    public override void Spawned()
     {
+        isSpawned = true;
+
         if (Object.HasStateAuthority)
         {
             phase = GamePhase.WaitingForReady;
         }
+
+        ApplyUIForPhase(phase, false);
+
+        lastAppliedUIPhase = phase;
+        uiPhaseInitialized = true;
 
         Debug.Log("[RoundManager] Waiting for players to ready.");
         Debug.Log("[RoundManager] Press Enter or ZL to ready.");
 
         LogSpawnPointSettings();
         LogSkillSlots();
+    }
+
+    public override void Despawned(NetworkRunner runner, bool hasState)
+    {
+        isSpawned = false;
+    }
+
+    private void OnDestroy()
+    {
+        if (Instance == this)
+        {
+            Instance = null;
+        }
+
+        isSpawned = false;
     }
 
     private void AssignTeamColor(PlayerHealth player)
@@ -154,12 +181,19 @@ public class RoundManager : NetworkBehaviour
 
         playerTeam.SetTeam(assignedColor);
 
+        player.SetTeam(assignedColor);
+
         Debug.Log($"{player.gameObject.name} joined as {assignedColor}");
     }
 
     public void RegisterPlayer(PlayerHealth player)
     {
         if (player == null)
+        {
+            return;
+        }
+
+        if (!Object.HasStateAuthority)
         {
             return;
         }
@@ -174,6 +208,8 @@ public class RoundManager : NetworkBehaviour
         readyStates[player] = false;
         skillSelectedStates[player] = false;
         selectedSkills[player] = PlayerSkillType.None;
+
+        player.SetReadyState(false);
 
         AssignTeamColor(player);
 
@@ -202,6 +238,16 @@ public class RoundManager : NetworkBehaviour
 
         Debug.Log($"[RoundManager] Unregistered: {player.gameObject.name}, Count={players.Count}");
 
+        if (!isSpawned)
+        {
+            return;
+        }
+
+        if (!Object.HasStateAuthority)
+        {
+            return;
+        }
+
         if (phase == GamePhase.WaitingForReady)
         {
             TryStartFirstRound();
@@ -224,6 +270,11 @@ public class RoundManager : NetworkBehaviour
             return;
         }
 
+        if (!Object.HasStateAuthority)
+        {
+            return;
+        }
+
         if (phase != GamePhase.WaitingForReady)
         {
             return;
@@ -241,6 +292,7 @@ public class RoundManager : NetworkBehaviour
         }
 
         readyStates[player] = true;
+        player.SetReadyState(true);
 
         Debug.Log($"[RoundManager] Ready: {player.gameObject.name}");
 
@@ -497,11 +549,6 @@ public class RoundManager : NetworkBehaviour
 
         SetupHealthItemsForCurrentPlayers();
 
-        if (battleStartUI != null)
-        {
-            battleStartUI.StartCoroutine(battleStartUI.PlaySequence());
-        }
-
         Debug.Log($"Round {currentRound} Start");
     }
 
@@ -660,6 +707,8 @@ public class RoundManager : NetworkBehaviour
             readyStates[player] = false;
             skillSelectedStates[player] = false;
             selectedSkills[player] = PlayerSkillType.None;
+
+            player.SetReadyState(false);
 
             PlayerSkillController skillController = player.GetComponent<PlayerSkillController>();
 
@@ -1005,6 +1054,55 @@ public class RoundManager : NetworkBehaviour
             }
 
             projectile.Runner.Despawn(networkObject);
+        }
+    }
+    
+    public override void Render()
+    {
+        if (!uiPhaseInitialized)
+        {
+            ApplyUIForPhase(phase, false);
+
+            lastAppliedUIPhase = phase;
+            uiPhaseInitialized = true;
+            return;
+        }
+
+        if (lastAppliedUIPhase == phase)
+        {
+            return;
+        }
+
+        bool enteredRoundPlaying =
+            lastAppliedUIPhase != GamePhase.RoundPlaying &&
+            phase == GamePhase.RoundPlaying;
+
+        ApplyUIForPhase(phase, enteredRoundPlaying);
+
+        lastAppliedUIPhase = phase;
+    }
+
+    private void ApplyUIForPhase(GamePhase targetPhase, bool playBattleStartUI)
+    {
+        bool shouldShowWaitingRoom =
+            targetPhase == GamePhase.WaitingForReady;
+
+        if (waitingRoomUI != null)
+        {
+            if (shouldShowWaitingRoom)
+            {
+                waitingRoomUI.ShowRoomUI();
+            }
+            else
+            {
+                waitingRoomUI.HideRoomUI();
+            }
+        }
+
+        if (playBattleStartUI && battleStartUI != null)
+        {
+            battleStartUI.StopAllCoroutines();
+            battleStartUI.StartCoroutine(battleStartUI.PlaySequence());
         }
     }
 }

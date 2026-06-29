@@ -21,6 +21,36 @@ public class PlayerHealth : NetworkBehaviour
     [Networked, OnChangedRender(nameof(OnNetworkedDeadChanged))]
     public NetworkBool NetworkedIsDead { get; private set; }
 
+    [Networked]
+    public NetworkBool NetworkedIsReady { get; private set; }
+
+    [Networked]
+    public int NetworkedTeamIndex { get; private set; }
+
+    public bool IsReady => NetworkedIsReady;
+    public bool HasTeamAssigned => NetworkedTeamIndex >= 0;
+    public RoundManager.TeamColor Team => (RoundManager.TeamColor)NetworkedTeamIndex;
+
+    public void SetReadyState(bool ready)
+    {
+        if (Object != null && !Object.HasStateAuthority)
+        {
+            return;
+        }
+
+        NetworkedIsReady = ready;
+    }
+
+    public void SetTeam(RoundManager.TeamColor team)
+    {
+        if (Object != null && !Object.HasStateAuthority)
+        {
+            return;
+        }
+
+        NetworkedTeamIndex = (int)team;
+    }
+
     private NetworkTransform networkTransform;
     private CharacterController characterController;
     private PlayerMove playerMove;
@@ -64,6 +94,8 @@ public class PlayerHealth : NetworkBehaviour
         {
             NetworkedCurrentHealth = maxHealth;
             NetworkedIsDead = false;
+            NetworkedIsReady = false;
+            NetworkedTeamIndex = -1;
             damageTakenMultiplier = 1.0f;
         }
 

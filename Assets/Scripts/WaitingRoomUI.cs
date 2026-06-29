@@ -12,8 +12,10 @@ public class WaitingRoomUI : MonoBehaviour
     [SerializeField] private TMP_Text playerCountText;
     [SerializeField] private GameObject waitingRoomPanel;
 
-    [SerializeField] private bool roomOpened = false;
     private bool isVisible = false;
+
+    private readonly List<GameObject> currentEntries = new();
+
     public void ShowRoomUI()
     {
         isVisible = true;
@@ -24,11 +26,9 @@ public class WaitingRoomUI : MonoBehaviour
         isVisible = false;
     }
 
-    private readonly List<GameObject> currentEntries = new();
-
     private void Update()
     {
-        if (RoundManager.Instance == null)
+        if (waitingRoomPanel == null)
         {
             return;
         }
@@ -43,7 +43,6 @@ public class WaitingRoomUI : MonoBehaviour
 
     private void RefreshPlayerList()
     {
-        // 古い表示を削除
         foreach (GameObject entry in currentEntries)
         {
             if (entry != null)
@@ -54,54 +53,62 @@ public class WaitingRoomUI : MonoBehaviour
 
         currentEntries.Clear();
 
-        // プレイヤー人数表示
-        playerCountText.text =
-            $"Players : {RoundManager.Instance.RegisteredPlayerCount}";
+        PlayerHealth[] players = FindObjectsByType<PlayerHealth>(
+            FindObjectsSortMode.None
+        );
 
-        // プレイヤー一覧生成
-        foreach (PlayerHealth player in RoundManager.Instance.Players)
+        if (playerCountText != null)
+        {
+            playerCountText.text = $"Players : {players.Length}";
+        }
+
+        foreach (PlayerHealth player in players)
         {
             if (player == null)
             {
                 continue;
             }
 
-            GameObject entry =
-                Instantiate(playerEntryPrefab, contentRoot);
-
+            GameObject entry = Instantiate(playerEntryPrefab, contentRoot);
             currentEntries.Add(entry);
 
-            // 子オブジェクト取得
-            Image teamColorImage =
-                entry.transform.Find("PlayerColor")
-                .GetComponent<Image>();
+            Image teamColorImage = null;
+            TMP_Text readyText = null;
 
-
-
-            TMP_Text readyText =
-                entry.transform.Find("Ready")
-                .GetComponent<TMP_Text>();
-
-
-
-            // Ready状態
-            bool isReady =
-                RoundManager.Instance.IsPlayerReady(player);
-
-            readyText.text = isReady
-                ? "READY"
-                : "NOT READY";
-
-            readyText.color = isReady
-                ? new Color32(0, 255, 200, 255)    // ネオンシアン
-                : new Color32(255, 80, 120, 255);
-            // チーム色
-            PlayerTeam team =
-                player.GetComponent<PlayerTeam>();
-
-            if (team != null)
+            Transform colorTransform = entry.transform.Find("PlayerColor");
+            if (colorTransform != null)
             {
-                switch (team.Team)
+                teamColorImage = colorTransform.GetComponent<Image>();
+            }
+
+            Transform readyTransform = entry.transform.Find("Ready");
+            if (readyTransform != null)
+            {
+                readyText = readyTransform.GetComponent<TMP_Text>();
+            }
+
+            if (readyText != null)
+            {
+                bool isReady = player.IsReady;
+
+                readyText.text = isReady
+                    ? "READY"
+                    : "NOT READY";
+
+                readyText.color = isReady
+                    ? new Color32(0, 255, 200, 255)
+                    : new Color32(255, 80, 120, 255);
+            }
+
+            if (teamColorImage != null)
+            {
+                if (!player.HasTeamAssigned)
+                {
+                    teamColorImage.color = Color.gray;
+                    continue;
+                }
+
+                switch (player.Team)
                 {
                     case TeamColor.Red:
                         teamColorImage.color = new Color32(255, 77, 109, 255);
@@ -118,11 +125,11 @@ public class WaitingRoomUI : MonoBehaviour
                     case TeamColor.Yellow:
                         teamColorImage.color = new Color32(255, 212, 59, 255);
                         break;
+
+                    default:
+                        teamColorImage.color = Color.gray;
+                        break;
                 }
-            }
-            else
-            {
-                teamColorImage.color = Color.gray;
             }
         }
     }
