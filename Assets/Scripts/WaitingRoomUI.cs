@@ -12,24 +12,24 @@ public class WaitingRoomUI : MonoBehaviour
     [SerializeField] private TMP_Text playerCountText;
     [SerializeField] private GameObject waitingRoomPanel;
 
-    private bool isVisible = false;
     private bool localPlayerSpawned = false;
 
     private readonly List<GameObject> currentEntries = new();
 
     private void Awake()
     {
+        ClearEntries();
         SetPanelVisible(false);
     }
 
     public void ShowRoomUI()
     {
-        isVisible = true;
+        // 実際に表示するかどうかは Update() で判定する
     }
 
     public void HideRoomUI()
     {
-        isVisible = false;
+        ClearEntries();
         SetPanelVisible(false);
     }
 
@@ -37,7 +37,9 @@ public class WaitingRoomUI : MonoBehaviour
     {
         localPlayerSpawned = spawned;
 
-        if (!spawned)
+        Debug.Log($"[WaitingRoomUI] LocalPlayerSpawned={localPlayerSpawned}");
+
+        if (!localPlayerSpawned)
         {
             ClearEntries();
             SetPanelVisible(false);
@@ -47,9 +49,9 @@ public class WaitingRoomUI : MonoBehaviour
     private void Update()
     {
         bool shouldShow =
-            isVisible &&
             localPlayerSpawned &&
-            RoundManager.Instance != null;
+            RoundManager.Instance != null &&
+            RoundManager.Instance.CanShowWaitingRoomUI;
 
         SetPanelVisible(shouldShow);
 
@@ -57,12 +59,17 @@ public class WaitingRoomUI : MonoBehaviour
         {
             RefreshPlayerList();
         }
+        else
+        {
+            ClearEntries();
+        }
     }
 
     private void SetPanelVisible(bool visible)
     {
         if (waitingRoomPanel == null)
         {
+            Debug.LogWarning("[WaitingRoomUI] waitingRoomPanel is null.");
             return;
         }
 
@@ -72,6 +79,8 @@ public class WaitingRoomUI : MonoBehaviour
         }
 
         waitingRoomPanel.SetActive(visible);
+
+        Debug.Log($"[WaitingRoomUI] Panel Active={visible}");
     }
 
     private void ClearEntries()
@@ -88,7 +97,7 @@ public class WaitingRoomUI : MonoBehaviour
 
         if (playerCountText != null)
         {
-            playerCountText.text = "Players : 0";
+            playerCountText.text = "参加プレイヤー : 0人";
         }
     }
 
@@ -102,7 +111,7 @@ public class WaitingRoomUI : MonoBehaviour
 
         if (playerCountText != null)
         {
-            playerCountText.text = $"Players : {players.Length}";
+            playerCountText.text = $"参加プレイヤー : {players.Length}人";
         }
 
         foreach (PlayerHealth player in players)
@@ -110,6 +119,12 @@ public class WaitingRoomUI : MonoBehaviour
             if (player == null)
             {
                 continue;
+            }
+
+            if (playerEntryPrefab == null || contentRoot == null)
+            {
+                Debug.LogWarning("[WaitingRoomUI] playerEntryPrefab or contentRoot is null.");
+                return;
             }
 
             GameObject entry = Instantiate(playerEntryPrefab, contentRoot);
@@ -135,8 +150,8 @@ public class WaitingRoomUI : MonoBehaviour
                 bool isReady = player.IsReady;
 
                 readyText.text = isReady
-                    ? "READY"
-                    : "NOT READY";
+                    ? "準備完了"
+                    : "未完了";
 
                 readyText.color = isReady
                     ? new Color32(0, 255, 200, 255)

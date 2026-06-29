@@ -272,6 +272,11 @@ public class PlayerController : NetworkBehaviour
             return;
         }
 
+        if (RoundManager.Instance != null && !RoundManager.Instance.CanControlPlayers)
+        {
+            return;
+        }
+
         playerMove.ProbeGround();
         playerMove.UpdateAimBasis();
 

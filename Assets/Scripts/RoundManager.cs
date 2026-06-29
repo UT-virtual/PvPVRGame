@@ -1101,19 +1101,31 @@ public class RoundManager : NetworkBehaviour
             return;
         }
 
-        bool enteredRoundPlaying =
-            lastAppliedUIPhase != GamePhase.RoundPlaying &&
-            phase == GamePhase.RoundPlaying;
+        bool enteredRoundStarting =
+            lastAppliedUIPhase != GamePhase.RoundStarting &&
+            phase == GamePhase.RoundStarting;
 
-        ApplyUIForPhase(phase, enteredRoundPlaying);
+        ApplyUIForPhase(phase, enteredRoundStarting);
 
         lastAppliedUIPhase = phase;
     }
 
     private void ApplyUIForPhase(GamePhase targetPhase, bool playBattleStartUI)
     {
+        Debug.Log(
+            $"[RoundManager] ApplyUIForPhase: " +
+            $"Phase={targetPhase}, " +
+            $"PlayBattleStartUI={playBattleStartUI}, " +
+            $"HasStateAuthority={Object.HasStateAuthority}"
+        );
+
         bool shouldShowWaitingRoom =
             targetPhase == GamePhase.WaitingForReady;
+
+        if (waitingRoomUI == null)
+        {
+            waitingRoomUI = FindFirstObjectByType<WaitingRoomUI>();
+        }
 
         if (waitingRoomUI != null)
         {
@@ -1126,11 +1138,19 @@ public class RoundManager : NetworkBehaviour
                 waitingRoomUI.HideRoomUI();
             }
         }
+        else
+        {
+            Debug.LogWarning("[RoundManager] WaitingRoomUI was not found.");
+        }
 
         if (playBattleStartUI && battleStartUI != null)
         {
             battleStartUI.StopAllCoroutines();
             battleStartUI.StartCoroutine(battleStartUI.PlaySequence());
+        }
+        else if (playBattleStartUI && battleStartUI == null)
+        {
+            Debug.LogWarning("[RoundManager] BattleStartUI was not found.");
         }
     }
 }

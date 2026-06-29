@@ -39,7 +39,7 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
     private NetworkSceneManagerDefault sceneManager;
     private readonly Dictionary<PlayerRef, NetworkObject> spawnedPlayers = new();
 
-    private string statusText = "Ready";
+    private string statusText = "ホスト・クライアント選択";
 
     private Vector2 queuedLookInput;
     private bool jumpQueued;
@@ -56,9 +56,6 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
 
     private bool isVRActive => UnityEngine.XR.XRSettings.isDeviceActive;
     private Quaternion currentHMD = Quaternion.identity;
-
-
-
 
     private void Start()
     {
@@ -154,7 +151,12 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
             attemptCount++;
 
             Debug.Log($"StartGame: {gameMode}, RoomName={roomName}, Attempt={attemptCount}");
-            statusText = $"Starting {gameMode}... Attempt {attemptCount}";
+            string gameModeJapanese =
+                gameMode == GameMode.Host
+                    ? "ホスト"
+                    : "クライアント";
+
+            statusText = $"{gameModeJapanese}側で開始しています... 試行回数 {attemptCount}回目";
 
             CreateRunnerObject(gameMode, attemptCount);
 
@@ -173,7 +175,7 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
 
             if (result.Ok)
             {
-                statusText = $"Running: {gameMode} / Room: {roomName}";
+                statusText = $"ルーム名: {roomName}";
                 Debug.Log(statusText);
 
                 isStartingGame = false;
@@ -219,11 +221,22 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
 
         Vector2 lookInput = ReadLookInput();
 
-        queuedLookInput += lookInput;
+        bool canControlPlayer =
+            RoundManager.Instance == null ||
+            RoundManager.Instance.CanControlPlayers;
 
-        if (localPlayerController != null)
+        if (canControlPlayer)
         {
-            localPlayerController.ApplyLocalLook(lookInput, isVRActive, currentHMD);
+            queuedLookInput += lookInput;
+
+            if (localPlayerController != null)
+            {
+                localPlayerController.ApplyLocalLook(lookInput, isVRActive, currentHMD);
+            }
+        }
+        else
+        {
+            queuedLookInput = Vector2.zero;
         }
 
         if (ReadJumpPressed())
@@ -298,12 +311,53 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
             return;
         }
 
-        if (GUI.Button(new Rect(20, 60, 200, 50), "Host"))
+        float titleWidth = 400f;
+        float titleHeight = 40f;
+
+        float buttonWidth = 300f;
+        float buttonHeight = 60f;
+        float buttonSpacing = 20f;
+
+        float totalHeight = titleHeight + 20f + buttonHeight + buttonSpacing + buttonHeight;
+
+        float centerX = Screen.width * 0.5f;
+        float centerY = Screen.height * 0.5f;
+
+        float titleX = centerX - titleWidth * 0.5f;
+        float titleY = centerY - totalHeight * 0.5f;
+
+        float buttonX = centerX - buttonWidth * 0.5f;
+        float hostButtonY = titleY + titleHeight + 20f;
+        float clientButtonY = hostButtonY + buttonHeight + buttonSpacing;
+
+        GUIStyle titleStyle = new GUIStyle(GUI.skin.label);
+        titleStyle.alignment = TextAnchor.MiddleCenter;
+        titleStyle.fontSize = 24;
+        titleStyle.fontStyle = FontStyle.Bold;
+        titleStyle.normal.textColor = Color.white;
+
+        GUIStyle buttonStyle = new GUIStyle(GUI.skin.button);
+        buttonStyle.fontSize = 24;
+        buttonStyle.alignment = TextAnchor.MiddleCenter;
+
+        GUI.Label(
+            new Rect(titleX, titleY, titleWidth, titleHeight),
+            "ホスト・クライアント選択",
+            titleStyle
+        );
+
+        if (GUI.Button(
+            new Rect(buttonX, hostButtonY, buttonWidth, buttonHeight),
+            "ホスト",
+            buttonStyle))
         {
             StartGame(GameMode.Host);
         }
 
-        if (GUI.Button(new Rect(20, 120, 200, 50), "Client"))
+        if (GUI.Button(
+            new Rect(buttonX, clientButtonY, buttonWidth, buttonHeight),
+            "クライアント",
+            buttonStyle))
         {
             StartGame(GameMode.Client);
         }
@@ -744,9 +798,20 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
 
     public void NotifyLocalPlayerSpawnedOnWaitingPlanet()
     {
+        Debug.Log("[NetworkLauncher] Local player spawned on waiting planet.");
+
+        if (waitingRoomUI == null)
+        {
+            waitingRoomUI = FindFirstObjectByType<WaitingRoomUI>();
+        }
+
         if (waitingRoomUI != null)
         {
             waitingRoomUI.SetLocalPlayerSpawned(true);
+        }
+        else
+        {
+            Debug.LogWarning("[NetworkLauncher] WaitingRoomUI was not found.");
         }
     }
 
