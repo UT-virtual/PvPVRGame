@@ -1,7 +1,7 @@
-using System;
-using System.Collections.Generic;
 using Fusion;
 using Fusion.Sockets;
+using System;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.SceneManagement;
@@ -25,6 +25,7 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
     [SerializeField] private InputActionReference jumpAction;
     [SerializeField] private InputActionReference fireAction;
     [SerializeField] private InputActionReference reloadAction;
+    [SerializeField] private WaitingRoomUI waitingRoomUI;
 
     [Header("Client Retry")]
     [SerializeField] private bool retryClientUntilFound = true;
@@ -55,6 +56,14 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
 
     private bool isVRActive => UnityEngine.XR.XRSettings.isDeviceActive;
     private Quaternion currentHMD = Quaternion.identity;
+
+
+
+
+    private void Start()
+    {
+        
+    }
 
     private void OnEnable()
     {
@@ -96,7 +105,7 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
         actionReference.action.Disable();
     }
 
-    private async void StartGame(GameMode gameMode)
+    public async void StartGame(GameMode gameMode)
     {
         if (this == null)
         {
@@ -122,6 +131,11 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
             statusText = "Current scene is not in Build Settings.";
             Debug.LogError(statusText);
             return;
+        }
+
+        if (waitingRoomUI != null)
+        {
+            waitingRoomUI.ShowRoomUI();
         }
 
         isStartingGame = true;
@@ -293,6 +307,8 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
             StartGame(GameMode.Client);
         }
     }
+
+
 
     public void OnPlayerJoined(NetworkRunner runner, PlayerRef player)
     {
