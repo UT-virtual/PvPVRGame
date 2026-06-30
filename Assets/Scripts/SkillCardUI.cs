@@ -110,6 +110,13 @@ public class SkillCardUI : MonoBehaviour
                     "他プレイヤーを透過し壁越しに索敵"
                 );
 
+            case PlayerSkillType.MoveSpeedUp:
+                return new SkillDisplayData(
+                    "走",
+                    "移動速度強化",
+                    "移動速度が2倍になる"
+                );
+
             default:
                 return new SkillDisplayData(
                     "-",

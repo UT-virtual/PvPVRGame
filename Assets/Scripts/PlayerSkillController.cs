@@ -28,6 +28,10 @@ public class PlayerSkillController : NetworkBehaviour
     [Header("XRay Vision")]
     [SerializeField] private float xRayVisionDuration = 10.0f;
 
+    [Header("Move Speed Up")]
+    [SerializeField] private float moveSpeedUpDuration = 10.0f;
+    [SerializeField] private float moveSpeedMultiplier = 2.0f;
+
     [Header("Debug")]
     [SerializeField] private bool allowSameSkillConsecutiveForDebug = false;
 
@@ -183,6 +187,10 @@ public class PlayerSkillController : NetworkBehaviour
                 ActivateXRayVision();
                 break;
 
+            case PlayerSkillType.MoveSpeedUp:
+                ActivateMoveSpeedUp();
+                break;
+
             default:
                 Debug.LogWarning($"[Skill] Unsupported skill: {CurrentRoundSkill}");
                 break;
@@ -287,6 +295,7 @@ public class PlayerSkillController : NetworkBehaviour
         ApplyRapidFireEffect();
         ApplyBulletSpeedUpEffect();
         ApplyDamageReductionEffect();
+        ApplyMoveSpeedUpEffect();
     }
 
     private void ApplyDoubleJumpEffect()
@@ -355,6 +364,41 @@ public class PlayerSkillController : NetworkBehaviour
         {
             playerHealth.SetDamageTakenMultiplier(1.0f);
         }
+    }
+
+    private void ApplyMoveSpeedUpEffect()
+    {
+        if (playerMove == null)
+        {
+            return;
+        }
+
+        if (IsMoveSpeedUpActive())
+        {
+            playerMove.SetMoveSpeedMultiplier(moveSpeedMultiplier);
+        }
+        else
+        {
+            playerMove.SetMoveSpeedMultiplier(1.0f);
+        }
+    }
+
+    private bool IsMoveSpeedUpActive()
+    {
+        return ActiveSkill == PlayerSkillType.MoveSpeedUp && IsSkillActive();
+    }
+
+    private void ActivateMoveSpeedUp()
+    {
+        ActiveSkill = PlayerSkillType.MoveSpeedUp;
+        SkillActiveTimer = TickTimer.CreateFromSeconds(Runner, moveSpeedUpDuration);
+
+        ApplySkillEffects();
+
+        Debug.Log(
+            $"[Skill] {gameObject.name}: MoveSpeedUp activated for {moveSpeedUpDuration} seconds. " +
+            $"MoveSpeedMultiplier={moveSpeedMultiplier}"
+        );
     }
 
     private bool IsDoubleJumpActive()
