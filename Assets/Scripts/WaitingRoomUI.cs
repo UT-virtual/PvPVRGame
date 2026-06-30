@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using TMPro;
+using Fusion;
 using UnityEngine;
 using UnityEngine.UI;
 using static RoundManager;
@@ -12,38 +13,79 @@ public class WaitingRoomUI : MonoBehaviour
     [SerializeField] private TMP_Text playerCountText;
     [SerializeField] private GameObject waitingRoomPanel;
 
-    [SerializeField] private bool roomOpened = false;
-    private bool isVisible = false;
+    private bool localPlayerSpawned = false;
+
+    private readonly List<GameObject> currentEntries = new();
+
+    private void Awake()
+    {
+        ClearEntries();
+        SetPanelVisible(false);
+    }
+
     public void ShowRoomUI()
     {
-        isVisible = true;
+        // 実際に表示するかどうかは Update() で判定する
     }
 
     public void HideRoomUI()
     {
-        isVisible = false;
+        ClearEntries();
+        SetPanelVisible(false);
     }
 
-    private readonly List<GameObject> currentEntries = new();
+    public void SetLocalPlayerSpawned(bool spawned)
+    {
+        localPlayerSpawned = spawned;
+
+        Debug.Log($"[WaitingRoomUI] LocalPlayerSpawned={localPlayerSpawned}");
+
+        if (!localPlayerSpawned)
+        {
+            ClearEntries();
+            SetPanelVisible(false);
+        }
+    }
 
     private void Update()
     {
-        if (RoundManager.Instance == null)
+        bool shouldShow =
+            localPlayerSpawned &&
+            RoundManager.Instance != null &&
+            RoundManager.Instance.CanShowWaitingRoomUI;
+
+        SetPanelVisible(shouldShow);
+
+        if (shouldShow)
+        {
+            RefreshPlayerList();
+        }
+        else
+        {
+            ClearEntries();
+        }
+    }
+
+    private void SetPanelVisible(bool visible)
+    {
+        if (waitingRoomPanel == null)
+        {
+            Debug.LogWarning("[WaitingRoomUI] waitingRoomPanel is null.");
+            return;
+        }
+
+        if (waitingRoomPanel.activeSelf == visible)
         {
             return;
         }
 
-        waitingRoomPanel.SetActive(isVisible);
+        waitingRoomPanel.SetActive(visible);
 
-        if (isVisible)
-        {
-            RefreshPlayerList();
-        }
+        Debug.Log($"[WaitingRoomUI] Panel Active={visible}");
     }
 
-    private void RefreshPlayerList()
+    private void ClearEntries()
     {
-        // 古い表示を削除
         foreach (GameObject entry in currentEntries)
         {
             if (entry != null)
@@ -54,54 +96,87 @@ public class WaitingRoomUI : MonoBehaviour
 
         currentEntries.Clear();
 
-        // プレイヤー人数表示
-        playerCountText.text =
-            $"Players : {RoundManager.Instance.RegisteredPlayerCount}";
+        if (playerCountText != null)
+        {
+            playerCountText.text = "参加プレイヤー : 0人";
+        }
+    }
 
-        // プレイヤー一覧生成
-        foreach (PlayerHealth player in RoundManager.Instance.Players)
+    private void RefreshPlayerList()
+    {
+        ClearEntries();
+
+        PlayerHealth[] players = FindObjectsByType<PlayerHealth>(
+            FindObjectsSortMode.None
+        );
+
+        if (playerCountText != null)
+        {
+            playerCountText.text = $"参加プレイヤー : {players.Length}人";
+        }
+
+        foreach (PlayerHealth player in players)
         {
             if (player == null)
             {
                 continue;
             }
 
-            GameObject entry =
-                Instantiate(playerEntryPrefab, contentRoot);
+            if (playerEntryPrefab == null || contentRoot == null)
+            {
+                Debug.LogWarning("[WaitingRoomUI] playerEntryPrefab or contentRoot is null.");
+                return;
+            }
 
+            GameObject entry = Instantiate(playerEntryPrefab, contentRoot);
             currentEntries.Add(entry);
 
-            // 子オブジェクト取得
-            Image teamColorImage =
-                entry.transform.Find("PlayerColor")
-                .GetComponent<Image>();
+            Image teamColorImage = null;
+            TMP_Text readyText = null;
 
-
-
-            TMP_Text readyText =
-                entry.transform.Find("Ready")
-                .GetComponent<TMP_Text>();
-
-
-
-            // Ready状態
-            bool isReady =
-                RoundManager.Instance.IsPlayerReady(player);
-
-            readyText.text = isReady
-                ? "READY"
-                : "NOT READY";
-
-            readyText.color = isReady
-                ? new Color32(0, 255, 200, 255)    // ネオンシアン
-                : new Color32(255, 80, 120, 255);
-            // チーム色
-            PlayerTeam team =
-                player.GetComponent<PlayerTeam>();
-
-            if (team != null)
+            Transform colorTransform = entry.transform.Find("PlayerColor");
+            if (colorTransform != null)
             {
-                switch (team.Team)
+                teamColorImage = colorTransform.GetComponent<Image>();
+            }
+
+            Transform readyTransform = entry.transform.Find("Ready");
+            if (readyTransform != null)
+            {
+                readyText = readyTransform.GetComponent<TMP_Text>();
+            }
+
+            if (readyText != null)
+            {
+                bool isReady = player.IsReady;
+
+                NetworkObject networkObject = player.GetComponent<NetworkObject>();
+                bool isLocalPlayer =
+                    networkObject != null &&
+                    networkObject.HasInputAuthority;
+
+                string readyLabel = isReady
+                    ? "準備完了"
+                    : "未完了";
+
+                readyText.text = isLocalPlayer
+                    ? $"{readyLabel}（あなた）"
+                    : readyLabel;
+
+                readyText.color = isReady
+                    ? new Color32(0, 255, 200, 255)
+                    : new Color32(255, 80, 120, 255);
+            }
+
+            if (teamColorImage != null)
+            {
+                if (!player.HasTeamAssigned)
+                {
+                    teamColorImage.color = Color.gray;
+                    continue;
+                }
+
+                switch (player.Team)
                 {
                     case TeamColor.Red:
                         teamColorImage.color = new Color32(255, 77, 109, 255);
@@ -118,11 +193,11 @@ public class WaitingRoomUI : MonoBehaviour
                     case TeamColor.Yellow:
                         teamColorImage.color = new Color32(255, 212, 59, 255);
                         break;
+
+                    default:
+                        teamColorImage.color = Color.gray;
+                        break;
                 }
-            }
-            else
-            {
-                teamColorImage.color = Color.gray;
             }
         }
     }

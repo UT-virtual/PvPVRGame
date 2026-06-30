@@ -11,12 +11,45 @@ public class PlayerHealth : NetworkBehaviour
     [SerializeField] private float maxHealth = 10.0f;
 
     public event Action<float, float> OnHealthChanged;
-    
+
     [Header("Death Visibility")]
     [SerializeField] private GameObject visualRoot;
 
-    [Networked] public float NetworkedCurrentHealth { get; private set; }
-    [Networked] public NetworkBool NetworkedIsDead { get; private set; }
+    [Networked, OnChangedRender(nameof(OnNetworkedHealthChanged))]
+    public float NetworkedCurrentHealth { get; private set; }
+
+    [Networked, OnChangedRender(nameof(OnNetworkedDeadChanged))]
+    public NetworkBool NetworkedIsDead { get; private set; }
+
+    [Networked]
+    public NetworkBool NetworkedIsReady { get; private set; }
+
+    [Networked]
+    public int NetworkedTeamIndex { get; private set; }
+
+    public bool IsReady => NetworkedIsReady;
+    public bool HasTeamAssigned => NetworkedTeamIndex >= 0;
+    public RoundManager.TeamColor Team => (RoundManager.TeamColor)NetworkedTeamIndex;
+
+    public void SetReadyState(bool ready)
+    {
+        if (Object != null && !Object.HasStateAuthority)
+        {
+            return;
+        }
+
+        NetworkedIsReady = ready;
+    }
+
+    public void SetTeam(RoundManager.TeamColor team)
+    {
+        if (Object != null && !Object.HasStateAuthority)
+        {
+            return;
+        }
+
+        NetworkedTeamIndex = (int)team;
+    }
 
     private NetworkTransform networkTransform;
     private CharacterController characterController;
@@ -61,11 +94,13 @@ public class PlayerHealth : NetworkBehaviour
         {
             NetworkedCurrentHealth = maxHealth;
             NetworkedIsDead = false;
+            NetworkedIsReady = false;
+            NetworkedTeamIndex = -1;
             damageTakenMultiplier = 1.0f;
         }
 
         ApplyAliveState(true);
-        OnHealthChanged?.Invoke(NetworkedCurrentHealth, maxHealth);
+        NotifyHealthChanged();
 
         if (!Object.HasStateAuthority)
         {
@@ -94,6 +129,21 @@ public class PlayerHealth : NetworkBehaviour
         {
             RoundManager.Instance.UnregisterPlayer(this);
         }
+    }
+
+    private void OnNetworkedHealthChanged()
+    {
+        NotifyHealthChanged();
+    }
+
+    private void OnNetworkedDeadChanged()
+    {
+        ApplyAliveState(!NetworkedIsDead);
+    }
+
+    private void NotifyHealthChanged()
+    {
+        OnHealthChanged?.Invoke(NetworkedCurrentHealth, maxHealth);
     }
 
     public void SetDamageTakenMultiplier(float multiplier)
@@ -137,7 +187,8 @@ public class PlayerHealth : NetworkBehaviour
 
         NetworkedCurrentHealth -= actualDamage;
         NetworkedCurrentHealth = Mathf.Max(NetworkedCurrentHealth, 0.0f);
-        OnHealthChanged?.Invoke(NetworkedCurrentHealth, maxHealth);
+
+        NotifyHealthChanged();
 
         Debug.Log(
             $"{gameObject.name} HP: {NetworkedCurrentHealth:0.00}/{maxHealth:0.00}, " +
@@ -178,7 +229,8 @@ public class PlayerHealth : NetworkBehaviour
 
         NetworkedCurrentHealth += amount;
         NetworkedCurrentHealth = Mathf.Min(NetworkedCurrentHealth, maxHealth);
-        OnHealthChanged?.Invoke(NetworkedCurrentHealth, maxHealth);
+
+        NotifyHealthChanged();
 
         Debug.Log(
             $"{gameObject.name} healed: " +
@@ -224,7 +276,8 @@ public class PlayerHealth : NetworkBehaviour
         NetworkedCurrentHealth = maxHealth;
         NetworkedIsDead = false;
         damageTakenMultiplier = 1.0f;
-        OnHealthChanged?.Invoke(NetworkedCurrentHealth, maxHealth);
+
+        NotifyHealthChanged();
 
         Debug.Log(
             $"{gameObject.name} respawn request. " +
@@ -285,6 +338,7 @@ public class PlayerHealth : NetworkBehaviour
     private void RPC_AfterRespawn(Vector3 position, Quaternion rotation)
     {
         ApplyAliveState(true);
+        NotifyHealthChanged();
 
         if (!Object.HasStateAuthority)
         {
@@ -312,6 +366,16 @@ public class PlayerHealth : NetworkBehaviour
         if (playerCamera != null && Object.HasInputAuthority)
         {
             playerCamera.UpdateCameraTarget();
+        }
+
+        if (Object.HasInputAuthority)
+        {
+            NetworkLauncher launcher = FindFirstObjectByType<NetworkLauncher>();
+
+            if (launcher != null)
+            {
+                launcher.NotifyLocalPlayerSpawnedOnWaitingPlanet();
+            }
         }
 
         Debug.Log(

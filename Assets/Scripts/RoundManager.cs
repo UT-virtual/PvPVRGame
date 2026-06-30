@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 
-public class RoundManager : MonoBehaviour
+public class RoundManager : NetworkBehaviour
 {
     public static RoundManager Instance { get; private set; }
 
@@ -16,7 +16,7 @@ public class RoundManager : MonoBehaviour
         Yellow
     }
 
-    private enum GamePhase
+    public enum GamePhase
     {
         WaitingForReady,
         SkillSelecting,
@@ -32,7 +32,8 @@ public class RoundManager : MonoBehaviour
     [Header("Skill Selection")]
     [SerializeField] private float skillSelectionDuration = 10.0f;
     [SerializeField] private float startAfterAllSkillsSelectedDelay = 2.0f;
-    [SerializeField] private List<PlayerSkillType> availableRoundSkills = new()
+    [SerializeField]
+    private List<PlayerSkillType> availableRoundSkills = new()
     {
         PlayerSkillType.DoubleJump,
         PlayerSkillType.RapidFire,
@@ -66,17 +67,50 @@ public class RoundManager : MonoBehaviour
     private readonly Dictionary<PlayerHealth, PlayerSkillType> selectedSkills = new();
 
     public int currentRound = 1;
-    private GamePhase phase = GamePhase.WaitingForReady;
+    [Networked]
+    private GamePhase phase { get; set; }
+
+    private bool uiPhaseInitialized;
+    private GamePhase lastAppliedUIPhase;
 
     private Coroutine skillSelectionCoroutine;
     private Coroutine startRoundCoroutine;
 
-    public bool CanUseWeapons => phase == GamePhase.RoundPlaying;
-    public bool CanControlPlayers => phase == GamePhase.WaitingForReady || phase == GamePhase.RoundPlaying;
-    public bool IsWaitingForReady => phase == GamePhase.WaitingForReady;
-    public bool IsSkillSelecting => phase == GamePhase.SkillSelecting;
-    public bool IsRoundPlaying => phase == GamePhase.RoundPlaying;
-    public bool IsMatchFinished => phase == GamePhase.MatchFinished;
+    private bool isSpawned;
+
+    private bool CanReadNetworkedPhase =>
+        isSpawned && Object != null;
+
+    public bool CanUseWeapons =>
+        CanReadNetworkedPhase &&
+        phase == GamePhase.RoundPlaying;
+
+    public bool CanControlPlayers =>
+        CanReadNetworkedPhase &&
+        (
+            phase == GamePhase.WaitingForReady ||
+            phase == GamePhase.RoundPlaying
+        );
+
+    public bool IsWaitingForReady =>
+        CanReadNetworkedPhase &&
+        phase == GamePhase.WaitingForReady;
+
+    public bool IsSkillSelecting =>
+        CanReadNetworkedPhase &&
+        phase == GamePhase.SkillSelecting;
+
+    public bool IsRoundPlaying =>
+        CanReadNetworkedPhase &&
+        phase == GamePhase.RoundPlaying;
+
+    public bool IsMatchFinished =>
+        CanReadNetworkedPhase &&
+        phase == GamePhase.MatchFinished;
+
+    public bool CanShowWaitingRoomUI =>
+        CanReadNetworkedPhase &&
+        phase == GamePhase.WaitingForReady;
 
     public class PlayerTeam : MonoBehaviour
     {
@@ -119,15 +153,40 @@ public class RoundManager : MonoBehaviour
         Debug.Log("[RoundManager] Awake");
     }
 
-    private void Start()
+    public override void Spawned()
     {
-        phase = GamePhase.WaitingForReady;
+        isSpawned = true;
+
+        if (Object.HasStateAuthority)
+        {
+            phase = GamePhase.WaitingForReady;
+        }
+
+        ApplyUIForPhase(phase, false);
+
+        lastAppliedUIPhase = phase;
+        uiPhaseInitialized = true;
 
         Debug.Log("[RoundManager] Waiting for players to ready.");
         Debug.Log("[RoundManager] Press Enter or ZL to ready.");
 
         LogSpawnPointSettings();
         LogSkillSlots();
+    }
+
+    public override void Despawned(NetworkRunner runner, bool hasState)
+    {
+        isSpawned = false;
+    }
+
+    private void OnDestroy()
+    {
+        if (Instance == this)
+        {
+            Instance = null;
+        }
+
+        isSpawned = false;
     }
 
     private void AssignTeamColor(PlayerHealth player)
@@ -150,12 +209,19 @@ public class RoundManager : MonoBehaviour
 
         playerTeam.SetTeam(assignedColor);
 
+        player.SetTeam(assignedColor);
+
         Debug.Log($"{player.gameObject.name} joined as {assignedColor}");
     }
 
     public void RegisterPlayer(PlayerHealth player)
     {
         if (player == null)
+        {
+            return;
+        }
+
+        if (!Object.HasStateAuthority)
         {
             return;
         }
@@ -170,6 +236,8 @@ public class RoundManager : MonoBehaviour
         readyStates[player] = false;
         skillSelectedStates[player] = false;
         selectedSkills[player] = PlayerSkillType.None;
+
+        player.SetReadyState(false);
 
         AssignTeamColor(player);
 
@@ -198,6 +266,16 @@ public class RoundManager : MonoBehaviour
 
         Debug.Log($"[RoundManager] Unregistered: {player.gameObject.name}, Count={players.Count}");
 
+        if (!isSpawned)
+        {
+            return;
+        }
+
+        if (!Object.HasStateAuthority)
+        {
+            return;
+        }
+
         if (phase == GamePhase.WaitingForReady)
         {
             TryStartFirstRound();
@@ -220,6 +298,11 @@ public class RoundManager : MonoBehaviour
             return;
         }
 
+        if (!Object.HasStateAuthority)
+        {
+            return;
+        }
+
         if (phase != GamePhase.WaitingForReady)
         {
             return;
@@ -237,6 +320,7 @@ public class RoundManager : MonoBehaviour
         }
 
         readyStates[player] = true;
+        player.SetReadyState(true);
 
         Debug.Log($"[RoundManager] Ready: {player.gameObject.name}");
 
@@ -493,11 +577,6 @@ public class RoundManager : MonoBehaviour
 
         SetupHealthItemsForCurrentPlayers();
 
-        if (battleStartUI != null)
-        {
-            battleStartUI.StartCoroutine(battleStartUI.PlaySequence());
-        }
-
         Debug.Log($"Round {currentRound} Start");
     }
 
@@ -656,6 +735,8 @@ public class RoundManager : MonoBehaviour
             readyStates[player] = false;
             skillSelectedStates[player] = false;
             selectedSkills[player] = PlayerSkillType.None;
+
+            player.SetReadyState(false);
 
             PlayerSkillController skillController = player.GetComponent<PlayerSkillController>();
 
@@ -1001,6 +1082,75 @@ public class RoundManager : MonoBehaviour
             }
 
             projectile.Runner.Despawn(networkObject);
+        }
+    }
+    
+    public override void Render()
+    {
+        if (!uiPhaseInitialized)
+        {
+            ApplyUIForPhase(phase, false);
+
+            lastAppliedUIPhase = phase;
+            uiPhaseInitialized = true;
+            return;
+        }
+
+        if (lastAppliedUIPhase == phase)
+        {
+            return;
+        }
+
+        bool enteredRoundStarting =
+            lastAppliedUIPhase != GamePhase.RoundStarting &&
+            phase == GamePhase.RoundStarting;
+
+        ApplyUIForPhase(phase, enteredRoundStarting);
+
+        lastAppliedUIPhase = phase;
+    }
+
+    private void ApplyUIForPhase(GamePhase targetPhase, bool playBattleStartUI)
+    {
+        Debug.Log(
+            $"[RoundManager] ApplyUIForPhase: " +
+            $"Phase={targetPhase}, " +
+            $"PlayBattleStartUI={playBattleStartUI}, " +
+            $"HasStateAuthority={Object.HasStateAuthority}"
+        );
+
+        bool shouldShowWaitingRoom =
+            targetPhase == GamePhase.WaitingForReady;
+
+        if (waitingRoomUI == null)
+        {
+            waitingRoomUI = FindFirstObjectByType<WaitingRoomUI>();
+        }
+
+        if (waitingRoomUI != null)
+        {
+            if (shouldShowWaitingRoom)
+            {
+                waitingRoomUI.ShowRoomUI();
+            }
+            else
+            {
+                waitingRoomUI.HideRoomUI();
+            }
+        }
+        else
+        {
+            Debug.LogWarning("[RoundManager] WaitingRoomUI was not found.");
+        }
+
+        if (playBattleStartUI && battleStartUI != null)
+        {
+            battleStartUI.StopAllCoroutines();
+            battleStartUI.StartCoroutine(battleStartUI.PlaySequence());
+        }
+        else if (playBattleStartUI && battleStartUI == null)
+        {
+            Debug.LogWarning("[RoundManager] BattleStartUI was not found.");
         }
     }
 }

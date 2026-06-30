@@ -5,6 +5,8 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.SceneManagement;
+using TMPro;
+using UnityEngine.UI;
 
 public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
 {
@@ -27,11 +29,28 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
     [SerializeField] private InputActionReference reloadAction;
     [SerializeField] private WaitingRoomUI waitingRoomUI;
 
+    [Header("Connection UI")]
+    [SerializeField] private GameObject connectionMenuRoot;
+    [SerializeField] private TMP_Text statusTextLabel;
+    [SerializeField] private Button hostButton;
+    [SerializeField] private Button clientButton;
+
+    [Header("Client Retry")]
+    [SerializeField] private bool retryClientUntilFound = true;
+    [SerializeField] private float clientRetryInterval = 1.0f;
+    [SerializeField] private int maxClientRetryCount = 0;
+
+    [Header("Auto Start")]
+    [SerializeField] private bool autoStartOnLaunch = true;
+
+    private bool isStartingGame;
+    private GameObject runnerObject;
+
     private NetworkRunner runner;
     private NetworkSceneManagerDefault sceneManager;
     private readonly Dictionary<PlayerRef, NetworkObject> spawnedPlayers = new();
 
-    private string statusText = "Ready";
+    private string statusText = "ホスト・クライアント選択";
 
     private Vector2 queuedLookInput;
     private bool jumpQueued;
@@ -49,12 +68,111 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
     private bool isVRActive => UnityEngine.XR.XRSettings.isDeviceActive;
     private Quaternion currentHMD = Quaternion.identity;
 
+    private bool connectionButtonLocked;
 
+    private void Awake()
+    {
+        /*
+        if (hostButton != null)
+        {
+            hostButton.onClick.RemoveListener(OnHostButtonClicked);
+            hostButton.onClick.AddListener(OnHostButtonClicked);
+        }
+        else
+        {
+            Debug.LogWarning("[NetworkLauncher] HostButton is not assigned.");
+        }
 
+        if (clientButton != null)
+        {
+            clientButton.onClick.RemoveListener(OnClientButtonClicked);
+            clientButton.onClick.AddListener(OnClientButtonClicked);
+        }
+        else
+        {
+            Debug.LogWarning("[NetworkLauncher] ClientButton is not assigned.");
+        }
+        */
+    }
+
+    private void OnDestroy()
+    {
+        /*
+        if (hostButton != null)
+        {
+            hostButton.onClick.RemoveListener(OnHostButtonClicked);
+        }
+
+        if (clientButton != null)
+        {
+            clientButton.onClick.RemoveListener(OnClientButtonClicked);
+        }
+        */
+    }
+
+    private void OnHostButtonClicked()
+    {
+        Debug.Log("[NetworkLauncher] Host button clicked.");
+
+        if (connectionButtonLocked)
+        {
+            Debug.LogWarning("[NetworkLauncher] Host click ignored because button is locked.");
+            return;
+        }
+
+        connectionButtonLocked = true;
+        SetConnectionButtonsInteractable(false);
+
+        StartGame(GameMode.Host);
+    }
+
+    private void OnClientButtonClicked()
+    {
+        Debug.Log("[NetworkLauncher] Client button clicked.");
+
+        if (connectionButtonLocked)
+        {
+            Debug.LogWarning("[NetworkLauncher] Client click ignored because button is locked.");
+            return;
+        }
+
+        connectionButtonLocked = true;
+        SetConnectionButtonsInteractable(false);
+
+        StartGame(GameMode.Client);
+    }
+
+    private void SetConnectionButtonsInteractable(bool interactable)
+    {
+        if (hostButton != null)
+        {
+            hostButton.interactable = interactable;
+        }
+
+        if (clientButton != null)
+        {
+            clientButton.interactable = interactable;
+        }
+    }
 
     private void Start()
     {
-        
+        UpdateStatusText();
+
+        if (autoStartOnLaunch)
+        {
+            SetConnectionMenuVisible(false);
+            SetStatusTextVisible(true);
+
+            connectionButtonLocked = true;
+
+            StartGame(GameMode.AutoHostOrClient);
+            return;
+        }
+
+        SetConnectionMenuVisible(true);
+        SetStatusTextVisible(false);
+        SetConnectionButtonsInteractable(true);
     }
 
     private void OnEnable()
@@ -97,72 +215,157 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
         actionReference.action.Disable();
     }
 
+    private void SetStatusText(string text)
+    {
+        statusText = text;
+        UpdateStatusText();
+    }
+
+    private void UpdateStatusText()
+    {
+        if (statusTextLabel != null)
+        {
+            statusTextLabel.text = statusText;
+        }
+    }
+
+    private void SetConnectionMenuVisible(bool visible)
+    {
+        if (connectionMenuRoot != null)
+        {
+            connectionMenuRoot.SetActive(visible);
+        }
+    }
+
     public async void StartGame(GameMode gameMode)
     {
-        waitingRoomUI.ShowRoomUI();
-        if (runner != null)
+        if (this == null)
+        {
+            return;
+        }
+
+        if (runner != null || isStartingGame)
         {
             return;
         }
 
         if (!playerPrefab.IsValid)
         {
-            statusText = "Player Prefab is not set.";
+            SetStatusText("Player Prefab is not set.");
             Debug.LogError(statusText);
+
+            connectionButtonLocked = false;
+            SetConnectionButtonsInteractable(true);
+            SetConnectionMenuVisible(true);
             return;
         }
-
-        Debug.Log($"StartGame: {gameMode}");
-        statusText = $"Starting {gameMode}...";
-
-        runner = gameObject.AddComponent<NetworkRunner>();
-        runner.ProvideInput = true;
-        runner.AddCallbacks(this);
-
-        sceneManager = gameObject.AddComponent<NetworkSceneManagerDefault>();
 
         int buildIndex = SceneManager.GetActiveScene().buildIndex;
 
         if (buildIndex < 0)
         {
-            statusText = "Current scene is not in Build Settings.";
+            SetStatusText("Current scene is not in Build Settings.");
             Debug.LogError(statusText);
+
+            connectionButtonLocked = false;
+            SetConnectionButtonsInteractable(true);
+            SetConnectionMenuVisible(true);
             return;
         }
+
+        if (waitingRoomUI != null)
+        {
+            waitingRoomUI.SetLocalPlayerSpawned(false);
+            waitingRoomUI.HideRoomUI();
+        }
+
+        isStartingGame = true;
+        SetConnectionMenuVisible(false);
 
         SceneRef sceneRef = SceneRef.FromIndex(buildIndex);
+        int attemptCount = 0;
 
-        StartGameResult result = await runner.StartGame(new StartGameArgs()
+        while (true)
         {
-            GameMode = gameMode,
-            SessionName = roomName,
-            Scene = sceneRef,
-            SceneManager = sceneManager
-        });
-
-        if (!result.Ok)
-        {
-            statusText = $"Failed: {result.ShutdownReason}";
-            Debug.LogError($"Failed to start Fusion: {result.ShutdownReason}");
-
-            if (runner != null)
+            if (this == null)
             {
-                runner.RemoveCallbacks(this);
-                Destroy(runner);
-                runner = null;
+                return;
             }
 
-            if (sceneManager != null)
+            attemptCount++;
+
+            Debug.Log($"StartGame: {gameMode}, RoomName={roomName}, Attempt={attemptCount}");
+            string gameModeJapanese =
+                gameMode == GameMode.Host
+                    ? "ホスト"
+                    : gameMode == GameMode.Client
+                        ? "クライアント"
+                        : "自動接続";
+
+            SetStatusText($"{gameModeJapanese}中...");
+
+            CreateRunnerObject(gameMode, attemptCount);
+
+            StartGameResult result = await runner.StartGame(new StartGameArgs()
             {
-                Destroy(sceneManager);
-                sceneManager = null;
+                GameMode = gameMode,
+                SessionName = roomName,
+                Scene = sceneRef,
+                SceneManager = sceneManager
+            });
+
+            if (this == null)
+            {
+                return;
             }
 
-            return;
+            if (result.Ok)
+            {
+                SetStatusText($"ルーム名: {roomName}");
+                Debug.Log(statusText);
+
+                isStartingGame = false;
+
+                SetConnectionMenuVisible(false);
+                SetStatusTextVisible(false);
+
+                return;
+            }
+
+            ShutdownReason shutdownReason = result.ShutdownReason;
+
+            SetStatusText($"Failed: {shutdownReason}");
+            Debug.LogError($"Failed to start Fusion: {shutdownReason}");
+
+            CleanupFailedRunner();
+
+            bool shouldRetry =
+                gameMode == GameMode.Client &&
+                retryClientUntilFound &&
+                shutdownReason == ShutdownReason.GameNotFound &&
+                (maxClientRetryCount <= 0 || attemptCount < maxClientRetryCount);
+
+            if (!shouldRetry)
+            {
+                isStartingGame = false;
+                connectionButtonLocked = false;
+                SetConnectionMenuVisible(true);
+                SetConnectionButtonsInteractable(true);
+                return;
+            }
+
+            statusText =
+                $"Room not found. Retrying Client... " +
+                $"Attempt {attemptCount}, Room: {roomName}";
+
+            Debug.Log(
+                $"[NetworkLauncher] GameNotFound. Retry Client after {clientRetryInterval} sec. " +
+                $"RoomName={roomName}, Attempt={attemptCount}"
+            );
+
+            int delayMilliseconds = Mathf.RoundToInt(Mathf.Max(0.1f, clientRetryInterval) * 1000.0f);
+            await System.Threading.Tasks.Task.Delay(delayMilliseconds);
         }
-
-        statusText = $"Running: {gameMode} / Room: {roomName}";
-        Debug.Log(statusText);
     }
 
     private void Update()
@@ -171,11 +374,22 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
 
         Vector2 lookInput = ReadLookInput();
 
-        queuedLookInput += lookInput;
+        bool canControlPlayer =
+            RoundManager.Instance == null ||
+            RoundManager.Instance.CanControlPlayers;
 
-        if (localPlayerController != null)
+        if (canControlPlayer)
         {
-            localPlayerController.ApplyLocalLook(lookInput, isVRActive, currentHMD);
+            queuedLookInput += lookInput;
+
+            if (localPlayerController != null)
+            {
+                localPlayerController.ApplyLocalLook(lookInput, isVRActive, currentHMD);
+            }
+        }
+        else
+        {
+            queuedLookInput = Vector2.zero;
         }
 
         if (ReadJumpPressed())
@@ -241,22 +455,6 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
         currentHMD = hmdRotationAction.action.ReadValue<Quaternion>();
     }
 
-    private void OnGUI()
-    {
-        GUI.Label(new Rect(20, 20, 500, 30), statusText);
-
-         if (runner != null)
-             return;
-
-         if (GUI.Button(new Rect(20, 60, 200, 50), "Host"))
-             StartGame(GameMode.Host);
-
-         if (GUI.Button(new Rect(20, 120, 200, 50), "Client"))
-             StartGame(GameMode.Client);
-    }
-
-
-
     public void OnPlayerJoined(NetworkRunner runner, PlayerRef player)
     {
         Debug.Log($"OnPlayerJoined: {player}, IsServer: {runner.IsServer}");
@@ -276,9 +474,25 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
             player
         );
 
+        int visualIndex = spawnedPlayers.Count;
+
+        PlayerIdentity playerIdentity = playerObject.GetComponent<PlayerIdentity>();
+
+        if (playerIdentity != null)
+        {
+            playerIdentity.SetIdentity(
+                visualIndex + 1,
+                visualIndex
+            );
+        }
+        else
+        {
+            Debug.LogWarning($"{playerObject.name}: PlayerIdentity is not attached.");
+        }
+
         spawnedPlayers.Add(player, playerObject);
 
-        Debug.Log($"Spawned player: {player}");
+        Debug.Log($"Spawned player: {player}, VisualIndex={visualIndex}");
     }
 
     public void OnPlayerLeft(NetworkRunner runner, PlayerRef player)
@@ -672,6 +886,25 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
         return false;
     }
 
+    public void NotifyLocalPlayerSpawnedOnWaitingPlanet()
+    {
+        Debug.Log("[NetworkLauncher] Local player spawned on waiting planet.");
+
+        if (waitingRoomUI == null)
+        {
+            waitingRoomUI = FindFirstObjectByType<WaitingRoomUI>();
+        }
+
+        if (waitingRoomUI != null)
+        {
+            waitingRoomUI.SetLocalPlayerSpawned(true);
+        }
+        else
+        {
+            Debug.LogWarning("[NetworkLauncher] WaitingRoomUI was not found.");
+        }
+    }
+
     public void RegisterLocalPlayer(PlayerController playerController)
     {
         localPlayerController = playerController;
@@ -684,9 +917,66 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
         {
             localPlayerController = null;
         }
+
+        if (waitingRoomUI != null)
+        {
+            waitingRoomUI.SetLocalPlayerSpawned(false);
+            waitingRoomUI.HideRoomUI();
+        }
+    }
+    
+    private void CleanupFailedRunner()
+    {
+        if (runner != null)
+        {
+            runner.RemoveCallbacks(this);
+        }
+
+        if (runnerObject != null)
+        {
+            Destroy(runnerObject);
+        }
+        else
+        {
+            if (runner != null)
+            {
+                Destroy(runner);
+            }
+
+            if (sceneManager != null)
+            {
+                Destroy(sceneManager);
+            }
+        }
+
+        runner = null;
+        sceneManager = null;
+        runnerObject = null;
     }
 
-    public void OnInputMissing(NetworkRunner runner, PlayerRef player, NetworkInput input) {}
+    private void CreateRunnerObject(GameMode gameMode, int attemptCount)
+    {
+        CleanupFailedRunner();
+
+        runnerObject = new GameObject($"NetworkRunner_{gameMode}_Attempt{attemptCount}");
+        DontDestroyOnLoad(runnerObject);
+
+        runner = runnerObject.AddComponent<NetworkRunner>();
+        runner.ProvideInput = true;
+        runner.AddCallbacks(this);
+
+        sceneManager = runnerObject.AddComponent<NetworkSceneManagerDefault>();
+    }
+
+    private void SetStatusTextVisible(bool visible)
+    {
+        if (statusTextLabel != null)
+        {
+            statusTextLabel.gameObject.SetActive(visible);
+        }
+    }
+
+    public void OnInputMissing(NetworkRunner runner, PlayerRef player, NetworkInput input) { }
     public void OnShutdown(NetworkRunner runner, ShutdownReason shutdownReason) {}
     public void OnConnectedToServer(NetworkRunner runner) {}
     public void OnDisconnectedFromServer(NetworkRunner runner, NetDisconnectReason reason) {}

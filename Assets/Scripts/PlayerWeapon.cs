@@ -25,17 +25,21 @@ public class PlayerWeapon : NetworkBehaviour
     private PlayerLook playerLook;
     private PlayerCamera playerCamera;
 
-    private int currentAmmo;
     private float fireTimer;
     private float reloadTimer;
-    private bool isReloading;
 
     private float fireIntervalMultiplier = 1.0f;
     private float projectileSpeedMultiplier = 1.0f;
 
-    public int CurrentAmmo => currentAmmo;
+    [Networked, OnChangedRender(nameof(OnNetworkedAmmoChanged))]
+    public int NetworkedCurrentAmmo { get; private set; }
+
+    [Networked, OnChangedRender(nameof(OnNetworkedReloadingChanged))]
+    public NetworkBool NetworkedIsReloading { get; private set; }
+
+    public int CurrentAmmo => NetworkedCurrentAmmo;
     public int MaxAmmo => maxAmmo;
-    public bool IsReloading => isReloading;
+    public bool IsReloading => NetworkedIsReloading;
 
     public event Action OnShot;
     public event Action OnReloaded;
@@ -48,29 +52,54 @@ public class PlayerWeapon : NetworkBehaviour
         playerLook = GetComponent<PlayerLook>();
         playerCamera = GetComponent<PlayerCamera>();
 
-        currentAmmo = maxAmmo;
         fireTimer = 0.0f;
         reloadTimer = 0.0f;
-        isReloading = false;
 
         fireIntervalMultiplier = 1.0f;
         projectileSpeedMultiplier = 1.0f;
     }
 
-    private void Start()
+    public override void Spawned()
     {
-        OnAmmoChanged?.Invoke(currentAmmo, maxAmmo);
-        Debug.Log($"Reloaded: {currentAmmo}/{maxAmmo}");
+        if (Object.HasStateAuthority)
+        {
+            NetworkedCurrentAmmo = maxAmmo;
+            NetworkedIsReloading = false;
+        }
+
+        NotifyAmmoChanged();
+
+        Debug.Log($"Weapon Spawned: Ammo={NetworkedCurrentAmmo}/{maxAmmo}");
+    }
+
+    private void OnNetworkedAmmoChanged()
+    {
+        NotifyAmmoChanged();
+    }
+
+    private void OnNetworkedReloadingChanged()
+    {
+        NotifyAmmoChanged();
+    }
+
+    private void NotifyAmmoChanged()
+    {
+        OnAmmoChanged?.Invoke(NetworkedCurrentAmmo, maxAmmo);
     }
 
     public void Tick(float deltaTime)
     {
+        if (!Object.HasStateAuthority)
+        {
+            return;
+        }
+
         if (fireTimer > 0.0f)
         {
             fireTimer -= deltaTime;
         }
 
-        if (!isReloading)
+        if (!NetworkedIsReloading)
         {
             return;
         }
@@ -112,18 +141,20 @@ public class PlayerWeapon : NetworkBehaviour
             return;
         }
 
-        if (isReloading)
+        if (NetworkedIsReloading)
         {
             return;
         }
 
-        if (currentAmmo >= maxAmmo)
+        if (NetworkedCurrentAmmo >= maxAmmo)
         {
             return;
         }
 
-        isReloading = true;
+        NetworkedIsReloading = true;
         reloadTimer = reloadDuration;
+
+        NotifyAmmoChanged();
 
         Debug.Log($"Reload started. Duration={reloadDuration} seconds.");
     }
@@ -135,14 +166,13 @@ public class PlayerWeapon : NetworkBehaviour
             return;
         }
 
-        isReloading = false;
+        NetworkedIsReloading = false;
         reloadTimer = 0.0f;
-        currentAmmo = maxAmmo;
+        NetworkedCurrentAmmo = maxAmmo;
 
-        OnReloaded?.Invoke();
-        OnAmmoChanged?.Invoke(currentAmmo, maxAmmo);
+        NotifyAmmoChanged();
 
-        Debug.Log($"Ammo refilled immediately: {currentAmmo}/{maxAmmo}");
+        Debug.Log($"Ammo refilled immediately: {NetworkedCurrentAmmo}/{maxAmmo}");
     }
 
     private void CompleteReload()
@@ -152,14 +182,14 @@ public class PlayerWeapon : NetworkBehaviour
             return;
         }
 
-        isReloading = false;
+        NetworkedIsReloading = false;
         reloadTimer = 0.0f;
-        currentAmmo = maxAmmo;
+        NetworkedCurrentAmmo = maxAmmo;
 
         OnReloaded?.Invoke();
-        OnAmmoChanged?.Invoke(currentAmmo, maxAmmo);
+        NotifyAmmoChanged();
 
-        Debug.Log($"Reload completed: {currentAmmo}/{maxAmmo}");
+        Debug.Log($"Reload completed: {NetworkedCurrentAmmo}/{maxAmmo}");
     }
 
     public void CancelReload()
@@ -169,13 +199,15 @@ public class PlayerWeapon : NetworkBehaviour
             return;
         }
 
-        if (!isReloading)
+        if (!NetworkedIsReloading)
         {
             return;
         }
 
-        isReloading = false;
+        NetworkedIsReloading = false;
         reloadTimer = 0.0f;
+
+        NotifyAmmoChanged();
 
         Debug.Log("Reload canceled.");
     }
@@ -187,7 +219,7 @@ public class PlayerWeapon : NetworkBehaviour
             return;
         }
 
-        if (isReloading)
+        if (NetworkedIsReloading)
         {
             Debug.Log("Cannot fire while reloading.");
             return;
@@ -200,7 +232,7 @@ public class PlayerWeapon : NetworkBehaviour
 
         float currentFireInterval = GetCurrentFireInterval();
 
-        if (currentAmmo <= 0)
+        if (NetworkedCurrentAmmo <= 0)
         {
             Debug.Log("No ammo. Press K or ZL to reload.");
 
@@ -212,14 +244,14 @@ public class PlayerWeapon : NetworkBehaviour
 
         FireProjectile();
 
-        currentAmmo--;
+        NetworkedCurrentAmmo--;
         fireTimer = currentFireInterval;
 
         OnShot?.Invoke();
-        OnAmmoChanged?.Invoke(currentAmmo, maxAmmo);
+        NotifyAmmoChanged();
 
         Debug.Log(
-            $"Ammo: {currentAmmo}/{maxAmmo}, " +
+            $"Ammo: {NetworkedCurrentAmmo}/{maxAmmo}, " +
             $"FireInterval={currentFireInterval:0.00}, " +
             $"FireIntervalMultiplier={fireIntervalMultiplier:0.00}, " +
             $"ProjectileDamage={projectileDamage:0.00}, " +

@@ -1,8 +1,6 @@
 using UnityEngine;
-using System;
 using Fusion;
 
-// アタッチし忘れを防ぐ便利な記述です
 [RequireComponent(typeof(PlayerController))]
 [RequireComponent(typeof(AudioSource))]
 [RequireComponent(typeof(PlayerHealth))]
@@ -21,26 +19,45 @@ public class PlayerSound : NetworkBehaviour
     private PlayerHealth playerHealth;
     private AudioSource audioSource;
 
+    private bool hasInitializedHealth;
+    private float previousHealth;
+
     private void Awake()
     {
-        // コンポーネントを取得
         playerController = GetComponent<PlayerController>();
         audioSource = GetComponent<AudioSource>();
         playerMove = GetComponent<PlayerMove>();
         playerWeapon = GetComponent<PlayerWeapon>();
         playerHealth = GetComponent<PlayerHealth>();
 
+        if (audioSource != null)
+        {
+            audioSource.playOnAwake = false;
+        }
     }
-
 
     public override void Spawned()
     {
-        // イベントの登録
-        if (playerController != null)
+        hasInitializedHealth = true;
+
+        if (playerHealth != null)
+        {
+            previousHealth = playerHealth.CurrentHealth;
+        }
+
+        if (playerMove != null)
         {
             playerMove.OnJumped += PlayJumpSound;
+        }
+
+        if (playerWeapon != null)
+        {
             playerWeapon.OnShot += PlayFireSound;
             playerWeapon.OnReloaded += PlayReloadSound;
+        }
+
+        if (playerHealth != null)
+        {
             playerHealth.OnHealthChanged += PlayDamageSound;
             playerHealth.OnDied += PlayDiedSound;
         }
@@ -48,41 +65,77 @@ public class PlayerSound : NetworkBehaviour
 
     public override void Despawned(NetworkRunner runner, bool hasState)
     {
-        //イベントの削除
-        if (playerController != null)
+        if (playerMove != null)
         {
             playerMove.OnJumped -= PlayJumpSound;
+        }
+
+        if (playerWeapon != null)
+        {
             playerWeapon.OnShot -= PlayFireSound;
             playerWeapon.OnReloaded -= PlayReloadSound;
+        }
+
+        if (playerHealth != null)
+        {
             playerHealth.OnHealthChanged -= PlayDamageSound;
             playerHealth.OnDied -= PlayDiedSound;
         }
     }
 
-    // --- 音を鳴らす処理 ---
-
     private void PlayJumpSound()
     {
-        if (jumpSE != null) audioSource.PlayOneShot(jumpSE);
+        if (jumpSE != null && audioSource != null)
+        {
+            audioSource.PlayOneShot(jumpSE);
+        }
     }
 
     private void PlayFireSound()
     {
-        if (fireSE != null) audioSource.PlayOneShot(fireSE);
+        if (fireSE != null && audioSource != null)
+        {
+            audioSource.PlayOneShot(fireSE);
+        }
     }
 
     private void PlayReloadSound()
     {
-        if (reloadSE != null) audioSource.PlayOneShot(reloadSE);
+        if (reloadSE != null && audioSource != null)
+        {
+            audioSource.PlayOneShot(reloadSE);
+        }
     }
 
     private void PlayDamageSound(float current, float max)
     {
-        if (tookDamageSE != null) audioSource.PlayOneShot(tookDamageSE);
+        if (!hasInitializedHealth)
+        {
+            previousHealth = current;
+            hasInitializedHealth = true;
+            return;
+        }
+
+        bool tookDamage = current < previousHealth;
+
+        previousHealth = current;
+
+        if (!tookDamage)
+        {
+            return;
+        }
+
+        if (tookDamageSE != null && audioSource != null)
+        {
+            audioSource.PlayOneShot(tookDamageSE);
+        }
     }
-    
+
     private void PlayDiedSound(PlayerHealth target)
     {
-        if (diedSE != null) audioSource.PlayOneShot(diedSE);
+        if (diedSE != null && audioSource != null)
+        {
+            audioSource.PlayOneShot(diedSE);
+        }
     }
 }
