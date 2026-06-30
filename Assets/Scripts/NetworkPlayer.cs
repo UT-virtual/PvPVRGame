@@ -37,47 +37,61 @@ public class NetworkPlayer : NetworkBehaviour
         SetLocalVisual(isLocalPlayer);
 
         if (isLocalPlayer)
-{
-    NetworkLauncher launcher = FindFirstObjectByType<NetworkLauncher>();
-    PlayerController playerController = GetComponent<PlayerController>();
+        {
+            NetworkLauncher launcher = FindFirstObjectByType<NetworkLauncher>();
+            PlayerController playerController = GetComponent<PlayerController>();
 
-    if (launcher != null && playerController != null)
-    {
-        launcher.RegisterLocalPlayer(playerController);
-    }
+            if (launcher != null && playerController != null)
+            {
+                launcher.RegisterLocalPlayer(playerController);
+            }
 
-    StartCoroutine(SetupLocalCameraNextFrame());
-}
+            StartCoroutine(SetupLocalPlayerAfterSpawn());
+        }
     }
 
     public override void Despawned(NetworkRunner runner, bool hasState)
-{
-    if (!Object.HasInputAuthority)
     {
-        return;
+        if (!Object.HasInputAuthority)
+        {
+            return;
+        }
+
+        NetworkLauncher launcher = FindFirstObjectByType<NetworkLauncher>();
+        PlayerController playerController = GetComponent<PlayerController>();
+
+        if (launcher != null && playerController != null)
+        {
+            launcher.UnregisterLocalPlayer(playerController);
+        }
     }
 
-    NetworkLauncher launcher = FindFirstObjectByType<NetworkLauncher>();
-    PlayerController playerController = GetComponent<PlayerController>();
-
-    if (launcher != null && playerController != null)
-    {
-        launcher.UnregisterLocalPlayer(playerController);
-    }
-}
-
-    private IEnumerator SetupLocalCameraNextFrame()
+    private IEnumerator SetupLocalPlayerAfterSpawn()
     {
         yield return null;
 
         if (playerCamera == null)
         {
             Debug.LogError($"{name}: Cannot setup camera because PlayerCamera is null.");
-            yield break;
+        }
+        else
+        {
+            playerCamera.SetupLocalCamera();
+            playerCamera.UpdateCameraTarget();
         }
 
-        playerCamera.SetupLocalCamera();
-        playerCamera.UpdateCameraTarget();
+        yield return null;
+
+        NetworkLauncher launcher = FindFirstObjectByType<NetworkLauncher>();
+
+        if (launcher != null)
+        {
+            launcher.NotifyLocalPlayerSpawnedOnWaitingPlanet();
+        }
+        else
+        {
+            Debug.LogWarning("[NetworkPlayer] NetworkLauncher was not found.");
+        }
     }
 
     private void SetLocalOnlyObjects(bool isLocalPlayer)

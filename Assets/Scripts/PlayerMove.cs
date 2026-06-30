@@ -40,6 +40,8 @@ public class PlayerMove : MonoBehaviour
     public Vector3 AimForward => aimForward;
     public Vector3 AimRight => aimRight;
     public bool IsGrounded => isGrounded;
+    private int extraAirJumpCount;
+    private int remainingAirJumps;
 
     public event Action OnJumped;
 
@@ -60,6 +62,11 @@ public class PlayerMove : MonoBehaviour
             surfaceUp = transform.up;
         }
 
+        if (surfaceUp.sqrMagnitude < 0.001f)
+        {
+            surfaceUp = Vector3.up;
+        }
+
         aimForward = Vector3.ProjectOnPlane(transform.forward, surfaceUp);
 
         if (aimForward.sqrMagnitude < 0.001f)
@@ -70,6 +77,11 @@ public class PlayerMove : MonoBehaviour
         if (aimForward.sqrMagnitude < 0.001f)
         {
             aimForward = Vector3.Cross(Vector3.right, surfaceUp);
+        }
+
+        if (aimForward.sqrMagnitude < 0.001f)
+        {
+            aimForward = Vector3.Cross(Vector3.up, surfaceUp);
         }
 
         aimForward.Normalize();
@@ -163,100 +175,82 @@ public class PlayerMove : MonoBehaviour
     }
 
     public void MoveOnSurface(Vector2 input, float deltaTime)
-{
-    if (input.sqrMagnitude < 0.01f)
     {
-        return;
+        if (input.sqrMagnitude < 0.01f)
+        {
+            return;
+        }
+
+        if (input.sqrMagnitude > 1.0f)
+        {
+            input.Normalize();
+        }
+
+        Vector3 moveDir = aimForward * input.y + aimRight * input.x;
+
+        if (moveDir.sqrMagnitude < 0.001f)
+        {
+            return;
+        }
+
+        if (moveDir.sqrMagnitude > 1.0f)
+        {
+            moveDir.Normalize();
+        }
+
+        controller.Move(moveDir * moveSpeed * deltaTime);
     }
 
-    if (input.sqrMagnitude > 1.0f)
+    public void AlignToSurface(float deltaTime)
     {
-        input.Normalize();
+        Quaternion targetRotation = Quaternion.LookRotation(aimForward, surfaceUp);
+
+        transform.rotation = Quaternion.Slerp(
+            transform.rotation,
+            targetRotation,
+            alignSpeed * deltaTime
+        );
     }
 
-    Vector3 moveDir = aimForward * input.y + aimRight * input.x;
-
-    if (moveDir.sqrMagnitude < 0.001f)
+    public void ApplyGravityAndJump(bool jumpPressed, float deltaTime)
     {
-        return;
+        if (isGrounded)
+        {
+            remainingAirJumps = extraAirJumpCount;
+        }
+
+        if (isGrounded && jumpPressed)
+        {
+            verticalSpeed = jumpSpeed;
+            isGrounded = false;
+            remainingAirJumps = extraAirJumpCount;
+
+            OnJumped?.Invoke();
+        }
+        else if (!isGrounded && jumpPressed && remainingAirJumps > 0)
+        {
+            verticalSpeed = jumpSpeed;
+            remainingAirJumps--;
+
+            OnJumped?.Invoke();
+        }
+        else if (isGrounded)
+        {
+            verticalSpeed = 0.0f;
+
+            SnapToGround(deltaTime);
+            return;
+        }
+        else
+        {
+            verticalSpeed -= gravity * deltaTime;
+        }
+
+        Vector3 verticalMove = surfaceUp * verticalSpeed;
+        controller.Move(verticalMove * deltaTime);
     }
 
-    if (moveDir.sqrMagnitude > 1.0f)
-    {
-        moveDir.Normalize();
-    }
-
-    controller.Move(moveDir * moveSpeed * deltaTime);
-}
-
-public void AlignToSurface(float deltaTime)
-{
-    Quaternion targetRotation = Quaternion.LookRotation(aimForward, surfaceUp);
-
-    transform.rotation = Quaternion.Slerp(
-        transform.rotation,
-        targetRotation,
-        alignSpeed * deltaTime
-    );
-}
-
-public void ApplyGravityAndJump(bool jumpPressed, float deltaTime)
-{
-    if (isGrounded && jumpPressed)
-    {
-        verticalSpeed = jumpSpeed;
-        isGrounded = false;
-
-        OnJumped?.Invoke();
-    }
-    else if (isGrounded)
-    {
-        verticalSpeed = 0.0f;
-
-        SnapToGround(deltaTime);
-        return;
-    }
-    else
-    {
-        verticalSpeed -= gravity * deltaTime;
-    }
-
-    Vector3 verticalMove = surfaceUp * verticalSpeed;
-    controller.Move(verticalMove * deltaTime);
-}
-
-private void SnapToGround(float deltaTime)
-{
-    if (!hasGroundHit)
-    {
-        return;
-    }
-
-    if (Mathf.Abs(groundDistance) < 0.001f)
-    {
-        return;
-    }
-
-    float snapAmount = Mathf.Min(
-        Mathf.Abs(groundDistance),
-        groundSnapSpeed * deltaTime
-    );
-
-    Vector3 snapDirection;
-
-    if (groundDistance > 0.0f)
-    {
-        snapDirection = -surfaceUp;
-    }
-    else
-    {
-        snapDirection = surfaceUp;
-    }
-
-    controller.Move(snapDirection * snapAmount);
-}
-
-    private void SnapToGround()
+    private void SnapToGround(float deltaTime)
     {
         if (!hasGroundHit)
         {
@@ -270,7 +264,7 @@ private void SnapToGround(float deltaTime)
 
         float snapAmount = Mathf.Min(
             Mathf.Abs(groundDistance),
-            groundSnapSpeed * Time.deltaTime
+            groundSnapSpeed * deltaTime
         );
 
         Vector3 snapDirection;
@@ -285,6 +279,65 @@ private void SnapToGround(float deltaTime)
         }
 
         controller.Move(snapDirection * snapAmount);
+    }
+
+    public void SetAimForward(Vector3 worldForward)
+    {
+        Vector3 projectedForward = Vector3.ProjectOnPlane(worldForward, surfaceUp);
+
+        if (projectedForward.sqrMagnitude < 0.001f)
+        {
+            return;
+        }
+
+        aimForward = projectedForward.normalized;
+        aimRight = Vector3.Cross(surfaceUp, aimForward).normalized;
+        aimForward = Vector3.Cross(aimRight, surfaceUp).normalized;
+    }
+
+    public void ResetMovementState()
+    {
+        verticalSpeed = 0.0f;
+        hasGroundHit = false;
+        isGrounded = false;
+        groundDistance = 0.0f;
+        remainingAirJumps = extraAirJumpCount;
+    }
+
+    public void ResetAfterRespawn()
+    {
+        verticalSpeed = 0.0f;
+        hasGroundHit = false;
+        isGrounded = false;
+        groundDistance = 0.0f;
+        remainingAirJumps = extraAirJumpCount;
+
+        InitializeSurfaceVectors();
+        ProbeGround();
+        UpdateAimBasis();
+        SnapRotationToSurface();
+
+        Debug.Log(
+            $"{gameObject.name} ResetAfterRespawn. " +
+            $"Position={transform.position}, " +
+            $"SurfaceUp={surfaceUp}, " +
+            $"AimForward={aimForward}"
+        );
+    }
+
+    private void SnapRotationToSurface()
+    {
+        if (aimForward.sqrMagnitude < 0.001f)
+        {
+            return;
+        }
+
+        if (surfaceUp.sqrMagnitude < 0.001f)
+        {
+            return;
+        }
+
+        transform.rotation = Quaternion.LookRotation(aimForward, surfaceUp);
     }
 
     private void OnDrawGizmosSelected()
@@ -308,18 +361,24 @@ private void SnapToGround(float deltaTime)
         Gizmos.DrawLine(transform.position, transform.position + surfaceUp * 2.0f);
     }
 
-    public void SetAimForward(Vector3 worldForward)
-{
-    Vector3 projectedForward = Vector3.ProjectOnPlane(worldForward, surfaceUp);
-
-    if (projectedForward.sqrMagnitude < 0.001f)
+    public void SetExtraAirJumpCount(int count)
     {
-        return;
+        count = Mathf.Max(0, count);
+
+        if (count > extraAirJumpCount)
+        {
+            remainingAirJumps = Mathf.Max(remainingAirJumps, count);
+        }
+        else if (count < extraAirJumpCount)
+        {
+            remainingAirJumps = Mathf.Min(remainingAirJumps, count);
+        }
+
+        extraAirJumpCount = count;
+
+        if (isGrounded)
+        {
+            remainingAirJumps = extraAirJumpCount;
+        }
     }
-
-    aimForward = projectedForward.normalized;
-    aimRight = Vector3.Cross(surfaceUp, aimForward).normalized;
-    aimForward = Vector3.Cross(aimRight, surfaceUp).normalized;
-}
-
 }

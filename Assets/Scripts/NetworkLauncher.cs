@@ -1,10 +1,12 @@
-using System;
-using System.Collections.Generic;
 using Fusion;
 using Fusion.Sockets;
+using System;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.SceneManagement;
+using TMPro;
+using UnityEngine.UI;
 
 public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
 {
@@ -16,140 +18,441 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
     [SerializeField] private float keyboardLookSpeed = 90.0f;
     [SerializeField] private float mouseLookSpeed = 0.12f;
     [SerializeField] private float gamepadLookSpeed = 120.0f;
+    [SerializeField] private float vrStickTurnSpeed = 150.0f;
+
+    [Header("Input Actions")]
+    [SerializeField] private InputActionReference moveAction;
+    [SerializeField] private InputActionReference lookAction;
+    [SerializeField] private InputActionReference hmdRotationAction;
+    [SerializeField] private InputActionReference jumpAction;
+    [SerializeField] private InputActionReference fireAction;
+    [SerializeField] private InputActionReference reloadAction;
+    [SerializeField] private WaitingRoomUI waitingRoomUI;
+
+    [Header("Connection UI")]
+    [SerializeField] private GameObject connectionMenuRoot;
+    [SerializeField] private TMP_Text statusTextLabel;
+    [SerializeField] private Button hostButton;
+    [SerializeField] private Button clientButton;
+
+    [Header("Client Retry")]
+    [SerializeField] private bool retryClientUntilFound = true;
+    [SerializeField] private float clientRetryInterval = 1.0f;
+    [SerializeField] private int maxClientRetryCount = 0;
+
+    [Header("Auto Start")]
+    [SerializeField] private bool autoStartOnLaunch = true;
+
+    private bool isStartingGame;
+    private GameObject runnerObject;
 
     private NetworkRunner runner;
     private NetworkSceneManagerDefault sceneManager;
     private readonly Dictionary<PlayerRef, NetworkObject> spawnedPlayers = new();
 
-    private string statusText = "Ready";
-    private bool wasLeftTriggerPressed;
+    private string statusText = "ホスト・クライアント選択";
+
     private Vector2 queuedLookInput;
     private bool jumpQueued;
     private bool reloadQueued;
+    private bool readyQueued;
+    private bool skillQueued;
+    private bool selectSkill1Queued;
+    private bool selectSkill2Queued;
+    private bool selectSkill3Queued;
+    private bool selectSkill4Queued;
+    private bool wasLeftTriggerPressed;
 
-    private async void StartGame(GameMode gameMode)
+    private PlayerController localPlayerController;
+
+    private bool isVRActive => UnityEngine.XR.XRSettings.isDeviceActive;
+    private Quaternion currentHMD = Quaternion.identity;
+
+    private bool connectionButtonLocked;
+
+    private void Awake()
     {
-        if (runner != null)
+        /*
+        if (hostButton != null)
+        {
+            hostButton.onClick.RemoveListener(OnHostButtonClicked);
+            hostButton.onClick.AddListener(OnHostButtonClicked);
+        }
+        else
+        {
+            Debug.LogWarning("[NetworkLauncher] HostButton is not assigned.");
+        }
+
+        if (clientButton != null)
+        {
+            clientButton.onClick.RemoveListener(OnClientButtonClicked);
+            clientButton.onClick.AddListener(OnClientButtonClicked);
+        }
+        else
+        {
+            Debug.LogWarning("[NetworkLauncher] ClientButton is not assigned.");
+        }
+        */
+    }
+
+    private void OnDestroy()
+    {
+        /*
+        if (hostButton != null)
+        {
+            hostButton.onClick.RemoveListener(OnHostButtonClicked);
+        }
+
+        if (clientButton != null)
+        {
+            clientButton.onClick.RemoveListener(OnClientButtonClicked);
+        }
+        */
+    }
+
+    private void OnHostButtonClicked()
+    {
+        Debug.Log("[NetworkLauncher] Host button clicked.");
+
+        if (connectionButtonLocked)
+        {
+            Debug.LogWarning("[NetworkLauncher] Host click ignored because button is locked.");
+            return;
+        }
+
+        connectionButtonLocked = true;
+        SetConnectionButtonsInteractable(false);
+
+        StartGame(GameMode.Host);
+    }
+
+    private void OnClientButtonClicked()
+    {
+        Debug.Log("[NetworkLauncher] Client button clicked.");
+
+        if (connectionButtonLocked)
+        {
+            Debug.LogWarning("[NetworkLauncher] Client click ignored because button is locked.");
+            return;
+        }
+
+        connectionButtonLocked = true;
+        SetConnectionButtonsInteractable(false);
+
+        StartGame(GameMode.Client);
+    }
+
+    private void SetConnectionButtonsInteractable(bool interactable)
+    {
+        if (hostButton != null)
+        {
+            hostButton.interactable = interactable;
+        }
+
+        if (clientButton != null)
+        {
+            clientButton.interactable = interactable;
+        }
+    }
+
+    private void Start()
+    {
+        UpdateStatusText();
+
+        if (autoStartOnLaunch)
+        {
+            SetConnectionMenuVisible(false);
+            SetStatusTextVisible(true);
+
+            connectionButtonLocked = true;
+
+            StartGame(GameMode.AutoHostOrClient);
+            return;
+        }
+
+        SetConnectionMenuVisible(true);
+        SetStatusTextVisible(false);
+        SetConnectionButtonsInteractable(true);
+    }
+
+    private void OnEnable()
+    {
+        EnableAction(moveAction);
+        EnableAction(lookAction);
+        EnableAction(hmdRotationAction);
+        EnableAction(jumpAction);
+        EnableAction(fireAction);
+        EnableAction(reloadAction);
+    }
+
+    private void OnDisable()
+    {
+        DisableAction(moveAction);
+        DisableAction(lookAction);
+        DisableAction(hmdRotationAction);
+        DisableAction(jumpAction);
+        DisableAction(fireAction);
+        DisableAction(reloadAction);
+    }
+
+    private void EnableAction(InputActionReference actionReference)
+    {
+        if (actionReference == null || actionReference.action == null)
+        {
+            return;
+        }
+
+        actionReference.action.Enable();
+    }
+
+    private void DisableAction(InputActionReference actionReference)
+    {
+        if (actionReference == null || actionReference.action == null)
+        {
+            return;
+        }
+
+        actionReference.action.Disable();
+    }
+
+    private void SetStatusText(string text)
+    {
+        statusText = text;
+        UpdateStatusText();
+    }
+
+    private void UpdateStatusText()
+    {
+        if (statusTextLabel != null)
+        {
+            statusTextLabel.text = statusText;
+        }
+    }
+
+    private void SetConnectionMenuVisible(bool visible)
+    {
+        if (connectionMenuRoot != null)
+        {
+            connectionMenuRoot.SetActive(visible);
+        }
+    }
+
+    public async void StartGame(GameMode gameMode)
+    {
+        if (this == null)
+        {
+            return;
+        }
+
+        if (runner != null || isStartingGame)
         {
             return;
         }
 
         if (!playerPrefab.IsValid)
         {
-            statusText = "Player Prefab is not set.";
+            SetStatusText("Player Prefab is not set.");
             Debug.LogError(statusText);
+
+            connectionButtonLocked = false;
+            SetConnectionButtonsInteractable(true);
+            SetConnectionMenuVisible(true);
             return;
         }
-
-        Debug.Log($"StartGame: {gameMode}");
-        statusText = $"Starting {gameMode}...";
-
-        runner = gameObject.AddComponent<NetworkRunner>();
-        runner.ProvideInput = true;
-        runner.AddCallbacks(this);
-
-        sceneManager = gameObject.AddComponent<NetworkSceneManagerDefault>();
 
         int buildIndex = SceneManager.GetActiveScene().buildIndex;
 
         if (buildIndex < 0)
         {
-            statusText = "Current scene is not in Build Settings.";
+            SetStatusText("Current scene is not in Build Settings.");
             Debug.LogError(statusText);
+
+            connectionButtonLocked = false;
+            SetConnectionButtonsInteractable(true);
+            SetConnectionMenuVisible(true);
             return;
         }
+
+        if (waitingRoomUI != null)
+        {
+            waitingRoomUI.SetLocalPlayerSpawned(false);
+            waitingRoomUI.HideRoomUI();
+        }
+
+        isStartingGame = true;
+        SetConnectionMenuVisible(false);
 
         SceneRef sceneRef = SceneRef.FromIndex(buildIndex);
+        int attemptCount = 0;
 
-        StartGameResult result = await runner.StartGame(new StartGameArgs()
+        while (true)
         {
-            GameMode = gameMode,
-            SessionName = roomName,
-            Scene = sceneRef,
-            SceneManager = sceneManager
-        });
-
-        if (!result.Ok)
-        {
-            statusText = $"Failed: {result.ShutdownReason}";
-            Debug.LogError($"Failed to start Fusion: {result.ShutdownReason}");
-
-            if (runner != null)
+            if (this == null)
             {
-                runner.RemoveCallbacks(this);
-                Destroy(runner);
-                runner = null;
+                return;
             }
 
-            if (sceneManager != null)
+            attemptCount++;
+
+            Debug.Log($"StartGame: {gameMode}, RoomName={roomName}, Attempt={attemptCount}");
+            string gameModeJapanese =
+                gameMode == GameMode.Host
+                    ? "ホスト"
+                    : gameMode == GameMode.Client
+                        ? "クライアント"
+                        : "自動接続";
+
+            SetStatusText($"{gameModeJapanese}中...");
+
+            CreateRunnerObject(gameMode, attemptCount);
+
+            StartGameResult result = await runner.StartGame(new StartGameArgs()
             {
-                Destroy(sceneManager);
-                sceneManager = null;
+                GameMode = gameMode,
+                SessionName = roomName,
+                Scene = sceneRef,
+                SceneManager = sceneManager
+            });
+
+            if (this == null)
+            {
+                return;
             }
 
-            return;
+            if (result.Ok)
+            {
+                SetStatusText($"ルーム名: {roomName}");
+                Debug.Log(statusText);
+
+                isStartingGame = false;
+
+                SetConnectionMenuVisible(false);
+                SetStatusTextVisible(false);
+
+                return;
+            }
+
+            ShutdownReason shutdownReason = result.ShutdownReason;
+
+            SetStatusText($"Failed: {shutdownReason}");
+            Debug.LogError($"Failed to start Fusion: {shutdownReason}");
+
+            CleanupFailedRunner();
+
+            bool shouldRetry =
+                gameMode == GameMode.Client &&
+                retryClientUntilFound &&
+                shutdownReason == ShutdownReason.GameNotFound &&
+                (maxClientRetryCount <= 0 || attemptCount < maxClientRetryCount);
+
+            if (!shouldRetry)
+            {
+                isStartingGame = false;
+                connectionButtonLocked = false;
+                SetConnectionMenuVisible(true);
+                SetConnectionButtonsInteractable(true);
+                return;
+            }
+
+            statusText =
+                $"Room not found. Retrying Client... " +
+                $"Attempt {attemptCount}, Room: {roomName}";
+
+            Debug.Log(
+                $"[NetworkLauncher] GameNotFound. Retry Client after {clientRetryInterval} sec. " +
+                $"RoomName={roomName}, Attempt={attemptCount}"
+            );
+
+            int delayMilliseconds = Mathf.RoundToInt(Mathf.Max(0.1f, clientRetryInterval) * 1000.0f);
+            await System.Threading.Tasks.Task.Delay(delayMilliseconds);
         }
-
-        statusText = $"Running: {gameMode} / Room: {roomName}";
-        Debug.Log(statusText);
     }
 
     private void Update()
-{
-    Vector2 lookInput = ReadLookInput();
-
-    queuedLookInput += lookInput;
-
-    if (localPlayerController != null)
     {
-        localPlayerController.ApplyLocalLook(lookInput);
-    }
+        UpdateHMD();
 
-    if (Keyboard.current != null)
-    {
-        if (Keyboard.current.spaceKey.wasPressedThisFrame)
+        Vector2 lookInput = ReadLookInput();
+
+        bool canControlPlayer =
+            RoundManager.Instance == null ||
+            RoundManager.Instance.CanControlPlayers;
+
+        if (canControlPlayer)
+        {
+            queuedLookInput += lookInput;
+
+            if (localPlayerController != null)
+            {
+                localPlayerController.ApplyLocalLook(lookInput, isVRActive, currentHMD);
+            }
+        }
+        else
+        {
+            queuedLookInput = Vector2.zero;
+        }
+
+        if (ReadJumpPressed())
         {
             jumpQueued = true;
         }
 
-        if (Keyboard.current.kKey.wasPressedThisFrame)
+        if (ReadReloadPressed())
         {
             reloadQueued = true;
+
+            if (isVRActive)
+            {
+                readyQueued = true;
+            }
+        }
+
+        if (ReadReadyPressed())
+        {
+            readyQueued = true;
+        }
+
+        if (ReadSkillPressed())
+        {
+            skillQueued = true;
+        }
+
+        if (ReadSelectSkill1Pressed())
+        {
+            selectSkill1Queued = true;
+        }
+
+        if (ReadSelectSkill2Pressed())
+        {
+            selectSkill2Queued = true;
+        }
+
+        if (ReadSelectSkill3Pressed())
+        {
+            selectSkill3Queued = true;
+        }
+
+        if (ReadSelectSkill4Pressed())
+        {
+            selectSkill4Queued = true;
         }
     }
 
-    if (Gamepad.current != null)
+    private void UpdateHMD()
     {
-        if (Gamepad.current.buttonEast.wasPressedThisFrame)
+        if (!isVRActive)
         {
-            jumpQueued = true;
-        }
-
-        if (Gamepad.current.leftTrigger.ReadValue() > 0.5f)
-        {
-            reloadQueued = true;
-        }
-    }
-}
-
-    private void OnGUI()
-    {
-        GUI.Label(new Rect(20, 20, 500, 30), statusText);
-
-        if (runner != null)
-        {
+            currentHMD = Quaternion.identity;
             return;
         }
 
-        if (GUI.Button(new Rect(20, 60, 200, 50), "Host"))
+        if (hmdRotationAction == null || hmdRotationAction.action == null)
         {
-            StartGame(GameMode.Host);
+            currentHMD = Quaternion.identity;
+            return;
         }
 
-        if (GUI.Button(new Rect(20, 120, 200, 50), "Client"))
-        {
-            StartGame(GameMode.Client);
-        }
+        currentHMD = hmdRotationAction.action.ReadValue<Quaternion>();
     }
 
     public void OnPlayerJoined(NetworkRunner runner, PlayerRef player)
@@ -171,9 +474,25 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
             player
         );
 
+        int visualIndex = spawnedPlayers.Count;
+
+        PlayerIdentity playerIdentity = playerObject.GetComponent<PlayerIdentity>();
+
+        if (playerIdentity != null)
+        {
+            playerIdentity.SetIdentity(
+                visualIndex + 1,
+                visualIndex
+            );
+        }
+        else
+        {
+            Debug.LogWarning($"{playerObject.name}: PlayerIdentity is not attached.");
+        }
+
         spawnedPlayers.Add(player, playerObject);
 
-        Debug.Log($"Spawned player: {player}");
+        Debug.Log($"Spawned player: {player}, VisualIndex={visualIndex}");
     }
 
     public void OnPlayerLeft(NetworkRunner runner, PlayerRef player)
@@ -196,42 +515,62 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
     }
 
     public void OnInput(NetworkRunner runner, NetworkInput input)
-{
-    PlayerNetworkInput data = new PlayerNetworkInput();
-
-    data.MoveInput = ReadMoveInput();
-    data.LookInput = queuedLookInput;
-
-    if (localPlayerController != null)
     {
-        data.AimForward = localPlayerController.GetNetworkAimForward();
-        data.ViewForward = localPlayerController.GetNetworkViewForward();
-        data.HasLookDirection = 1;
+        PlayerNetworkInput data = new PlayerNetworkInput();
+
+        data.IsVR = isVRActive;
+        data.HMDRotation = currentHMD;
+
+        data.MoveInput = ReadMoveInput();
+        data.LookInput = queuedLookInput;
+
+        if (localPlayerController != null)
+        {
+            data.AimForward = localPlayerController.GetNetworkAimForward();
+            data.ViewForward = localPlayerController.GetNetworkViewForward();
+            data.HasLookDirection = 1;
+        }
+        else
+        {
+            data.AimForward = Vector3.zero;
+            data.ViewForward = Vector3.zero;
+            data.HasLookDirection = 0;
+        }
+
+        NetworkButtons buttons = default;
+
+        buttons.Set((int)PlayerInputButton.Jump, jumpQueued);
+        buttons.Set((int)PlayerInputButton.Fire, ReadFireHeldInput());
+        buttons.Set((int)PlayerInputButton.Reload, reloadQueued);
+        buttons.Set((int)PlayerInputButton.Ready, readyQueued);
+        buttons.Set((int)PlayerInputButton.Skill, skillQueued);
+        buttons.Set((int)PlayerInputButton.SelectSkill1, selectSkill1Queued);
+        buttons.Set((int)PlayerInputButton.SelectSkill2, selectSkill2Queued);
+        buttons.Set((int)PlayerInputButton.SelectSkill3, selectSkill3Queued);
+        buttons.Set((int)PlayerInputButton.SelectSkill4, selectSkill4Queued);
+
+        data.Buttons = buttons;
+
+        input.Set(data);
+
+        queuedLookInput = Vector2.zero;
+        jumpQueued = false;
+        reloadQueued = false;
+        readyQueued = false;
+        skillQueued = false;
+        selectSkill1Queued = false;
+        selectSkill2Queued = false;
+        selectSkill3Queued = false;
+        selectSkill4Queued = false;
     }
-    else
-    {
-        data.AimForward = Vector3.zero;
-        data.ViewForward = Vector3.zero;
-        data.HasLookDirection = 0;
-    }
-
-    NetworkButtons buttons = default;
-
-    buttons.Set((int)PlayerInputButton.Jump, jumpQueued);
-    buttons.Set((int)PlayerInputButton.Fire, ReadFireHeldInput());
-    buttons.Set((int)PlayerInputButton.Reload, reloadQueued);
-
-    data.Buttons = buttons;
-
-    input.Set(data);
-
-    queuedLookInput = Vector2.zero;
-    jumpQueued = false;
-    reloadQueued = false;
-}
 
     private Vector2 ReadMoveInput()
     {
+        if (moveAction != null && moveAction.action != null)
+        {
+            return moveAction.action.ReadValue<Vector2>();
+        }
+
         Vector2 input = Vector2.zero;
 
         if (Gamepad.current != null)
@@ -243,10 +582,25 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
         {
             Vector2 keyboardInput = Vector2.zero;
 
-            if (Keyboard.current.wKey.isPressed) keyboardInput.y += 1.0f;
-            if (Keyboard.current.sKey.isPressed) keyboardInput.y -= 1.0f;
-            if (Keyboard.current.dKey.isPressed) keyboardInput.x += 1.0f;
-            if (Keyboard.current.aKey.isPressed) keyboardInput.x -= 1.0f;
+            if (Keyboard.current.wKey.isPressed)
+            {
+                keyboardInput.y += 1.0f;
+            }
+
+            if (Keyboard.current.sKey.isPressed)
+            {
+                keyboardInput.y -= 1.0f;
+            }
+
+            if (Keyboard.current.dKey.isPressed)
+            {
+                keyboardInput.x += 1.0f;
+            }
+
+            if (Keyboard.current.aKey.isPressed)
+            {
+                keyboardInput.x -= 1.0f;
+            }
 
             if (keyboardInput.sqrMagnitude > 1.0f)
             {
@@ -264,6 +618,23 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
 
     private Vector2 ReadLookInput()
     {
+        if (lookAction != null && lookAction.action != null)
+        {
+            Vector2 rawLook = lookAction.action.ReadValue<Vector2>();
+
+            if (isVRActive)
+            {
+                return new Vector2(rawLook.x * vrStickTurnSpeed * Time.deltaTime, 0.0f);
+            }
+
+            if (Mouse.current != null && lookAction.action.activeControl?.device == Mouse.current)
+            {
+                return rawLook * mouseLookSpeed;
+            }
+
+            return rawLook * gamepadLookSpeed * Time.deltaTime;
+        }
+
         Vector2 lookInput = Vector2.zero;
 
         if (Mouse.current != null)
@@ -276,10 +647,25 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
 
         if (Keyboard.current != null)
         {
-            if (Keyboard.current.leftArrowKey.isPressed) lookInput.x -= keyboardLookSpeed * Time.deltaTime;
-            if (Keyboard.current.rightArrowKey.isPressed) lookInput.x += keyboardLookSpeed * Time.deltaTime;
-            if (Keyboard.current.upArrowKey.isPressed) lookInput.y += keyboardLookSpeed * Time.deltaTime;
-            if (Keyboard.current.downArrowKey.isPressed) lookInput.y -= keyboardLookSpeed * Time.deltaTime;
+            if (Keyboard.current.leftArrowKey.isPressed)
+            {
+                lookInput.x -= keyboardLookSpeed * Time.deltaTime;
+            }
+
+            if (Keyboard.current.rightArrowKey.isPressed)
+            {
+                lookInput.x += keyboardLookSpeed * Time.deltaTime;
+            }
+
+            if (Keyboard.current.upArrowKey.isPressed)
+            {
+                lookInput.y += keyboardLookSpeed * Time.deltaTime;
+            }
+
+            if (Keyboard.current.downArrowKey.isPressed)
+            {
+                lookInput.y -= keyboardLookSpeed * Time.deltaTime;
+            }
         }
 
         if (Gamepad.current != null)
@@ -293,8 +679,13 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
         return lookInput;
     }
 
-    private bool ReadJumpInput()
+    private bool ReadJumpPressed()
     {
+        if (jumpAction != null && jumpAction.action != null && jumpAction.action.WasPressedThisFrame())
+        {
+            return true;
+        }
+
         if (Keyboard.current != null && Keyboard.current.spaceKey.wasPressedThisFrame)
         {
             return true;
@@ -308,8 +699,180 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
         return false;
     }
 
+    private bool ReadReloadPressed()
+    {
+        if (reloadAction != null && reloadAction.action != null && reloadAction.action.WasPressedThisFrame())
+        {
+            return true;
+        }
+
+        if (Keyboard.current != null && Keyboard.current.kKey.wasPressedThisFrame)
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    private bool ReadReadyPressed()
+    {
+        bool readyPressed = false;
+
+        if (Keyboard.current != null)
+        {
+            if (Keyboard.current.enterKey.wasPressedThisFrame)
+            {
+                readyPressed = true;
+            }
+
+            if (Keyboard.current.numpadEnterKey.wasPressedThisFrame)
+            {
+                readyPressed = true;
+            }
+        }
+
+        if (Gamepad.current != null)
+        {
+            float leftTriggerValue = Gamepad.current.leftTrigger.ReadValue();
+            bool leftTriggerPressed = leftTriggerValue > 0.5f;
+
+            if (leftTriggerPressed && !wasLeftTriggerPressed)
+            {
+                readyPressed = true;
+                reloadQueued = true;
+            }
+
+            wasLeftTriggerPressed = leftTriggerPressed;
+        }
+        else
+        {
+            wasLeftTriggerPressed = false;
+        }
+
+        return readyPressed;
+    }
+
+    private bool ReadSkillPressed()
+    {
+        if (Keyboard.current != null && Keyboard.current.uKey.wasPressedThisFrame)
+        {
+            return true;
+        }
+
+        if (Gamepad.current != null && Gamepad.current.leftShoulder.wasPressedThisFrame)
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    private bool ReadSelectSkill1Pressed()
+    {
+        if (Keyboard.current != null)
+        {
+            if (Keyboard.current.digit1Key.wasPressedThisFrame)
+            {
+                return true;
+            }
+
+            if (Keyboard.current.numpad1Key.wasPressedThisFrame)
+            {
+                return true;
+            }
+        }
+
+        if (Gamepad.current != null && Gamepad.current.dpad.up.wasPressedThisFrame)
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    private bool ReadSelectSkill2Pressed()
+    {
+        if (Keyboard.current != null)
+        {
+            if (Keyboard.current.digit2Key.wasPressedThisFrame)
+            {
+                return true;
+            }
+
+            if (Keyboard.current.numpad2Key.wasPressedThisFrame)
+            {
+                return true;
+            }
+        }
+
+        if (Gamepad.current != null && Gamepad.current.dpad.right.wasPressedThisFrame)
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    private bool ReadSelectSkill3Pressed()
+    {
+        if (Keyboard.current != null)
+        {
+            if (Keyboard.current.digit3Key.wasPressedThisFrame)
+            {
+                return true;
+            }
+
+            if (Keyboard.current.numpad3Key.wasPressedThisFrame)
+            {
+                return true;
+            }
+        }
+
+        if (Gamepad.current != null && Gamepad.current.dpad.down.wasPressedThisFrame)
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    private bool ReadSelectSkill4Pressed()
+    {
+        if (Keyboard.current != null)
+        {
+            if (Keyboard.current.digit4Key.wasPressedThisFrame)
+            {
+                return true;
+            }
+
+            if (Keyboard.current.numpad4Key.wasPressedThisFrame)
+            {
+                return true;
+            }
+        }
+
+        if (Gamepad.current != null && Gamepad.current.dpad.left.wasPressedThisFrame)
+        {
+            return true;
+        }
+
+        return false;
+    }
+
     private bool ReadFireHeldInput()
     {
+        if (fireAction != null && fireAction.action != null)
+        {
+            InputControl control = fireAction.action.activeControl;
+
+            if (control is UnityEngine.InputSystem.Controls.ButtonControl)
+            {
+                return fireAction.action.IsPressed();
+            }
+
+            return fireAction.action.ReadValue<float>() > 0.5f;
+        }
+
         if (Keyboard.current != null && Keyboard.current.jKey.isPressed)
         {
             return true;
@@ -323,52 +886,97 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
         return false;
     }
 
-    private bool ReadReloadInput()
+    public void NotifyLocalPlayerSpawnedOnWaitingPlanet()
     {
-        bool reload = false;
+        Debug.Log("[NetworkLauncher] Local player spawned on waiting planet.");
 
-        if (Keyboard.current != null && Keyboard.current.kKey.wasPressedThisFrame)
+        if (waitingRoomUI == null)
         {
-            reload = true;
+            waitingRoomUI = FindFirstObjectByType<WaitingRoomUI>();
         }
 
-        if (Gamepad.current != null)
+        if (waitingRoomUI != null)
         {
-            float leftTriggerValue = Gamepad.current.leftTrigger.ReadValue();
-            bool leftTriggerPressed = leftTriggerValue > 0.5f;
-
-            if (leftTriggerPressed && !wasLeftTriggerPressed)
-            {
-                reload = true;
-            }
-
-            wasLeftTriggerPressed = leftTriggerPressed;
+            waitingRoomUI.SetLocalPlayerSpawned(true);
         }
         else
         {
-            wasLeftTriggerPressed = false;
+            Debug.LogWarning("[NetworkLauncher] WaitingRoomUI was not found.");
+        }
+    }
+
+    public void RegisterLocalPlayer(PlayerController playerController)
+    {
+        localPlayerController = playerController;
+        Debug.Log($"Registered local player: {playerController.name}");
+    }
+
+    public void UnregisterLocalPlayer(PlayerController playerController)
+    {
+        if (localPlayerController == playerController)
+        {
+            localPlayerController = null;
         }
 
-        return reload;
+        if (waitingRoomUI != null)
+        {
+            waitingRoomUI.SetLocalPlayerSpawned(false);
+            waitingRoomUI.HideRoomUI();
+        }
     }
-
-    private PlayerController localPlayerController;
-
-public void RegisterLocalPlayer(PlayerController playerController)
-{
-    localPlayerController = playerController;
-    Debug.Log($"Registered local player: {playerController.name}");
-}
-
-public void UnregisterLocalPlayer(PlayerController playerController)
-{
-    if (localPlayerController == playerController)
+    
+    private void CleanupFailedRunner()
     {
-        localPlayerController = null;
-    }
-}
+        if (runner != null)
+        {
+            runner.RemoveCallbacks(this);
+        }
 
-    public void OnInputMissing(NetworkRunner runner, PlayerRef player, NetworkInput input) {}
+        if (runnerObject != null)
+        {
+            Destroy(runnerObject);
+        }
+        else
+        {
+            if (runner != null)
+            {
+                Destroy(runner);
+            }
+
+            if (sceneManager != null)
+            {
+                Destroy(sceneManager);
+            }
+        }
+
+        runner = null;
+        sceneManager = null;
+        runnerObject = null;
+    }
+
+    private void CreateRunnerObject(GameMode gameMode, int attemptCount)
+    {
+        CleanupFailedRunner();
+
+        runnerObject = new GameObject($"NetworkRunner_{gameMode}_Attempt{attemptCount}");
+        DontDestroyOnLoad(runnerObject);
+
+        runner = runnerObject.AddComponent<NetworkRunner>();
+        runner.ProvideInput = true;
+        runner.AddCallbacks(this);
+
+        sceneManager = runnerObject.AddComponent<NetworkSceneManagerDefault>();
+    }
+
+    private void SetStatusTextVisible(bool visible)
+    {
+        if (statusTextLabel != null)
+        {
+            statusTextLabel.gameObject.SetActive(visible);
+        }
+    }
+
+    public void OnInputMissing(NetworkRunner runner, PlayerRef player, NetworkInput input) { }
     public void OnShutdown(NetworkRunner runner, ShutdownReason shutdownReason) {}
     public void OnConnectedToServer(NetworkRunner runner) {}
     public void OnDisconnectedFromServer(NetworkRunner runner, NetDisconnectReason reason) {}
