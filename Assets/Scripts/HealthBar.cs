@@ -14,13 +14,15 @@ public class HealthBar : MonoBehaviour
     [SerializeField] private float healthLerpSpeed = 0.15f;
 
     public Slider HealthSlider;
+    private Image fillImage;
 
     public RectTransform barTransform;
-    public float shakeAmount = 5f;     // 揺れの強さ
-    public float shakeDuration = 0.1f; // 揺れる時間
+    public float shakeAmount = 5f;
+    public float shakeDuration = 0.1f;
 
     private Vector3 originalPos;
     private float shakeTimer = 0f;
+    private Coroutine findLocalPlayerCoroutine;
 
     private void Awake()
     {
@@ -31,6 +33,11 @@ public class HealthBar : MonoBehaviour
         {
             HealthSlider.maxValue = maxHealth;
             HealthSlider.value = displayHealth;
+
+            if (HealthSlider.fillRect != null)
+            {
+                fillImage = HealthSlider.fillRect.GetComponent<Image>();
+            }
         }
 
         if (barTransform != null)
@@ -47,14 +54,14 @@ public class HealthBar : MonoBehaviour
             return;
         }
 
-        StartCoroutine(FindLocalPlayer());
+        findLocalPlayerCoroutine = StartCoroutine(FindLocalPlayer());
     }
 
     private IEnumerator FindLocalPlayer()
     {
         while (playerHealth == null)
         {
-            PlayerHealth[] players = FindObjectsOfType<PlayerHealth>();
+            PlayerHealth[] players = FindObjectsByType<PlayerHealth>(FindObjectsSortMode.None);
 
             foreach (PlayerHealth health in players)
             {
@@ -63,45 +70,69 @@ public class HealthBar : MonoBehaviour
                 if (netObj != null && netObj.HasInputAuthority)
                 {
                     SetupPlayerHealth(health);
-
-                    Debug.Log("Local Player Found");
+                    Debug.Log($"[HealthBar] Local Player Found: {health.name}");
                     yield break;
                 }
             }
 
             yield return null;
         }
+
+        findLocalPlayerCoroutine = null;
     }
 
-    private void SetupPlayerHealth(PlayerHealth health)
+    public void SetupPlayerHealth(PlayerHealth health)
     {
-        playerHealth = health;
-
-        maxHealth = playerHealth.MaxHealth;
-        currentHealth = playerHealth.CurrentHealth;
-        displayHealth = currentHealth;
-
-        if (HealthSlider != null)
+        if (findLocalPlayerCoroutine != null)
         {
-            HealthSlider.maxValue = maxHealth;
-            HealthSlider.value = displayHealth;
+            StopCoroutine(findLocalPlayerCoroutine);
+            findLocalPlayerCoroutine = null;
         }
 
+        if (playerHealth != null)
+        {
+            playerHealth.OnHealthChanged -= UpdateBar;
+        }
+
+        playerHealth = health;
+
+        if (playerHealth == null)
+        {
+            return;
+        }
+
+        playerHealth.OnHealthChanged -= UpdateBar;
         playerHealth.OnHealthChanged += UpdateBar;
+
+        UpdateBar(playerHealth.CurrentHealth, playerHealth.MaxHealth, false);
+
+        Debug.Log(
+            $"[HealthBar] Bound to {playerHealth.name}. " +
+            $"HP={playerHealth.CurrentHealth}/{playerHealth.MaxHealth}"
+        );
     }
 
     private void Update()
     {
-        displayHealth = Mathf.Lerp(
-            displayHealth,
-            currentHealth,
-            healthLerpSpeed
-        );
-
-        if (HealthSlider != null)
+        if (currentHealth <= 0.0f)
         {
-            HealthSlider.value = displayHealth;
+            displayHealth = 0.0f;
         }
+        else
+        {
+            displayHealth = Mathf.Lerp(
+                displayHealth,
+                currentHealth,
+                healthLerpSpeed
+            );
+
+            if (Mathf.Abs(displayHealth - currentHealth) < 0.01f)
+            {
+                displayHealth = currentHealth;
+            }
+        }
+
+        ApplySliderValue(displayHealth);
 
         if (shakeTimer > 0)
         {
@@ -114,34 +145,70 @@ public class HealthBar : MonoBehaviour
 
             shakeTimer -= Time.deltaTime;
 
-            if (shakeTimer <= 0)
+            if (shakeTimer <= 0 && barTransform != null)
             {
-                if (barTransform != null)
-                {
-                    barTransform.localPosition = originalPos;
-                }
+                barTransform.localPosition = originalPos;
             }
         }
     }
 
     private void UpdateBar(float current, float max)
     {
-        maxHealth = max;
-        currentHealth = current;
+        UpdateBar(current, max, true);
+    }
 
-        if (HealthSlider != null)
+    private void UpdateBar(float current, float max, bool shake)
+    {
+        maxHealth = max;
+        currentHealth = Mathf.Clamp(current, 0.0f, maxHealth);
+
+        if (currentHealth <= 0.0f)
         {
-            HealthSlider.maxValue = maxHealth;
+            displayHealth = 0.0f;
         }
 
-        shakeTimer = shakeDuration;
+        ApplySliderValue(displayHealth);
+
+        if (shake)
+        {
+            shakeTimer = shakeDuration;
+        }
+
+        Debug.Log(
+            $"[HealthBar] UpdateBar. " +
+            $"Target={(playerHealth != null ? playerHealth.name : "null")}, " +
+            $"HP={currentHealth}/{maxHealth}, " +
+            $"Slider={(HealthSlider != null ? HealthSlider.value.ToString() : "null")}"
+        );
     }
 
     private void OnDestroy()
     {
+        if (findLocalPlayerCoroutine != null)
+        {
+            StopCoroutine(findLocalPlayerCoroutine);
+            findLocalPlayerCoroutine = null;
+        }
+
         if (playerHealth != null)
         {
             playerHealth.OnHealthChanged -= UpdateBar;
+        }
+    }
+
+    private void ApplySliderValue(float value)
+    {
+        float clampedValue = Mathf.Clamp(value, 0.0f, maxHealth);
+
+        if (HealthSlider != null)
+        {
+            HealthSlider.maxValue = maxHealth;
+            HealthSlider.value = clampedValue;
+        }
+
+        if (fillImage != null)
+        {
+            fillImage.enabled = clampedValue > 0.001f;
         }
     }
 }

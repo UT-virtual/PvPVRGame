@@ -43,6 +43,22 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
     [Header("Auto Start")]
     [SerializeField] private bool autoStartOnLaunch = true;
 
+    [Header("Debug Spectator Dummy")]
+    [SerializeField] private bool spawnDebugSpectatorDummies = false;
+    [SerializeField] private int debugSpectatorDummyCount = 1;
+
+    private bool debugSpectatorDummiesSpawned;
+    private readonly List<NetworkObject> debugSpectatorDummies = new();
+
+    [Header("Skill Selection Input")]
+    [SerializeField] private float skillSelectionStickThreshold = 0.6f;
+
+    private int currentSkillSelectionSlot;
+    private bool wasSkillSelecting;
+    private bool skillSelectionMoveHeld;
+
+    public int CurrentSkillSelectionSlot => currentSkillSelectionSlot;
+
     private bool isStartingGame;
     private GameObject runnerObject;
 
@@ -311,7 +327,8 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
                 GameMode = gameMode,
                 SessionName = roomName,
                 Scene = sceneRef,
-                SceneManager = sceneManager
+                SceneManager = sceneManager,
+                PlayerCount = 8
             });
 
             if (this == null)
@@ -374,23 +391,26 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
 
         Vector2 lookInput = ReadLookInput();
 
-        bool canControlPlayer =
-            RoundManager.Instance == null ||
-            RoundManager.Instance.CanControlPlayers;
+        queuedLookInput += lookInput;
 
-        if (canControlPlayer)
+        if (localPlayerController != null)
         {
-            queuedLookInput += lookInput;
+            localPlayerController.ApplyLocalLook(lookInput, isVRActive, currentHMD);
+        }
 
-            if (localPlayerController != null)
-            {
-                localPlayerController.ApplyLocalLook(lookInput, isVRActive, currentHMD);
-            }
-        }
-        else
+        bool isSkillSelecting =
+            RoundManager.Instance != null &&
+            RoundManager.Instance.IsSkillSelecting;
+
+        if (isSkillSelecting)
         {
-            queuedLookInput = Vector2.zero;
+            UpdateSkillSelectionInput();
+
+            // スキル選択中は、EnterやAをReady/Jump等として扱わない。
+            return;
         }
+
+        ResetSkillSelectionInputState();
 
         if (ReadJumpPressed())
         {
@@ -416,26 +436,177 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
         {
             skillQueued = true;
         }
+    }
 
-        if (ReadSelectSkill1Pressed())
+    private void UpdateSkillSelectionInput()
+    {
+        Vector2 navigateInput = ReadSkillSelectionNavigateInput();
+
+        if (!wasSkillSelecting)
         {
-            selectSkill1Queued = true;
+            currentSkillSelectionSlot = 0;
+
+            // 移動中にスキル選択へ入った瞬間、左スティック入力で勝手に動かないようにする。
+            skillSelectionMoveHeld = IsSkillSelectionNavigateActive(navigateInput);
+            wasSkillSelecting = true;
+            return;
         }
 
-        if (ReadSelectSkill2Pressed())
+        if (!IsSkillSelectionNavigateActive(navigateInput))
         {
-            selectSkill2Queued = true;
+            skillSelectionMoveHeld = false;
+        }
+        else if (!skillSelectionMoveHeld)
+        {
+            MoveSkillSelectionCursor(navigateInput);
+            skillSelectionMoveHeld = true;
         }
 
-        if (ReadSelectSkill3Pressed())
+        if (ReadSkillConfirmPressed())
         {
-            selectSkill3Queued = true;
+            QueueSelectedSkillSlot();
+        }
+    }
+
+    private void ResetSkillSelectionInputState()
+    {
+        wasSkillSelecting = false;
+        skillSelectionMoveHeld = false;
+    }
+
+    private Vector2 ReadSkillSelectionNavigateInput()
+    {
+        Vector2 input = Vector2.zero;
+
+        if (moveAction != null && moveAction.action != null)
+        {
+            Vector2 actionInput = moveAction.action.ReadValue<Vector2>();
+
+            if (actionInput.sqrMagnitude >= skillSelectionStickThreshold * skillSelectionStickThreshold)
+            {
+                return actionInput;
+            }
         }
 
-        if (ReadSelectSkill4Pressed())
+        if (Keyboard.current != null)
         {
-            selectSkill4Queued = true;
+            if (Keyboard.current.wKey.wasPressedThisFrame)
+            {
+                input.y += 1.0f;
+            }
+
+            if (Keyboard.current.sKey.wasPressedThisFrame)
+            {
+                input.y -= 1.0f;
+            }
+
+            if (Keyboard.current.dKey.wasPressedThisFrame)
+            {
+                input.x += 1.0f;
+            }
+
+            if (Keyboard.current.aKey.wasPressedThisFrame)
+            {
+                input.x -= 1.0f;
+            }
         }
+
+        if (input.sqrMagnitude > 0.01f)
+        {
+            return input;
+        }
+
+        if (Gamepad.current != null)
+        {
+            Vector2 stick = Gamepad.current.leftStick.ReadValue();
+
+            if (stick.sqrMagnitude >= skillSelectionStickThreshold * skillSelectionStickThreshold)
+            {
+                return stick;
+            }
+        }
+
+        return Vector2.zero;
+    }
+
+    private bool IsSkillSelectionNavigateActive(Vector2 input)
+    {
+        return input.sqrMagnitude >= skillSelectionStickThreshold * skillSelectionStickThreshold;
+    }
+
+    private void MoveSkillSelectionCursor(Vector2 input)
+    {
+        if (input.sqrMagnitude < 0.01f)
+        {
+            return;
+        }
+
+        int row = currentSkillSelectionSlot / 2;
+        int column = currentSkillSelectionSlot % 2;
+
+        if (Mathf.Abs(input.x) > Mathf.Abs(input.y))
+        {
+            column += input.x > 0.0f ? 1 : -1;
+        }
+        else
+        {
+            // UI上では上が0行目、下が1行目
+            row += input.y > 0.0f ? -1 : 1;
+        }
+
+        row = Mathf.Clamp(row, 0, 1);
+        column = Mathf.Clamp(column, 0, 1);
+
+        currentSkillSelectionSlot = row * 2 + column;
+
+        Debug.Log($"[NetworkLauncher] Skill cursor: {currentSkillSelectionSlot + 1}");
+    }
+
+    private bool ReadSkillConfirmPressed()
+    {
+        if (Keyboard.current != null)
+        {
+            if (Keyboard.current.enterKey.wasPressedThisFrame ||
+                Keyboard.current.numpadEnterKey.wasPressedThisFrame)
+            {
+                return true;
+            }
+        }
+
+        if (Gamepad.current != null && Gamepad.current.buttonSouth.wasPressedThisFrame)
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    private void QueueSelectedSkillSlot()
+    {
+        switch (currentSkillSelectionSlot)
+        {
+            case 0:
+                selectSkill1Queued = true;
+                break;
+
+            case 1:
+                selectSkill2Queued = true;
+                break;
+
+            case 2:
+                selectSkill3Queued = true;
+                break;
+
+            case 3:
+                selectSkill4Queued = true;
+                break;
+
+            default:
+                Debug.LogWarning($"[NetworkLauncher] Invalid skill selection slot: {currentSkillSelectionSlot}");
+                break;
+        }
+
+        Debug.Log($"[NetworkLauncher] Confirm skill slot: {currentSkillSelectionSlot + 1}");
     }
 
     private void UpdateHMD()
@@ -493,6 +664,11 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
         spawnedPlayers.Add(player, playerObject);
 
         Debug.Log($"Spawned player: {player}, VisualIndex={visualIndex}");
+
+        if (runner.IsServer)
+    {
+        SpawnDebugSpectatorDummiesIfNeeded(runner);
+    }
     }
 
     public void OnPlayerLeft(NetworkRunner runner, PlayerRef player)
@@ -512,6 +688,73 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
         }
 
         return new Vector3(5.0f, 5.0f, 0.0f);
+    }
+
+    private void SpawnDebugSpectatorDummiesIfNeeded(NetworkRunner runner)
+    {
+        if (!spawnDebugSpectatorDummies)
+        {
+            return;
+        }
+
+        if (debugSpectatorDummiesSpawned)
+        {
+            return;
+        }
+
+        if (runner == null || !runner.IsServer)
+        {
+            return;
+        }
+
+        if (!playerPrefab.IsValid)
+        {
+            Debug.LogWarning("[NetworkLauncher] Cannot spawn debug spectator dummy because Player Prefab is not valid.");
+            return;
+        }
+
+        debugSpectatorDummiesSpawned = true;
+
+        int count = Mathf.Max(0, debugSpectatorDummyCount);
+
+        for (int i = 0; i < count; i++)
+        {
+            Vector3 position = GetDebugSpectatorDummyPosition(i);
+            Quaternion rotation = Quaternion.identity;
+
+            NetworkObject dummyObject = runner.Spawn(
+                playerPrefab,
+                position,
+                rotation,
+                PlayerRef.None
+            );
+
+            dummyObject.name = $"DebugSpectatorDummy_{i + 1}";
+
+            debugSpectatorDummies.Add(dummyObject);
+
+            PlayerIdentity playerIdentity = dummyObject.GetComponent<PlayerIdentity>();
+
+            if (playerIdentity != null)
+            {
+                int visualIndex = spawnedPlayers.Count + i;
+                playerIdentity.SetIdentity(visualIndex + 1, visualIndex);
+            }
+
+            Debug.Log($"[NetworkLauncher] Spawned debug spectator dummy: {dummyObject.name}");
+        }
+    }
+
+    private Vector3 GetDebugSpectatorDummyPosition(int index)
+    {
+        float angle = index * 120.0f * Mathf.Deg2Rad;
+        float radius = 8.0f;
+
+        return new Vector3(
+            Mathf.Cos(angle) * radius,
+            5.0f,
+            Mathf.Sin(angle) * radius
+        );
     }
 
     public void OnInput(NetworkRunner runner, NetworkInput input)

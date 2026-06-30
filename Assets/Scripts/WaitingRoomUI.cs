@@ -157,7 +157,7 @@ public class WaitingRoomUI : MonoBehaviour
 
                 string readyLabel = isReady
                     ? "準備完了"
-                    : "未完了";
+                    : "準備中";
 
                 readyText.text = isLocalPlayer
                     ? $"{readyLabel}（あなた）"

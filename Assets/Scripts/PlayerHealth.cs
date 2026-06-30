@@ -15,6 +15,17 @@ public class PlayerHealth : NetworkBehaviour
     [Header("Death Visibility")]
     [SerializeField] private GameObject visualRoot;
 
+    [Header("Weapon Visibility")]
+    [SerializeField] private GameObject weaponVisualRoot;
+
+    [Header("Death UI Visibility")]
+    [SerializeField] private GameObject overheadIconRoot;
+
+    public GameObject OverheadIconRoot => overheadIconRoot;
+    public Renderer[] BodyRenderers => renderers;
+
+    private Renderer[] weaponRenderers;
+
     [Networked, OnChangedRender(nameof(OnNetworkedHealthChanged))]
     public float NetworkedCurrentHealth { get; private set; }
 
@@ -85,6 +96,15 @@ public class PlayerHealth : NetworkBehaviour
         {
             renderers = GetComponentsInChildren<Renderer>(true);
             colliders = GetComponentsInChildren<Collider>(true);
+        }
+
+        if (weaponVisualRoot != null)
+        {
+            weaponRenderers = weaponVisualRoot.GetComponentsInChildren<Renderer>(true);
+        }
+        else
+        {
+            weaponRenderers = System.Array.Empty<Renderer>();
         }
     }
 
@@ -413,17 +433,16 @@ public class PlayerHealth : NetworkBehaviour
 
     private void ApplyAliveState(bool alive)
     {
-        bool shouldShowModel = alive && !Object.HasInputAuthority;
+        bool shouldShowBodyModel = alive && !Object.HasInputAuthority;
+        bool shouldShowWeapon = alive;
+        bool shouldShowOverheadIcon = alive && !Object.HasInputAuthority;
 
-        if (renderers != null)
+        SetRenderersEnabled(renderers, shouldShowBodyModel);
+        SetRenderersEnabled(weaponRenderers, shouldShowWeapon);
+
+        if (overheadIconRoot != null)
         {
-            foreach (Renderer renderer in renderers)
-            {
-                if (renderer != null)
-                {
-                    renderer.enabled = shouldShowModel;
-                }
-            }
+            overheadIconRoot.SetActive(shouldShowOverheadIcon);
         }
 
         if (colliders != null)
@@ -440,6 +459,22 @@ public class PlayerHealth : NetworkBehaviour
         if (characterController != null)
         {
             characterController.enabled = alive;
+        }
+    }
+
+    private void SetRenderersEnabled(Renderer[] targetRenderers, bool enabled)
+    {
+        if (targetRenderers == null)
+        {
+            return;
+        }
+
+        foreach (Renderer renderer in targetRenderers)
+        {
+            if (renderer != null)
+            {
+                renderer.enabled = enabled;
+            }
         }
     }
 }
