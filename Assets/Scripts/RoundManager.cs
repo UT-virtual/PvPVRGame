@@ -60,6 +60,24 @@ public class RoundManager : NetworkBehaviour
     [SerializeField] private WaitingRoomUI waitingRoomUI;
     [SerializeField] private BattleStartUI battleStartUI;
 
+    [Header("Skill Selection UI")]
+    [SerializeField] private int skillOptionSlotCount = 4;
+
+    private readonly PlayerSkillType[] currentSkillOptions = new PlayerSkillType[4];
+
+    public int SkillOptionSlotCount => currentSkillOptions.Length;
+    public float SkillSelectionDuration => skillSelectionDuration;
+
+    public PlayerSkillType GetSkillOption(int slotIndex)
+    {
+        if (slotIndex < 0 || slotIndex >= currentSkillOptions.Length)
+        {
+            return PlayerSkillType.None;
+        }
+
+        return currentSkillOptions[slotIndex];
+    }
+
     private readonly List<PlayerHealth> players = new();
     private readonly Dictionary<PlayerHealth, int> points = new();
     private readonly Dictionary<PlayerHealth, bool> readyStates = new();
@@ -369,6 +387,9 @@ public class RoundManager : NetworkBehaviour
         }
 
         currentRound = roundNumber;
+
+        BuildSkillOptionsForRound();
+
         phase = GamePhase.SkillSelecting;
 
         ClearHealthItems();
@@ -381,7 +402,6 @@ public class RoundManager : NetworkBehaviour
         Debug.Log($"[RoundManager] Round {currentRound} Skill Selection Start.");
         Debug.Log($"[RoundManager] Select skill within {skillSelectionDuration} seconds.");
         Debug.Log("[RoundManager] During skill selection, players cannot move.");
-        LogSkillSlots();
 
         skillSelectionCoroutine = StartCoroutine(SkillSelectionTimeoutCoroutine());
     }
@@ -420,13 +440,19 @@ public class RoundManager : NetworkBehaviour
             return;
         }
 
-        if (slotIndex < 0 || slotIndex >= availableRoundSkills.Count)
+        if (slotIndex < 0 || slotIndex >= currentSkillOptions.Length)
         {
             Debug.LogWarning($"[RoundManager] Invalid skill slot: {slotIndex + 1}");
             return;
         }
 
-        PlayerSkillType skill = availableRoundSkills[slotIndex];
+        PlayerSkillType skill = currentSkillOptions[slotIndex];
+
+        if (skill == PlayerSkillType.None)
+        {
+            Debug.LogWarning($"[RoundManager] Empty skill slot: {slotIndex + 1}");
+            return;
+        }
 
         SelectSkill(player, skill, false);
     }
@@ -543,7 +569,7 @@ public class RoundManager : NetworkBehaviour
 
         PlayerSkillController skillController = player.GetComponent<PlayerSkillController>();
 
-        foreach (PlayerSkillType skill in availableRoundSkills)
+        foreach (PlayerSkillType skill in currentSkillOptions)
         {
             if (skill == PlayerSkillType.None)
             {
@@ -1084,7 +1110,7 @@ public class RoundManager : NetworkBehaviour
             projectile.Runner.Despawn(networkObject);
         }
     }
-    
+
     public override void Render()
     {
         if (!uiPhaseInitialized)
@@ -1152,5 +1178,82 @@ public class RoundManager : NetworkBehaviour
         {
             Debug.LogWarning("[RoundManager] BattleStartUI was not found.");
         }
+    }
+
+    private void BuildSkillOptionsForRound()
+    {
+        List<PlayerSkillType> candidates = availableRoundSkills
+            .Where(skill => skill != PlayerSkillType.None)
+            .Distinct()
+            .ToList();
+
+        if (candidates.Count == 0)
+        {
+            for (int i = 0; i < currentSkillOptions.Length; i++)
+            {
+                currentSkillOptions[i] = PlayerSkillType.None;
+            }
+
+            RPC_SetSkillOptions(
+                currentSkillOptions[0],
+                currentSkillOptions[1],
+                currentSkillOptions[2],
+                currentSkillOptions[3]
+            );
+
+            return;
+        }
+
+        ShuffleSkillList(candidates);
+
+        for (int i = 0; i < currentSkillOptions.Length; i++)
+        {
+            currentSkillOptions[i] = i < candidates.Count
+                ? candidates[i]
+                : PlayerSkillType.None;
+        }
+
+        RPC_SetSkillOptions(
+            currentSkillOptions[0],
+            currentSkillOptions[1],
+            currentSkillOptions[2],
+            currentSkillOptions[3]
+        );
+    }
+
+    private void ShuffleSkillList(List<PlayerSkillType> list)
+    {
+        if (list == null)
+        {
+            return;
+        }
+
+        for (int i = 0; i < list.Count; i++)
+        {
+            int randomIndex = Random.Range(i, list.Count);
+
+            PlayerSkillType temp = list[i];
+            list[i] = list[randomIndex];
+            list[randomIndex] = temp;
+        }
+    }
+    
+    [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+    private void RPC_SetSkillOptions(
+        PlayerSkillType slot0,
+        PlayerSkillType slot1,
+        PlayerSkillType slot2,
+        PlayerSkillType slot3
+    )
+    {
+        currentSkillOptions[0] = slot0;
+        currentSkillOptions[1] = slot1;
+        currentSkillOptions[2] = slot2;
+        currentSkillOptions[3] = slot3;
+
+        Debug.Log(
+            $"[RoundManager] Skill Options: " +
+            $"1={slot0}, 2={slot1}, 3={slot2}, 4={slot3}"
+        );
     }
 }
