@@ -25,6 +25,9 @@ public class PlayerSkillController : NetworkBehaviour
     [SerializeField] private float damageReductionDuration = 10.0f;
     [SerializeField] private float damageTakenMultiplier = 0.5f;
 
+    [Header("XRay Vision")]
+    [SerializeField] private float xRayVisionDuration = 10.0f;
+
     [Header("Debug")]
     [SerializeField] private bool allowSameSkillConsecutiveForDebug = false;
 
@@ -176,10 +179,27 @@ public class PlayerSkillController : NetworkBehaviour
                 ActivateDamageReduction();
                 break;
 
+            case PlayerSkillType.XRayVision:
+                ActivateXRayVision();
+                break;
+
             default:
                 Debug.LogWarning($"[Skill] Unsupported skill: {CurrentRoundSkill}");
                 break;
         }
+    }
+
+    public bool IsXRayVisionActive()
+    {
+        if (Runner == null)
+        {
+            return false;
+        }
+
+        return
+            ActiveSkill == PlayerSkillType.XRayVision &&
+            SkillActiveTimer.IsRunning &&
+            !SkillActiveTimer.Expired(Runner);
     }
 
     private void ActivateDoubleJump()
@@ -229,6 +249,16 @@ public class PlayerSkillController : NetworkBehaviour
             $"[Skill] {gameObject.name}: DamageReduction activated for {damageReductionDuration} seconds. " +
             $"DamageTakenMultiplier={damageTakenMultiplier}"
         );
+    }
+
+    private void ActivateXRayVision()
+    {
+        ActiveSkill = PlayerSkillType.XRayVision;
+        SkillActiveTimer = TickTimer.CreateFromSeconds(Runner, xRayVisionDuration);
+
+        ApplySkillEffects();
+
+        Debug.Log($"[Skill] {gameObject.name}: XRayVision activated for {xRayVisionDuration} seconds.");
     }
 
     private void UpdateSkillState()

@@ -1253,6 +1253,7 @@ GameObject:
   - component: {fileID: 921368895039534941}
   - component: {fileID: 7039102658385090790}
   - component: {fileID: 1354175055189871530}
+  - component: {fileID: 2617299471526814650}
   m_Layer: 0
   m_Name: Player
   m_TagString: Untagged
@@ -1538,6 +1539,7 @@ MonoBehaviour:
   - {fileID: 4086869925511800428}
   - {fileID: 921368895039534941}
   - {fileID: 7039102658385090790}
+  - {fileID: 2617299471526814650}
   ForceRemoteRenderTimeframe: 0
 --- !u!114 &4508338257469429350
 MonoBehaviour:
@@ -1707,6 +1709,7 @@ MonoBehaviour:
   bulletSpeedMultiplier: 1.8
   damageReductionDuration: 10
   damageTakenMultiplier: 0.5
+  xRayVisionDuration: 10
   allowSameSkillConsecutiveForDebug: 0
   _CurrentRoundSkill: 0
   _LastRoundSkill: 0
@@ -1765,6 +1768,19 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::BattleHudManager
   battleHudRoot: {fileID: 1351432817754074320}
+--- !u!114 &2617299471526814650
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8006935000496757985}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 316a75bb859394a7bb3a68e3bd3931cb, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::XRayVisionController
+  xRayMaterial: {fileID: 2100000, guid: 703c74ffbe06abb49bcbe8a54a3350d1, type: 2}
 --- !u!1 &8114149245204947776
 GameObject:
   m_ObjectHideFlags: 0

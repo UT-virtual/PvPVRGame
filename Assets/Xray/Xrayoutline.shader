@@ -19,6 +19,7 @@ Shader "Custom/Xrayoutline"
         {
             Blend SrcAlpha One
             ZWrite Off
+            ZTest Always
 
             HLSLPROGRAM
 

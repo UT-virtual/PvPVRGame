@@ -79,7 +79,7 @@ public class SkillCardUI : MonoBehaviour
                 return new SkillDisplayData(
                     "飛",
                     "ダブルジャンプ",
-                    "空中で1回追加ジャンプ"
+                    "空中でも1回ジャンプできる"
                 );
 
             case PlayerSkillType.RapidFire:
@@ -100,7 +100,14 @@ public class SkillCardUI : MonoBehaviour
                 return new SkillDisplayData(
                     "盾",
                     "ダメージ軽減",
-                    "受けるダメージを減らす"
+                    "受けるダメージを半減させる"
+                );
+            
+            case PlayerSkillType.XRayVision:
+                return new SkillDisplayData(
+                    "透",
+                    "透視",
+                    "他プレイヤーを透過し壁越しに索敵"
                 );
 
             default:

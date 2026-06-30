@@ -4,5 +4,6 @@ public enum PlayerSkillType
     DoubleJump,
     RapidFire,
     BulletSpeedUp,
-    DamageReduction
+    DamageReduction,
+    XRayVision
 }
