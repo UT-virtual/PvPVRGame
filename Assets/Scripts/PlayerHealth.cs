@@ -13,7 +13,11 @@ public class PlayerHealth : NetworkBehaviour
     public event Action<float, float> OnHealthChanged;
 
     [Header("Death Visibility")]
-    [SerializeField] private GameObject visualRoot;
+    [SerializeField] private GameObject visualRoot;    
+
+    [Header("Death UI Visibility")]
+    [SerializeField] private GameObject overheadIconRoot;
+    public GameObject OverheadIconRoot => overheadIconRoot;
 
     [Networked, OnChangedRender(nameof(OnNetworkedHealthChanged))]
     public float NetworkedCurrentHealth { get; private set; }
@@ -414,6 +418,7 @@ public class PlayerHealth : NetworkBehaviour
     private void ApplyAliveState(bool alive)
     {
         bool shouldShowModel = alive && !Object.HasInputAuthority;
+        bool shouldShowOverheadIcon = alive && !Object.HasInputAuthority;
 
         if (renderers != null)
         {
@@ -424,6 +429,11 @@ public class PlayerHealth : NetworkBehaviour
                     renderer.enabled = shouldShowModel;
                 }
             }
+        }
+
+        if (overheadIconRoot != null)
+        {
+            overheadIconRoot.SetActive(shouldShowOverheadIcon);
         }
 
         if (colliders != null)

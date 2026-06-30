@@ -43,6 +43,13 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
     [Header("Auto Start")]
     [SerializeField] private bool autoStartOnLaunch = true;
 
+    [Header("Debug Spectator Dummy")]
+    [SerializeField] private bool spawnDebugSpectatorDummies = false;
+    [SerializeField] private int debugSpectatorDummyCount = 1;
+
+    private bool debugSpectatorDummiesSpawned;
+    private readonly List<NetworkObject> debugSpectatorDummies = new();
+
     [Header("Skill Selection Input")]
     [SerializeField] private float skillSelectionStickThreshold = 0.6f;
 
@@ -320,7 +327,8 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
                 GameMode = gameMode,
                 SessionName = roomName,
                 Scene = sceneRef,
-                SceneManager = sceneManager
+                SceneManager = sceneManager,
+                PlayerCount = 8
             });
 
             if (this == null)
@@ -656,6 +664,11 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
         spawnedPlayers.Add(player, playerObject);
 
         Debug.Log($"Spawned player: {player}, VisualIndex={visualIndex}");
+
+        if (runner.IsServer)
+    {
+        SpawnDebugSpectatorDummiesIfNeeded(runner);
+    }
     }
 
     public void OnPlayerLeft(NetworkRunner runner, PlayerRef player)
@@ -675,6 +688,73 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
         }
 
         return new Vector3(5.0f, 5.0f, 0.0f);
+    }
+
+    private void SpawnDebugSpectatorDummiesIfNeeded(NetworkRunner runner)
+    {
+        if (!spawnDebugSpectatorDummies)
+        {
+            return;
+        }
+
+        if (debugSpectatorDummiesSpawned)
+        {
+            return;
+        }
+
+        if (runner == null || !runner.IsServer)
+        {
+            return;
+        }
+
+        if (!playerPrefab.IsValid)
+        {
+            Debug.LogWarning("[NetworkLauncher] Cannot spawn debug spectator dummy because Player Prefab is not valid.");
+            return;
+        }
+
+        debugSpectatorDummiesSpawned = true;
+
+        int count = Mathf.Max(0, debugSpectatorDummyCount);
+
+        for (int i = 0; i < count; i++)
+        {
+            Vector3 position = GetDebugSpectatorDummyPosition(i);
+            Quaternion rotation = Quaternion.identity;
+
+            NetworkObject dummyObject = runner.Spawn(
+                playerPrefab,
+                position,
+                rotation,
+                PlayerRef.None
+            );
+
+            dummyObject.name = $"DebugSpectatorDummy_{i + 1}";
+
+            debugSpectatorDummies.Add(dummyObject);
+
+            PlayerIdentity playerIdentity = dummyObject.GetComponent<PlayerIdentity>();
+
+            if (playerIdentity != null)
+            {
+                int visualIndex = spawnedPlayers.Count + i;
+                playerIdentity.SetIdentity(visualIndex + 1, visualIndex);
+            }
+
+            Debug.Log($"[NetworkLauncher] Spawned debug spectator dummy: {dummyObject.name}");
+        }
+    }
+
+    private Vector3 GetDebugSpectatorDummyPosition(int index)
+    {
+        float angle = index * 120.0f * Mathf.Deg2Rad;
+        float radius = 8.0f;
+
+        return new Vector3(
+            Mathf.Cos(angle) * radius,
+            5.0f,
+            Mathf.Sin(angle) * radius
+        );
     }
 
     public void OnInput(NetworkRunner runner, NetworkInput input)

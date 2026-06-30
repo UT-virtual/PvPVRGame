@@ -1153,6 +1153,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerController
   animator: {fileID: 0}
+  _NetworkedSpectatorCameraPosition: {x: 0, y: 0, z: 0}
+  _NetworkedSpectatorViewForward: {x: 0, y: 0, z: 0}
+  _NetworkedSpectatorViewUp: {x: 0, y: 0, z: 0}
 --- !u!143 &95802175649210708
 CharacterController:
   m_ObjectHideFlags: 0
@@ -1192,6 +1195,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::PlayerHealth
   maxHealth: 10
   visualRoot: {fileID: 0}
+  overheadIconRoot: {fileID: 4915071045229155744}
   _NetworkedCurrentHealth: 0
   _NetworkedIsDead:
     _value: 0

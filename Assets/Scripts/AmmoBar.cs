@@ -96,7 +96,7 @@ public class AmmoBar : MonoBehaviour
         findWeaponCoroutine = null;
     }
 
-    private void SetupWeapon(PlayerWeapon targetWeapon)
+    public void SetupWeapon(PlayerWeapon targetWeapon)
     {
         if (targetWeapon == null)
         {

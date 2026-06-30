@@ -26,6 +26,13 @@ public class PlayerController : NetworkBehaviour
     [Networked] private NetworkBool NetworkedIsRunning { get; set; }
     [Networked] private float NetworkedMoveX { get; set; }
     [Networked] private float NetworkedMoveY { get; set; }
+    [Networked] public Vector3 NetworkedSpectatorCameraPosition { get; private set; }
+    [Networked] public Vector3 NetworkedSpectatorViewForward { get; private set; }
+    [Networked] public Vector3 NetworkedSpectatorViewUp { get; private set; }
+
+    public bool HasSpectatorView =>
+        NetworkedSpectatorViewForward.sqrMagnitude > 0.001f &&
+        NetworkedSpectatorViewUp.sqrMagnitude > 0.001f;
 
     private void Awake()
     {
@@ -166,6 +173,8 @@ public class PlayerController : NetworkBehaviour
         playerMove.AlignToSurface(deltaTime);
         playerMove.ApplyGravityAndJump(jumpPressed, deltaTime);
 
+        UpdateNetworkedSpectatorView();
+
         bool canUseWeapon = RoundManager.Instance == null || RoundManager.Instance.CanUseWeapons;
 
         if (!canUseWeapon)
@@ -217,6 +226,37 @@ public class PlayerController : NetworkBehaviour
         }
     }
 
+    private void UpdateNetworkedSpectatorView()
+    {
+        if (Object == null || !Object.HasStateAuthority)
+        {
+            return;
+        }
+
+        if (playerHealth != null && playerHealth.IsDead)
+        {
+            return;
+        }
+
+        Vector3 cameraPosition = playerCamera.CameraPosition;
+        Vector3 viewForward = playerLook.ViewForward;
+        Vector3 viewUp = playerLook.ViewUp;
+
+        if (viewForward.sqrMagnitude < 0.001f)
+        {
+            viewForward = transform.forward;
+        }
+
+        if (viewUp.sqrMagnitude < 0.001f)
+        {
+            viewUp = transform.up;
+        }
+
+        NetworkedSpectatorCameraPosition = cameraPosition;
+        NetworkedSpectatorViewForward = viewForward.normalized;
+        NetworkedSpectatorViewUp = viewUp.normalized;
+    }
+
     public override void Render()
     {
         if (animator == null)
@@ -233,7 +273,7 @@ public class PlayerController : NetworkBehaviour
 
     private void LateUpdate()
     {
-        if (Object == null || !Object.HasInputAuthority)
+        if (Object == null)
         {
             return;
         }

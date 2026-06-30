@@ -63,6 +63,9 @@ public class RoundManager : NetworkBehaviour
     [Header("Skill Selection UI")]
     [SerializeField] private int skillOptionSlotCount = 4;
 
+    [Header("Debug Spectator Dummy")]
+    [SerializeField] private bool countDebugSpectatorDummiesAsAlive = false;
+
     private readonly PlayerSkillType[] currentSkillOptions = new PlayerSkillType[4];
 
     public int SkillOptionSlotCount => currentSkillOptions.Length;
@@ -674,14 +677,24 @@ public class RoundManager : NetworkBehaviour
             .Where(player => player != null && !player.IsDead)
             .ToList();
 
-        Debug.Log($"[RoundManager] Alive Count: {alivePlayers.Count} / Registered Count: {players.Count}");
+        int debugAliveDummyCount = countDebugSpectatorDummiesAsAlive
+            ? CountAliveDebugSpectatorDummies()
+            : 0;
+
+        int aliveCountForRoundEnd = alivePlayers.Count + debugAliveDummyCount;
+
+        Debug.Log(
+            $"[RoundManager] Alive Count: {alivePlayers.Count} / Registered Count: {players.Count}, " +
+            $"DebugAliveDummyCount={debugAliveDummyCount}, " +
+            $"AliveCountForRoundEnd={aliveCountForRoundEnd}"
+        );
 
         foreach (PlayerHealth player in alivePlayers)
         {
             Debug.Log($"[RoundManager] Alive: {player.gameObject.name}");
         }
 
-        if (alivePlayers.Count > 1)
+        if (aliveCountForRoundEnd > 1)
         {
             return;
         }
@@ -1237,7 +1250,7 @@ public class RoundManager : NetworkBehaviour
             list[randomIndex] = temp;
         }
     }
-    
+
     [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
     private void RPC_SetSkillOptions(
         PlayerSkillType slot0,
@@ -1255,5 +1268,38 @@ public class RoundManager : NetworkBehaviour
             $"[RoundManager] Skill Options: " +
             $"1={slot0}, 2={slot1}, 3={slot2}, 4={slot3}"
         );
+    }
+    
+    private int CountAliveDebugSpectatorDummies()
+    {
+        PlayerHealth[] allPlayers = FindObjectsByType<PlayerHealth>(FindObjectsSortMode.None);
+        int count = 0;
+
+        foreach (PlayerHealth player in allPlayers)
+        {
+            if (player == null)
+            {
+                continue;
+            }
+
+            if (players.Contains(player))
+            {
+                continue;
+            }
+
+            if (player.IsDead)
+            {
+                continue;
+            }
+
+            if (!player.gameObject.name.StartsWith("DebugSpectatorDummy"))
+            {
+                continue;
+            }
+
+            count++;
+        }
+
+        return count;
     }
 }
