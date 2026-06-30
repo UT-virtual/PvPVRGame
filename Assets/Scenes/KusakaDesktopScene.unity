@@ -154,6 +154,7 @@ RectTransform:
   - {fileID: 596092839}
   - {fileID: 841121644}
   - {fileID: 170095332}
+  - {fileID: 905314141}
   m_Father: {fileID: 1599780011}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
@@ -311,7 +312,7 @@ Canvas:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 15124123}
-  m_Enabled: 0
+  m_Enabled: 1
   serializedVersion: 3
   m_RenderMode: 0
   m_Camera: {fileID: 0}
@@ -627,7 +628,7 @@ Canvas:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 81070259}
-  m_Enabled: 1
+  m_Enabled: 0
   serializedVersion: 3
   m_RenderMode: 2
   m_Camera: {fileID: 0}
@@ -660,7 +661,6 @@ RectTransform:
   - {fileID: 1200760464}
   - {fileID: 518952765}
   - {fileID: 1540781613}
-  - {fileID: 375861726}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
@@ -1341,16 +1341,16 @@ RectTransform:
   m_GameObject: {fileID: 375861725}
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 0.7999999, y: 0.7999999, z: 0.7999999}
+  m_LocalScale: {x: 0.0011999999, y: 0.0011999999, z: 0.0011999999}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 1369558093}
   - {fileID: 752748958}
-  m_Father: {fileID: 81070265}
+  m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: 0.007507324, y: 0.0010681152}
+  m_AnchoredPosition: {x: 321.5, y: 201}
   m_SizeDelta: {x: 100, y: 100}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!1 &392872287
@@ -2730,8 +2730,8 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 280388582}
   m_HandleRect: {fileID: 280388581}
   m_Direction: 0
-  m_Value: 1
-  m_Size: 0.9999764
+  m_Value: 0
+  m_Size: 0.9999183
   m_NumberOfSteps: 0
   m_OnValueChanged:
     m_PersistentCalls:
@@ -2799,16 +2799,16 @@ RectTransform:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 905314140}
-  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
-  m_Father: {fileID: 1599780011}
+  m_Father: {fileID: 870770}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: 0, y: -45.995438}
+  m_AnchoredPosition: {x: 0, y: -246}
   m_SizeDelta: {x: 350, y: 50}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &905314142
@@ -3278,11 +3278,11 @@ MonoBehaviour:
   jumpAction: {fileID: 0}
   fireAction: {fileID: 0}
   reloadAction: {fileID: 0}
-  waitingRoomUI: {fileID: 81070261}
-  connectionMenuRoot: {fileID: 518952764}
-  statusTextLabel: {fileID: 1540781615}
-  hostButton: {fileID: 1237849869}
-  clientButton: {fileID: 794746748}
+  waitingRoomUI: {fileID: 15124128}
+  connectionMenuRoot: {fileID: 223743894}
+  statusTextLabel: {fileID: 1554254474}
+  hostButton: {fileID: 1966195101}
+  clientButton: {fileID: 1363491629}
   retryClientUntilFound: 1
   clientRetryInterval: 1
   maxClientRetryCount: 0
@@ -3526,7 +3526,7 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: 847176050165502015, guid: b5a26f89cc7544331ba5909bd6973c24, type: 3}
       propertyPath: SortKey
-      value: 3948435192
+      value: 3204926013
       objectReference: {fileID: 0}
     - target: {fileID: 1461872884026709090, guid: b5a26f89cc7544331ba5909bd6973c24, type: 3}
       propertyPath: m_Name
@@ -3627,8 +3627,8 @@ MonoBehaviour:
   spawnPoints: []
   shuffleSpawnPointsEachRound: 1
   healthItemSpawner: {fileID: 0}
-  waitingRoomUI: {fileID: 81070261}
-  battleStartUI: {fileID: 1760244462}
+  waitingRoomUI: {fileID: 15124128}
+  battleStartUI: {fileID: 1573172082}
   currentRound: 1
 --- !u!4 &1119373598
 Transform:
@@ -3657,7 +3657,7 @@ MonoBehaviour:
   m_Script: {fileID: -1552182283, guid: e725a070cec140c4caffb81624c8c787, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Fusion.Runtime.dll::Fusion.NetworkObject
-  SortKey: 1147751461
+  SortKey: 404242282
   ObjectInterest: 1
   Flags: 262145
   NestedObjects: []
@@ -4012,7 +4012,7 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: 847176050165502015, guid: b5a26f89cc7544331ba5909bd6973c24, type: 3}
       propertyPath: SortKey
-      value: 2198451382
+      value: 1454942203
       objectReference: {fileID: 0}
     - target: {fileID: 1461872884026709090, guid: b5a26f89cc7544331ba5909bd6973c24, type: 3}
       propertyPath: m_Name
@@ -4081,6 +4081,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 1200760464}
+  - component: {fileID: 1200760465}
   - component: {fileID: 1200760466}
   m_Layer: 5
   m_Name: BattleHUDManager
@@ -4108,6 +4109,18 @@ RectTransform:
   m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 100, y: 100}
   m_Pivot: {x: 0.5, y: 0.5}
+--- !u!114 &1200760465
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1200760463}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9c2e67104593b4888baca3d48825cdab, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::BattleHudUI
 --- !u!114 &1200760466
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -4120,7 +4133,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 27cd2a4a004ac4925b8d11aa29b53552, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::BattleHudManager
-  battleHudRoot: {fileID: 375861725}
+  battleHudRoot: {fileID: 0}
 --- !u!1 &1235189483
 GameObject:
   m_ObjectHideFlags: 0
@@ -4933,7 +4946,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 1}
   m_AnchorMax: {x: 1, y: 1}
-  m_AnchoredPosition: {x: 1407172.2, y: 1673717.2}
+  m_AnchoredPosition: {x: 0.03842506, y: 0.0005966105}
   m_SizeDelta: {x: -183, y: 0}
   m_Pivot: {x: 0, y: 1}
 --- !u!114 &1502683515
@@ -4968,7 +4981,7 @@ MonoBehaviour:
     m_Top: 20
     m_Bottom: 0
   m_ChildAlignment: 0
-  m_Spacing: 20
+  m_Spacing: 40
   m_ChildForceExpandWidth: 0
   m_ChildForceExpandHeight: 0
   m_ChildControlWidth: 0
@@ -5579,7 +5592,6 @@ RectTransform:
   m_Children:
   - {fileID: 870770}
   - {fileID: 1618951976}
-  - {fileID: 905314141}
   m_Father: {fileID: 81070265}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
@@ -5860,7 +5872,7 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: 847176050165502015, guid: b5a26f89cc7544331ba5909bd6973c24, type: 3}
       propertyPath: SortKey
-      value: 561002887
+      value: 4112461004
       objectReference: {fileID: 0}
     - target: {fileID: 1461872884026709090, guid: b5a26f89cc7544331ba5909bd6973c24, type: 3}
       propertyPath: m_Name
@@ -6002,8 +6014,8 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 1235189485}
   m_HandleRect: {fileID: 1235189484}
   m_Direction: 2
-  m_Value: 1
-  m_Size: 0
+  m_Value: 0
+  m_Size: 1
   m_NumberOfSteps: 0
   m_OnValueChanged:
     m_PersistentCalls:
@@ -6264,8 +6276,8 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 2044307239}
   m_HandleRect: {fileID: 2044307238}
   m_Direction: 0
-  m_Value: 1
-  m_Size: 0
+  m_Value: 0
+  m_Size: 0.9999197
   m_NumberOfSteps: 0
   m_OnValueChanged:
     m_PersistentCalls:
@@ -6644,7 +6656,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 1}
   m_AnchorMax: {x: 1, y: 1}
-  m_AnchoredPosition: {x: -0.02626232, y: -0.0012448076}
+  m_AnchoredPosition: {x: 0.016640725, y: -0.0029926344}
   m_SizeDelta: {x: -183, y: 0}
   m_Pivot: {x: 0, y: 1}
 --- !u!114 &2049869607
@@ -6682,8 +6694,8 @@ MonoBehaviour:
   m_Spacing: 20
   m_ChildForceExpandWidth: 0
   m_ChildForceExpandHeight: 0
-  m_ChildControlWidth: 1
-  m_ChildControlHeight: 1
+  m_ChildControlWidth: 0
+  m_ChildControlHeight: 0
   m_ChildScaleWidth: 0
   m_ChildScaleHeight: 0
   m_ReverseArrangement: 0
@@ -6840,7 +6852,7 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: 847176050165502015, guid: b5a26f89cc7544331ba5909bd6973c24, type: 3}
       propertyPath: SortKey
-      value: 2382094840
+      value: 1638585661
       objectReference: {fileID: 0}
     - target: {fileID: 1461872884026709090, guid: b5a26f89cc7544331ba5909bd6973c24, type: 3}
       propertyPath: m_Name
@@ -6998,4 +7010,5 @@ SceneRoots:
   - {fileID: 2032686965}
   - {fileID: 15124127}
   - {fileID: 81070265}
+  - {fileID: 375861726}
   - {fileID: 513531580}

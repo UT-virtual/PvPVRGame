@@ -374,22 +374,11 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
 
         Vector2 lookInput = ReadLookInput();
 
-        bool canControlPlayer =
-            RoundManager.Instance == null ||
-            RoundManager.Instance.CanControlPlayers;
+        queuedLookInput += lookInput;
 
-        if (canControlPlayer)
+        if (localPlayerController != null)
         {
-            queuedLookInput += lookInput;
-
-            if (localPlayerController != null)
-            {
-                localPlayerController.ApplyLocalLook(lookInput, isVRActive, currentHMD);
-            }
-        }
-        else
-        {
-            queuedLookInput = Vector2.zero;
+            localPlayerController.ApplyLocalLook(lookInput, isVRActive, currentHMD);
         }
 
         if (ReadJumpPressed())
