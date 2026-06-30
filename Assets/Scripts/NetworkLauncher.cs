@@ -40,6 +40,9 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
     [SerializeField] private float clientRetryInterval = 1.0f;
     [SerializeField] private int maxClientRetryCount = 0;
 
+    [Header("Auto Start")]
+    [SerializeField] private bool autoStartOnLaunch = true;
+
     private bool isStartingGame;
     private GameObject runnerObject;
 
@@ -69,6 +72,7 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
 
     private void Awake()
     {
+        /*
         if (hostButton != null)
         {
             hostButton.onClick.RemoveListener(OnHostButtonClicked);
@@ -88,10 +92,12 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
         {
             Debug.LogWarning("[NetworkLauncher] ClientButton is not assigned.");
         }
+        */
     }
 
     private void OnDestroy()
     {
+        /*
         if (hostButton != null)
         {
             hostButton.onClick.RemoveListener(OnHostButtonClicked);
@@ -101,6 +107,7 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
         {
             clientButton.onClick.RemoveListener(OnClientButtonClicked);
         }
+        */
     }
 
     private void OnHostButtonClicked()
@@ -151,7 +158,20 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
     private void Start()
     {
         UpdateStatusText();
+
+        if (autoStartOnLaunch)
+        {
+            SetConnectionMenuVisible(false);
+            SetStatusTextVisible(true);
+
+            connectionButtonLocked = true;
+
+            StartGame(GameMode.AutoHostOrClient);
+            return;
+        }
+
         SetConnectionMenuVisible(true);
+        SetStatusTextVisible(false);
         SetConnectionButtonsInteractable(true);
     }
 
@@ -278,9 +298,11 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
             string gameModeJapanese =
                 gameMode == GameMode.Host
                     ? "ホスト"
-                    : "クライアント";
+                    : gameMode == GameMode.Client
+                        ? "クライアント"
+                        : "自動接続";
 
-            SetStatusText($"{gameModeJapanese}側で開始しています... 試行回数 {attemptCount}回目");
+            SetStatusText($"{gameModeJapanese}中...");
 
             CreateRunnerObject(gameMode, attemptCount);
 

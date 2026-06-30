@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using TMPro;
+using Fusion;
 using UnityEngine;
 using UnityEngine.UI;
 using static RoundManager;
@@ -149,9 +150,18 @@ public class WaitingRoomUI : MonoBehaviour
             {
                 bool isReady = player.IsReady;
 
-                readyText.text = isReady
+                NetworkObject networkObject = player.GetComponent<NetworkObject>();
+                bool isLocalPlayer =
+                    networkObject != null &&
+                    networkObject.HasInputAuthority;
+
+                string readyLabel = isReady
                     ? "準備完了"
                     : "未完了";
+
+                readyText.text = isLocalPlayer
+                    ? $"{readyLabel}（あなた）"
+                    : readyLabel;
 
                 readyText.color = isReady
                     ? new Color32(0, 255, 200, 255)

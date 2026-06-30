@@ -1,43 +1,181 @@
 using Fusion;
 using UnityEngine;
 using UnityEngine.UI;
+using System.Collections;
 using System.Collections.Generic;
 
 public class AmmoBar : MonoBehaviour
 {
-    public PlayerWeapon weapon;
+    [SerializeField] private PlayerWeapon weapon;
     [SerializeField] private GameObject cellPrefab;
 
-    private List<Image> cells = new List<Image>();
+    private readonly List<Image> cells = new();
+    private Coroutine findWeaponCoroutine;
 
-    void Start()
+    private void OnEnable()
     {
-        weapon = GetComponentInParent<PlayerWeapon>();
+        if (weapon != null)
+        {
+            SetupWeapon(weapon);
+            return;
+        }
 
-        CreateCells();
-        UpdateCells(weapon.CurrentAmmo, weapon.MaxAmmo);
-
-        weapon.OnAmmoChanged += UpdateCells;
-    
-        
+        StartFindLocalWeapon();
     }
 
-    void CreateCells()
+    private void OnDisable()
     {
-        for (int i = 0; i < weapon.MaxAmmo; i++)
+        if (findWeaponCoroutine != null)
         {
-            GameObject obj = Instantiate(cellPrefab, transform);
-            cells.Add(obj.GetComponent<Image>());
+            StopCoroutine(findWeaponCoroutine);
+            findWeaponCoroutine = null;
+        }
+
+        if (weapon != null)
+        {
+            weapon.OnAmmoChanged -= UpdateCells;
         }
     }
 
-    void UpdateCells(int currentAmmo, int maxAmmo)
+    private void OnDestroy()
+    {
+        if (weapon != null)
+        {
+            weapon.OnAmmoChanged -= UpdateCells;
+        }
+    }
+
+    private void StartFindLocalWeapon()
+    {
+        if (findWeaponCoroutine != null)
+        {
+            StopCoroutine(findWeaponCoroutine);
+        }
+
+        findWeaponCoroutine = StartCoroutine(FindLocalWeapon());
+    }
+
+    private IEnumerator FindLocalWeapon()
+    {
+        while (weapon == null)
+        {
+            PlayerWeapon[] weapons = FindObjectsByType<PlayerWeapon>(
+                FindObjectsSortMode.None
+            );
+
+            Debug.Log($"[AmmoBar] Searching local weapon. Count={weapons.Length}");
+
+            foreach (PlayerWeapon candidate in weapons)
+            {
+                if (candidate == null)
+                {
+                    continue;
+                }
+
+                NetworkObject networkObject = candidate.GetComponent<NetworkObject>();
+
+                Debug.Log(
+                    $"[AmmoBar] Candidate={candidate.name}, " +
+                    $"HasNetworkObject={networkObject != null}, " +
+                    $"HasInputAuthority={(networkObject != null && networkObject.HasInputAuthority)}"
+                );
+
+                if (networkObject != null && networkObject.HasInputAuthority)
+                {
+                    Debug.Log($"[AmmoBar] Local weapon found: {candidate.name}");
+
+                    SetupWeapon(candidate);
+                    findWeaponCoroutine = null;
+                    yield break;
+                }
+            }
+
+            yield return null;
+        }
+
+        findWeaponCoroutine = null;
+    }
+
+    private void SetupWeapon(PlayerWeapon targetWeapon)
+    {
+        if (targetWeapon == null)
+        {
+            Debug.LogWarning("[AmmoBar] SetupWeapon failed. targetWeapon is null.");
+            return;
+        }
+
+        if (weapon != null)
+        {
+            weapon.OnAmmoChanged -= UpdateCells;
+        }
+
+        weapon = targetWeapon;
+
+        ClearCells();
+        CreateCells();
+
+        weapon.OnAmmoChanged -= UpdateCells;
+        weapon.OnAmmoChanged += UpdateCells;
+
+        UpdateCells(weapon.CurrentAmmo, weapon.MaxAmmo);
+
+        Debug.Log(
+            $"[AmmoBar] Setup complete. " +
+            $"Ammo={weapon.CurrentAmmo}/{weapon.MaxAmmo}, " +
+            $"Cells={cells.Count}"
+        );
+    }
+
+    private void ClearCells()
+    {
+        foreach (Image cell in cells)
+        {
+            if (cell != null)
+            {
+                Destroy(cell.gameObject);
+            }
+        }
+
+        cells.Clear();
+    }
+
+    private void CreateCells()
+    {
+        if (weapon == null)
+        {
+            Debug.LogWarning("[AmmoBar] CreateCells failed. weapon is null.");
+            return;
+        }
+
+        if (cellPrefab == null)
+        {
+            Debug.LogWarning("[AmmoBar] CreateCells failed. cellPrefab is null.");
+            return;
+        }
+
+        Debug.Log($"[AmmoBar] CreateCells. MaxAmmo={weapon.MaxAmmo}");
+
+        for (int i = 0; i < weapon.MaxAmmo; i++)
+        {
+            GameObject obj = Instantiate(cellPrefab, transform);
+            Image image = obj.GetComponent<Image>();
+
+            if (image == null)
+            {
+                Debug.LogWarning("[AmmoBar] Cell prefab has no Image component.");
+                continue;
+            }
+
+            cells.Add(image);
+        }
+    }
+
+    private void UpdateCells(int currentAmmo, int maxAmmo)
     {
         for (int i = 0; i < cells.Count; i++)
         {
             int indexFromRight = cells.Count - 1 - i;
             bool isActive = i < currentAmmo;
-            Debug.Log(currentAmmo);
 
             cells[indexFromRight].color = isActive
                 ? Color.white

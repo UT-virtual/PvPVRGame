@@ -170,7 +170,6 @@ public class PlayerWeapon : NetworkBehaviour
         reloadTimer = 0.0f;
         NetworkedCurrentAmmo = maxAmmo;
 
-        OnReloaded?.Invoke();
         NotifyAmmoChanged();
 
         Debug.Log($"Ammo refilled immediately: {NetworkedCurrentAmmo}/{maxAmmo}");
