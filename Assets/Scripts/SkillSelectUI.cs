@@ -9,6 +9,7 @@ public class SkillSelectUI : MonoBehaviour
     [SerializeField] private TMP_Text operationText;
     [SerializeField] private SkillCardUI[] skillCards = new SkillCardUI[4];
 
+    private NetworkLauncher networkLauncher;
     private bool wasShowing;
     private float remainingTime;
 
@@ -38,7 +39,7 @@ public class SkillSelectUI : MonoBehaviour
             remainingTime -= Time.deltaTime;
             remainingTime = Mathf.Max(remainingTime, 0.0f);
 
-            UpdateTexts(roundManager);
+            UpdateTexts();
             RefreshCards(roundManager);
         }
 
@@ -53,7 +54,7 @@ public class SkillSelectUI : MonoBehaviour
         }
     }
 
-    private void UpdateTexts(RoundManager roundManager)
+    private void UpdateTexts()
     {
         if (titleText != null)
         {
@@ -67,7 +68,7 @@ public class SkillSelectUI : MonoBehaviour
 
         if (operationText != null)
         {
-            operationText.text = "1 / 2 / 3 / 4 で選択";
+            operationText.text = "選択: 左スティック 決定: A";
         }
     }
 
@@ -78,6 +79,15 @@ public class SkillSelectUI : MonoBehaviour
             return;
         }
 
+        if (networkLauncher == null)
+        {
+            networkLauncher = FindFirstObjectByType<NetworkLauncher>();
+        }
+
+        int selectedSlot = networkLauncher != null
+            ? networkLauncher.CurrentSkillSelectionSlot
+            : -1;
+
         for (int i = 0; i < skillCards.Length; i++)
         {
             if (skillCards[i] == null)
@@ -86,7 +96,9 @@ public class SkillSelectUI : MonoBehaviour
             }
 
             PlayerSkillType skill = roundManager.GetSkillOption(i);
+
             skillCards[i].SetSkill(i, skill);
+            skillCards[i].SetSelected(i == selectedSlot);
         }
     }
 }

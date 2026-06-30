@@ -10,8 +10,13 @@ public class SkillCardUI : MonoBehaviour
     [SerializeField] private TMP_Text descriptionText;
     [SerializeField] private Image backgroundImage;
 
+    private PlayerSkillType currentSkill;
+    private bool isSelected;
+
     public void SetSkill(int slotIndex, PlayerSkillType skill)
     {
+        currentSkill = skill;
+
         if (slotText != null)
         {
             slotText.text = $"{slotIndex + 1}";
@@ -34,12 +39,36 @@ public class SkillCardUI : MonoBehaviour
             descriptionText.text = data.description;
         }
 
+        ApplyVisual();
+    }
+
+    public void SetSelected(bool selected)
+    {
+        isSelected = selected;
+        ApplyVisual();
+    }
+
+    private void ApplyVisual()
+    {
         if (backgroundImage != null)
         {
-            backgroundImage.color = skill == PlayerSkillType.None
-            ? new Color32(80, 80, 80, 180)
-            : new Color32(30, 120, 160, 200);
+            if (isSelected)
+            {
+                backgroundImage.color = new Color32(70, 180, 220, 255);
+            }
+            else if (currentSkill == PlayerSkillType.None)
+            {
+                backgroundImage.color = new Color32(80, 80, 80, 230);
+            }
+            else
+            {
+                backgroundImage.color = new Color32(30, 120, 160, 245);
+            }
         }
+
+        transform.localScale = isSelected
+            ? new Vector3(1.05f, 1.05f, 1.0f)
+            : Vector3.one;
     }
 
     private SkillDisplayData GetDisplayData(PlayerSkillType skill)
@@ -48,7 +77,7 @@ public class SkillCardUI : MonoBehaviour
         {
             case PlayerSkillType.DoubleJump:
                 return new SkillDisplayData(
-                    "↑↑",
+                    "飛",
                     "ダブルジャンプ",
                     "空中で1回追加ジャンプ"
                 );
