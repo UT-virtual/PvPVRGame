@@ -5,6 +5,8 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.SceneManagement;
+using TMPro;
+using UnityEngine.UI;
 
 public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
 {
@@ -26,6 +28,12 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
     [SerializeField] private InputActionReference fireAction;
     [SerializeField] private InputActionReference reloadAction;
     [SerializeField] private WaitingRoomUI waitingRoomUI;
+
+    [Header("Connection UI")]
+    [SerializeField] private GameObject connectionMenuRoot;
+    [SerializeField] private TMP_Text statusTextLabel;
+    [SerializeField] private Button hostButton;
+    [SerializeField] private Button clientButton;
 
     [Header("Client Retry")]
     [SerializeField] private bool retryClientUntilFound = true;
@@ -57,9 +65,94 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
     private bool isVRActive => UnityEngine.XR.XRSettings.isDeviceActive;
     private Quaternion currentHMD = Quaternion.identity;
 
+    private bool connectionButtonLocked;
+
+    private void Awake()
+    {
+        if (hostButton != null)
+        {
+            hostButton.onClick.RemoveListener(OnHostButtonClicked);
+            hostButton.onClick.AddListener(OnHostButtonClicked);
+        }
+        else
+        {
+            Debug.LogWarning("[NetworkLauncher] HostButton is not assigned.");
+        }
+
+        if (clientButton != null)
+        {
+            clientButton.onClick.RemoveListener(OnClientButtonClicked);
+            clientButton.onClick.AddListener(OnClientButtonClicked);
+        }
+        else
+        {
+            Debug.LogWarning("[NetworkLauncher] ClientButton is not assigned.");
+        }
+    }
+
+    private void OnDestroy()
+    {
+        if (hostButton != null)
+        {
+            hostButton.onClick.RemoveListener(OnHostButtonClicked);
+        }
+
+        if (clientButton != null)
+        {
+            clientButton.onClick.RemoveListener(OnClientButtonClicked);
+        }
+    }
+
+    private void OnHostButtonClicked()
+    {
+        Debug.Log("[NetworkLauncher] Host button clicked.");
+
+        if (connectionButtonLocked)
+        {
+            Debug.LogWarning("[NetworkLauncher] Host click ignored because button is locked.");
+            return;
+        }
+
+        connectionButtonLocked = true;
+        SetConnectionButtonsInteractable(false);
+
+        StartGame(GameMode.Host);
+    }
+
+    private void OnClientButtonClicked()
+    {
+        Debug.Log("[NetworkLauncher] Client button clicked.");
+
+        if (connectionButtonLocked)
+        {
+            Debug.LogWarning("[NetworkLauncher] Client click ignored because button is locked.");
+            return;
+        }
+
+        connectionButtonLocked = true;
+        SetConnectionButtonsInteractable(false);
+
+        StartGame(GameMode.Client);
+    }
+
+    private void SetConnectionButtonsInteractable(bool interactable)
+    {
+        if (hostButton != null)
+        {
+            hostButton.interactable = interactable;
+        }
+
+        if (clientButton != null)
+        {
+            clientButton.interactable = interactable;
+        }
+    }
+
     private void Start()
     {
-        
+        UpdateStatusText();
+        SetConnectionMenuVisible(true);
+        SetConnectionButtonsInteractable(true);
     }
 
     private void OnEnable()
@@ -102,6 +195,28 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
         actionReference.action.Disable();
     }
 
+    private void SetStatusText(string text)
+    {
+        statusText = text;
+        UpdateStatusText();
+    }
+
+    private void UpdateStatusText()
+    {
+        if (statusTextLabel != null)
+        {
+            statusTextLabel.text = statusText;
+        }
+    }
+
+    private void SetConnectionMenuVisible(bool visible)
+    {
+        if (connectionMenuRoot != null)
+        {
+            connectionMenuRoot.SetActive(visible);
+        }
+    }
+
     public async void StartGame(GameMode gameMode)
     {
         if (this == null)
@@ -116,8 +231,12 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
 
         if (!playerPrefab.IsValid)
         {
-            statusText = "Player Prefab is not set.";
+            SetStatusText("Player Prefab is not set.");
             Debug.LogError(statusText);
+
+            connectionButtonLocked = false;
+            SetConnectionButtonsInteractable(true);
+            SetConnectionMenuVisible(true);
             return;
         }
 
@@ -125,8 +244,12 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
 
         if (buildIndex < 0)
         {
-            statusText = "Current scene is not in Build Settings.";
+            SetStatusText("Current scene is not in Build Settings.");
             Debug.LogError(statusText);
+
+            connectionButtonLocked = false;
+            SetConnectionButtonsInteractable(true);
+            SetConnectionMenuVisible(true);
             return;
         }
 
@@ -137,6 +260,7 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
         }
 
         isStartingGame = true;
+        SetConnectionMenuVisible(false);
 
         SceneRef sceneRef = SceneRef.FromIndex(buildIndex);
         int attemptCount = 0;
@@ -156,7 +280,7 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
                     ? "ホスト"
                     : "クライアント";
 
-            statusText = $"{gameModeJapanese}側で開始しています... 試行回数 {attemptCount}回目";
+            SetStatusText($"{gameModeJapanese}側で開始しています... 試行回数 {attemptCount}回目");
 
             CreateRunnerObject(gameMode, attemptCount);
 
@@ -175,16 +299,20 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
 
             if (result.Ok)
             {
-                statusText = $"ルーム名: {roomName}";
+                SetStatusText($"ルーム名: {roomName}");
                 Debug.Log(statusText);
 
                 isStartingGame = false;
+
+                SetConnectionMenuVisible(false);
+                SetStatusTextVisible(false);
+
                 return;
             }
 
             ShutdownReason shutdownReason = result.ShutdownReason;
 
-            statusText = $"Failed: {shutdownReason}";
+            SetStatusText($"Failed: {shutdownReason}");
             Debug.LogError($"Failed to start Fusion: {shutdownReason}");
 
             CleanupFailedRunner();
@@ -198,6 +326,9 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
             if (!shouldRetry)
             {
                 isStartingGame = false;
+                connectionButtonLocked = false;
+                SetConnectionMenuVisible(true);
+                SetConnectionButtonsInteractable(true);
                 return;
             }
 
@@ -301,69 +432,6 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
 
         currentHMD = hmdRotationAction.action.ReadValue<Quaternion>();
     }
-
-    private void OnGUI()
-    {
-        GUI.Label(new Rect(20, 20, 500, 30), statusText);
-
-        if (runner != null || isStartingGame)
-        {
-            return;
-        }
-
-        float titleWidth = 400f;
-        float titleHeight = 40f;
-
-        float buttonWidth = 300f;
-        float buttonHeight = 60f;
-        float buttonSpacing = 20f;
-
-        float totalHeight = titleHeight + 20f + buttonHeight + buttonSpacing + buttonHeight;
-
-        float centerX = Screen.width * 0.5f;
-        float centerY = Screen.height * 0.5f;
-
-        float titleX = centerX - titleWidth * 0.5f;
-        float titleY = centerY - totalHeight * 0.5f;
-
-        float buttonX = centerX - buttonWidth * 0.5f;
-        float hostButtonY = titleY + titleHeight + 20f;
-        float clientButtonY = hostButtonY + buttonHeight + buttonSpacing;
-
-        GUIStyle titleStyle = new GUIStyle(GUI.skin.label);
-        titleStyle.alignment = TextAnchor.MiddleCenter;
-        titleStyle.fontSize = 24;
-        titleStyle.fontStyle = FontStyle.Bold;
-        titleStyle.normal.textColor = Color.white;
-
-        GUIStyle buttonStyle = new GUIStyle(GUI.skin.button);
-        buttonStyle.fontSize = 24;
-        buttonStyle.alignment = TextAnchor.MiddleCenter;
-
-        GUI.Label(
-            new Rect(titleX, titleY, titleWidth, titleHeight),
-            "ホスト・クライアント選択",
-            titleStyle
-        );
-
-        if (GUI.Button(
-            new Rect(buttonX, hostButtonY, buttonWidth, buttonHeight),
-            "ホスト",
-            buttonStyle))
-        {
-            StartGame(GameMode.Host);
-        }
-
-        if (GUI.Button(
-            new Rect(buttonX, clientButtonY, buttonWidth, buttonHeight),
-            "クライアント",
-            buttonStyle))
-        {
-            StartGame(GameMode.Client);
-        }
-    }
-
-
 
     public void OnPlayerJoined(NetworkRunner runner, PlayerRef player)
     {
@@ -876,6 +944,14 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
         runner.AddCallbacks(this);
 
         sceneManager = runnerObject.AddComponent<NetworkSceneManagerDefault>();
+    }
+
+    private void SetStatusTextVisible(bool visible)
+    {
+        if (statusTextLabel != null)
+        {
+            statusTextLabel.gameObject.SetActive(visible);
+        }
     }
 
     public void OnInputMissing(NetworkRunner runner, PlayerRef player, NetworkInput input) { }
