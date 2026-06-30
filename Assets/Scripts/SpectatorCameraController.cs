@@ -353,7 +353,7 @@ public class SpectatorCameraController : MonoBehaviour
 
         if (battleHudBinder != null)
         {
-            battleHudBinder.BindToPlayer(currentTarget);
+            battleHudBinder.BindToSpectatorTarget(currentTarget);
         }
 
         HideSpectatedTargetModel(currentTarget);
@@ -391,7 +391,7 @@ public class SpectatorCameraController : MonoBehaviour
 
         if (battleHudBinder != null)
         {
-            battleHudBinder.BindToPlayer(localPlayer);
+            battleHudBinder.BindToSpectatorTarget(currentTarget);
         }
 
         localCamera.UpdateCameraTarget();

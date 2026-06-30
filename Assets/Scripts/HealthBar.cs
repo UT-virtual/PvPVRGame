@@ -14,6 +14,7 @@ public class HealthBar : MonoBehaviour
     [SerializeField] private float healthLerpSpeed = 0.15f;
 
     public Slider HealthSlider;
+    private Image fillImage;
 
     public RectTransform barTransform;
     public float shakeAmount = 5f;
@@ -32,6 +33,11 @@ public class HealthBar : MonoBehaviour
         {
             HealthSlider.maxValue = maxHealth;
             HealthSlider.value = displayHealth;
+
+            if (HealthSlider.fillRect != null)
+            {
+                fillImage = HealthSlider.fillRect.GetComponent<Image>();
+            }
         }
 
         if (barTransform != null)
@@ -108,16 +114,25 @@ public class HealthBar : MonoBehaviour
 
     private void Update()
     {
-        displayHealth = Mathf.Lerp(
-            displayHealth,
-            currentHealth,
-            healthLerpSpeed
-        );
-
-        if (HealthSlider != null)
+        if (currentHealth <= 0.0f)
         {
-            HealthSlider.value = displayHealth;
+            displayHealth = 0.0f;
         }
+        else
+        {
+            displayHealth = Mathf.Lerp(
+                displayHealth,
+                currentHealth,
+                healthLerpSpeed
+            );
+
+            if (Mathf.Abs(displayHealth - currentHealth) < 0.01f)
+            {
+                displayHealth = currentHealth;
+            }
+        }
+
+        ApplySliderValue(displayHealth);
 
         if (shakeTimer > 0)
         {
@@ -145,12 +160,14 @@ public class HealthBar : MonoBehaviour
     private void UpdateBar(float current, float max, bool shake)
     {
         maxHealth = max;
-        currentHealth = current;
+        currentHealth = Mathf.Clamp(current, 0.0f, maxHealth);
 
-        if (HealthSlider != null)
+        if (currentHealth <= 0.0f)
         {
-            HealthSlider.maxValue = maxHealth;
+            displayHealth = 0.0f;
         }
+
+        ApplySliderValue(displayHealth);
 
         if (shake)
         {
@@ -160,7 +177,8 @@ public class HealthBar : MonoBehaviour
         Debug.Log(
             $"[HealthBar] UpdateBar. " +
             $"Target={(playerHealth != null ? playerHealth.name : "null")}, " +
-            $"HP={currentHealth}/{maxHealth}"
+            $"HP={currentHealth}/{maxHealth}, " +
+            $"Slider={(HealthSlider != null ? HealthSlider.value.ToString() : "null")}"
         );
     }
 
@@ -175,6 +193,22 @@ public class HealthBar : MonoBehaviour
         if (playerHealth != null)
         {
             playerHealth.OnHealthChanged -= UpdateBar;
+        }
+    }
+
+    private void ApplySliderValue(float value)
+    {
+        float clampedValue = Mathf.Clamp(value, 0.0f, maxHealth);
+
+        if (HealthSlider != null)
+        {
+            HealthSlider.maxValue = maxHealth;
+            HealthSlider.value = clampedValue;
+        }
+
+        if (fillImage != null)
+        {
+            fillImage.enabled = clampedValue > 0.001f;
         }
     }
 }
