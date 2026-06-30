@@ -432,7 +432,7 @@ public class SpectatorCameraController : MonoBehaviour
         hiddenModelTarget = target;
         previousRendererStates.Clear();
 
-        Renderer[] renderers = target.GetComponentsInChildren<Renderer>(true);
+        Renderer[] renderers = target.BodyRenderers;
 
         foreach (Renderer renderer in renderers)
         {
