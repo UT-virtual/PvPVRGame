@@ -1710,6 +1710,15 @@ MonoBehaviour:
   damageReductionDuration: 10
   damageTakenMultiplier: 0.5
   xRayVisionDuration: 10
+  moveSpeedUpDuration: 10
+  moveSpeedMultiplier: 2
+  slowFallDuration: 10
+  slowFallGravityMultiplier: 0.1
+  shrinkDuration: 10
+  shrinkSizeMultiplier: 0.5
+  shrinkDamageDealtMultiplier: 0.5
+  delayedDamageInvincibleDuration: 5
+  instantReloadCooldown: 20
   allowSameSkillConsecutiveForDebug: 0
   _CurrentRoundSkill: 0
   _LastRoundSkill: 0

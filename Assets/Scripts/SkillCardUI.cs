@@ -116,6 +116,34 @@ public class SkillCardUI : MonoBehaviour
                     "移動速度強化",
                     "移動速度が2倍になる"
                 );
+            
+            case PlayerSkillType.SlowFall:
+                return new SkillDisplayData(
+                    "羽",
+                    "低重力",
+                    "一定時間、落下がゆっくりになる"
+                );
+
+            case PlayerSkillType.Shrink:
+                return new SkillDisplayData(
+                    "縮",
+                    "縮小",
+                    "与えるダメージが下がるが、体が縮小する"
+                );
+
+            case PlayerSkillType.DelayedDamageInvincible:
+                return new SkillDisplayData(
+                    "耐",
+                    "ダメージ保留",
+                    "5秒間無敵。終了後に受けたダメージをまとめて受ける"
+                );
+
+            case PlayerSkillType.InstantReload:
+                return new SkillDisplayData(
+                    "弾",
+                    "即時リロード",
+                    "10秒間、リロードが即座に完了する"
+                );
 
             default:
                 return new SkillDisplayData(

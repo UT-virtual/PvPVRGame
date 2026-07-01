@@ -32,6 +32,21 @@ public class PlayerSkillController : NetworkBehaviour
     [SerializeField] private float moveSpeedUpDuration = 10.0f;
     [SerializeField] private float moveSpeedMultiplier = 2.0f;
 
+    [Header("Slow Fall")]
+    [SerializeField] private float slowFallDuration = 10.0f;
+    [SerializeField] private float slowFallGravityMultiplier = 0.35f;
+
+    [Header("Shrink")]
+    [SerializeField] private float shrinkDuration = 10.0f;
+    [SerializeField] private float shrinkSizeMultiplier = 0.5f;
+    [SerializeField] private float shrinkDamageDealtMultiplier = 0.5f;
+
+    [Header("Delayed Damage Invincible")]
+    [SerializeField] private float delayedDamageInvincibleDuration = 5.0f;
+
+    [Header("Instant Reload")]
+    [SerializeField] private float instantReloadDuration = 20.0f;
+
     [Header("Debug")]
     [SerializeField] private bool allowSameSkillConsecutiveForDebug = false;
 
@@ -51,6 +66,16 @@ public class PlayerSkillController : NetworkBehaviour
         playerMove = GetComponent<PlayerMove>();
         playerWeapon = GetComponent<PlayerWeapon>();
         playerHealth = GetComponent<PlayerHealth>();
+    }
+
+    public override void Render()
+    {
+        if (Object == null)
+        {
+            return;
+        }
+
+        ApplySkillEffects();
     }
 
     public override void FixedUpdateNetwork()
@@ -191,6 +216,22 @@ public class PlayerSkillController : NetworkBehaviour
                 ActivateMoveSpeedUp();
                 break;
 
+            case PlayerSkillType.SlowFall:
+                ActivateSlowFall();
+                break;
+
+            case PlayerSkillType.Shrink:
+                ActivateShrink();
+                break;
+
+            case PlayerSkillType.DelayedDamageInvincible:
+                ActivateDelayedDamageInvincible();
+                break;
+
+            case PlayerSkillType.InstantReload:
+                ActivateInstantReload();
+                break;
+
             default:
                 Debug.LogWarning($"[Skill] Unsupported skill: {CurrentRoundSkill}");
                 break;
@@ -259,6 +300,57 @@ public class PlayerSkillController : NetworkBehaviour
         );
     }
 
+    private void ActivateSlowFall()
+    {
+        ActiveSkill = PlayerSkillType.SlowFall;
+        SkillActiveTimer = TickTimer.CreateFromSeconds(Runner, slowFallDuration);
+
+        ApplySkillEffects();
+
+        Debug.Log(
+            $"[Skill] {gameObject.name}: SlowFall activated for {slowFallDuration} seconds. " +
+            $"GravityMultiplier={slowFallGravityMultiplier}"
+        );
+    }
+
+    private void ActivateShrink()
+    {
+        ActiveSkill = PlayerSkillType.Shrink;
+        SkillActiveTimer = TickTimer.CreateFromSeconds(Runner, shrinkDuration);
+
+        ApplySkillEffects();
+
+        Debug.Log(
+            $"[Skill] {gameObject.name}: Shrink activated for {shrinkDuration} seconds. " +
+            $"SizeMultiplier={shrinkSizeMultiplier}, " +
+            $"DamageDealtMultiplier={shrinkDamageDealtMultiplier}"
+        );
+    }
+
+    private void ActivateDelayedDamageInvincible()
+    {
+        ActiveSkill = PlayerSkillType.DelayedDamageInvincible;
+        SkillActiveTimer = TickTimer.CreateFromSeconds(Runner, delayedDamageInvincibleDuration);
+
+        ApplySkillEffects();
+
+        Debug.Log(
+            $"[Skill] {gameObject.name}: DelayedDamageInvincible activated for {delayedDamageInvincibleDuration} seconds."
+        );
+    }
+
+    private void ActivateInstantReload()
+    {
+        ActiveSkill = PlayerSkillType.InstantReload;
+        SkillActiveTimer = TickTimer.CreateFromSeconds(Runner, instantReloadDuration);
+
+        ApplySkillEffects();
+
+        Debug.Log(
+            $"[Skill] {gameObject.name}: InstantReload activated for {instantReloadDuration} seconds."
+        );
+    }
+
     private void ActivateXRayVision()
     {
         ActiveSkill = PlayerSkillType.XRayVision;
@@ -295,7 +387,10 @@ public class PlayerSkillController : NetworkBehaviour
         ApplyRapidFireEffect();
         ApplyBulletSpeedUpEffect();
         ApplyDamageReductionEffect();
-        ApplyMoveSpeedUpEffect();
+        ApplySlowFallEffect();
+        ApplyShrinkEffect();
+        ApplyDelayedDamageInvincibleEffect();
+        ApplyInstantReloadEffect();
     }
 
     private void ApplyDoubleJumpEffect()
@@ -366,6 +461,60 @@ public class PlayerSkillController : NetworkBehaviour
         }
     }
 
+    private void ApplySlowFallEffect()
+    {
+        if (playerMove == null)
+        {
+            return;
+        }
+
+        if (IsSlowFallActive())
+        {
+            playerMove.SetFallGravityMultiplier(slowFallGravityMultiplier);
+        }
+        else
+        {
+            playerMove.SetFallGravityMultiplier(1.0f);
+        }
+    }
+
+    private void ApplyShrinkEffect()
+    {
+        if (playerHealth != null)
+        {
+            if (IsShrinkActive())
+            {
+                playerHealth.SetBodySizeMultiplier(shrinkSizeMultiplier);
+            }
+            else
+            {
+                playerHealth.SetBodySizeMultiplier(1.0f);
+            }
+        }
+
+        if (playerWeapon != null)
+        {
+            if (IsShrinkActive())
+            {
+                playerWeapon.SetDamageDealtMultiplier(shrinkDamageDealtMultiplier);
+            }
+            else
+            {
+                playerWeapon.SetDamageDealtMultiplier(1.0f);
+            }
+        }
+    }
+
+    private void ApplyDelayedDamageInvincibleEffect()
+    {
+        if (playerHealth == null)
+        {
+            return;
+        }
+
+        playerHealth.SetDelayedDamageMode(IsDelayedDamageInvincibleActive());
+    }
+
     private void ApplyMoveSpeedUpEffect()
     {
         if (playerMove == null)
@@ -381,6 +530,21 @@ public class PlayerSkillController : NetworkBehaviour
         {
             playerMove.SetMoveSpeedMultiplier(1.0f);
         }
+    }
+
+    private void ApplyInstantReloadEffect()
+    {
+        if (playerWeapon == null)
+        {
+            return;
+        }
+
+        playerWeapon.SetInstantReloadEnabled(IsInstantReloadActive());
+    }
+
+    private bool IsInstantReloadActive()
+    {
+        return ActiveSkill == PlayerSkillType.InstantReload && IsSkillActive();
     }
 
     private bool IsMoveSpeedUpActive()
@@ -421,8 +585,28 @@ public class PlayerSkillController : NetworkBehaviour
         return ActiveSkill == PlayerSkillType.DamageReduction && IsSkillActive();
     }
 
+    private bool IsSlowFallActive()
+    {
+        return ActiveSkill == PlayerSkillType.SlowFall && IsSkillActive();
+    }
+
+    private bool IsShrinkActive()
+    {
+        return ActiveSkill == PlayerSkillType.Shrink && IsSkillActive();
+    }
+
+    private bool IsDelayedDamageInvincibleActive()
+    {
+        return ActiveSkill == PlayerSkillType.DelayedDamageInvincible && IsSkillActive();
+    }
+
     private bool IsSkillActive()
     {
+        if (Runner == null)
+        {
+            return false;
+        }
+
         return SkillActiveTimer.IsRunning && !SkillActiveTimer.Expired(Runner);
     }
 

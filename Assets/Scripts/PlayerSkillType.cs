@@ -6,5 +6,9 @@ public enum PlayerSkillType
     BulletSpeedUp,
     DamageReduction,
     XRayVision,
-    MoveSpeedUp
+    MoveSpeedUp,
+    SlowFall,
+    Shrink,
+    DelayedDamageInvincible,
+    InstantReload
 }

@@ -30,6 +30,8 @@ public class PlayerWeapon : NetworkBehaviour
 
     private float fireIntervalMultiplier = 1.0f;
     private float projectileSpeedMultiplier = 1.0f;
+    private bool instantReloadEnabled;
+    private float damageDealtMultiplier = 1.0f;
 
     [Networked, OnChangedRender(nameof(OnNetworkedAmmoChanged))]
     public int NetworkedCurrentAmmo { get; private set; }
@@ -148,6 +150,14 @@ public class PlayerWeapon : NetworkBehaviour
 
         if (NetworkedCurrentAmmo >= maxAmmo)
         {
+            return;
+        }
+
+        if (instantReloadEnabled)
+        {
+            RefillAmmoImmediately();
+
+            Debug.Log("Instant reload activated.");
             return;
         }
 
@@ -296,8 +306,33 @@ public class PlayerWeapon : NetworkBehaviour
             fireDirection,
             GetCurrentProjectileSpeed(),
             projectileLifeTime,
-            projectileDamage,
+            projectileDamage * damageDealtMultiplier,
             playerHealth
         );
+    }
+
+    public void SetDamageDealtMultiplier(float multiplier)
+    {
+        damageDealtMultiplier = Mathf.Clamp(multiplier, 0.0f, 10.0f);
+    }
+
+    public void SetInstantReloadEnabled(bool enabled)
+    {
+        instantReloadEnabled = enabled;
+
+        if (!instantReloadEnabled)
+        {
+            return;
+        }
+
+        if (Object == null || !Object.HasStateAuthority)
+        {
+            return;
+        }
+
+        if (NetworkedIsReloading)
+        {
+            RefillAmmoImmediately();
+        }
     }
 }
