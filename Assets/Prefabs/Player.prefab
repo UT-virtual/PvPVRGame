@@ -429,12 +429,13 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 2209430232442334037}
   serializedVersion: 2
-  m_LocalRotation: {x: -0.21034124, y: 0.31655735, z: 0.91953343, w: 0.10003169}
-  m_LocalPosition: {x: -0.08611577, y: 0.00011458568, z: -0.011399106}
+  m_LocalRotation: {x: -0.1988162, y: 0.8834081, z: 0.42051616, w: -0.05681905}
+  m_LocalPosition: {x: -0.026500063, y: -0.009899943, z: -0.0005999981}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 3820139365313477355}
+  m_Children:
+  - {fileID: 1803891075514819316}
+  m_Father: {fileID: 3827414043178423831}
   m_LocalEulerAnglesHint: {x: -133.914, y: 22.695, z: 144.875}
 --- !u!33 &7603310033880407319
 MeshFilter:
@@ -568,6 +569,37 @@ MonoBehaviour:
   m_FillOrigin: 0
   m_UseSpriteMesh: 0
   m_PixelsPerUnitMultiplier: 1
+--- !u!1 &2839360191667749865
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1803891075514819316}
+  m_Layer: 0
+  m_Name: Muzzle
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1803891075514819316
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2839360191667749865}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0.5016945, y: 0.4982998, z: -0.5016945, w: 0.4982998}
+  m_LocalPosition: {x: 0.3217, y: -0.01832, z: 0.04612}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 1188818646864024945}
+  m_LocalEulerAnglesHint: {x: -180, y: -90, z: 89.611}
 --- !u!1 &3357048875621176659
 GameObject:
   m_ObjectHideFlags: 0
@@ -1639,6 +1671,8 @@ MonoBehaviour:
   maxAmmo: 20
   fireInterval: 0.15
   reloadDuration: 2
+  muzzleTransform: {fileID: 1803891075514819316}
+  muzzleExitOffset: 0.05
   _NetworkedCurrentAmmo: 0
   _NetworkedIsReloading:
     _value: 0
@@ -2240,7 +2274,7 @@ PrefabInstance:
     m_RemovedGameObjects:
     - {fileID: 1278241636127662, guid: e7965cb5f3b6b49439772edd4131b2b0, type: 3}
     m_AddedGameObjects:
-    - targetCorrespondingSourceObject: {fileID: 4226080401196550, guid: e7965cb5f3b6b49439772edd4131b2b0, type: 3}
+    - targetCorrespondingSourceObject: {fileID: 4903621927381754, guid: e7965cb5f3b6b49439772edd4131b2b0, type: 3}
       insertIndex: -1
       addedObject: {fileID: 1188818646864024945}
     m_AddedComponents:

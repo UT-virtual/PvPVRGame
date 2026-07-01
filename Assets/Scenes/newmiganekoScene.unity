@@ -872,7 +872,7 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 432667075}
   m_HandleRect: {fileID: 432667074}
   m_Direction: 2
-  m_Value: 0
+  m_Value: 1
   m_Size: 0.9999933
   m_NumberOfSteps: 0
   m_OnValueChanged:
@@ -2395,7 +2395,7 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 280388582}
   m_HandleRect: {fileID: 280388581}
   m_Direction: 0
-  m_Value: 1
+  m_Value: 0
   m_Size: 0.9999764
   m_NumberOfSteps: 0
   m_OnValueChanged:
@@ -2940,11 +2940,11 @@ MonoBehaviour:
   moveAction: {fileID: -1680190386980627800, guid: 052faaac586de48259a63d0c4782560b, type: 3}
   lookAction: {fileID: -5630151704836100654, guid: 052faaac586de48259a63d0c4782560b, type: 3}
   hmdRotationAction: {fileID: -530380113134220495, guid: c348712bda248c246b8c49b3db54643f, type: 3}
-  hmdPositionAction: {fileID: 0}
-  leftHandPositionAction: {fileID: 0}
-  leftHandRotationAction: {fileID: 0}
-  rightHandPositionAction: {fileID: 0}
-  rightHandRotationAction: {fileID: 0}
+  hmdPositionAction: {fileID: 7862207684358717888, guid: c348712bda248c246b8c49b3db54643f, type: 3}
+  leftHandPositionAction: {fileID: -2024308242397127297, guid: c348712bda248c246b8c49b3db54643f, type: 3}
+  leftHandRotationAction: {fileID: 8248158260566104461, guid: c348712bda248c246b8c49b3db54643f, type: 3}
+  rightHandPositionAction: {fileID: -3326005586356538449, guid: c348712bda248c246b8c49b3db54643f, type: 3}
+  rightHandRotationAction: {fileID: 5101698808175986029, guid: c348712bda248c246b8c49b3db54643f, type: 3}
   jumpAction: {fileID: -2099379676528639254, guid: 052faaac586de48259a63d0c4782560b, type: 3}
   fireAction: {fileID: 1120369429361536294, guid: 052faaac586de48259a63d0c4782560b, type: 3}
   reloadAction: {fileID: -570809305380780285, guid: 052faaac586de48259a63d0c4782560b, type: 3}
@@ -2962,7 +2962,7 @@ MonoBehaviour:
   skillSelectionStickThreshold: 0.6
   forceVrSimulationInEditor: 0
   useKeyboardHmdSimulationInEditor: 0
-  editorHmdRotationSpeed: 10
+  editorHmdRotationSpeed: 90
 --- !u!4 &993431733
 Transform:
   m_ObjectHideFlags: 0
@@ -4711,7 +4711,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 1}
   m_AnchorMax: {x: 1, y: 1}
-  m_AnchoredPosition: {x: 7804207, y: 9281118}
+  m_AnchoredPosition: {x: 9322953, y: 11086253}
   m_SizeDelta: {x: -183, y: 0}
   m_Pivot: {x: 0, y: 1}
 --- !u!114 &1502683515
@@ -7194,7 +7194,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 1}
   m_AnchorMax: {x: 1, y: 1}
-  m_AnchoredPosition: {x: -0.014956003, y: -0.0019325683}
+  m_AnchoredPosition: {x: -0.014020583, y: -0.0030144427}
   m_SizeDelta: {x: -183, y: 0}
   m_Pivot: {x: 0, y: 1}
 --- !u!114 &2049869607
