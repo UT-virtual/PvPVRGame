@@ -71,12 +71,15 @@ public class PlayerSkillController : NetworkBehaviour
 
     [Networked] public PlayerSkillType LastRoundSkill { get; private set; }
     [Networked] public PlayerSkillType LastRoundSecondSkill { get; private set; }
-
     [Networked] public PlayerSkillType ActiveSkill { get; private set; }
-    [Networked] public int CurrentSelectedSkillIndex { get; private set; }
-
     [Networked] private TickTimer SkillActiveTimer { get; set; }
     [Networked] private TickTimer CooldownTimer { get; set; }
+
+    [Networked] public PlayerSkillType ActiveSecondSkill { get; private set; }
+    [Networked] private TickTimer SecondSkillActiveTimer { get; set; }
+    [Networked] private TickTimer SecondCooldownTimer { get; set; }
+
+    [Networked] public int CurrentSelectedSkillIndex { get; private set; }
 
     public PlayerSkillType CurrentSelectedRoundSkill =>
         CurrentSelectedSkillIndex <= 0
@@ -87,10 +90,12 @@ public class PlayerSkillController : NetworkBehaviour
     {
         get
         {
+            int slotIndex = GetNormalizedCurrentSelectedSkillIndex();
+
             return
-                CurrentSelectedRoundSkill != PlayerSkillType.None &&
-                !IsSkillActive() &&
-                !IsCooldownActive();
+                GetRoundSkillBySlot(slotIndex) != PlayerSkillType.None &&
+                !IsSkillSlotActive(slotIndex) &&
+                !IsSkillSlotCoolingDown(slotIndex);
         }
     }
 
@@ -98,13 +103,8 @@ public class PlayerSkillController : NetworkBehaviour
     {
         get
         {
-            if (Runner == null || !CooldownTimer.IsRunning)
-            {
-                return 0.0f;
-            }
-
-            float remaining = CooldownTimer.RemainingTime(Runner) ?? 0.0f;
-            return Mathf.Max(remaining, 0.0f);
+            int slotIndex = GetNormalizedCurrentSelectedSkillIndex();
+            return GetSkillCooldownRemaining(slotIndex);
         }
     }
 
@@ -165,8 +165,13 @@ public class PlayerSkillController : NetworkBehaviour
         }
 
         ActiveSkill = PlayerSkillType.None;
+        ActiveSecondSkill = PlayerSkillType.None;
+
         SkillActiveTimer = TickTimer.None;
+        SecondSkillActiveTimer = TickTimer.None;
+
         CooldownTimer = TickTimer.None;
+        SecondCooldownTimer = TickTimer.None;
 
         PlayerSkillType selectedFirstSkill = requestedFirstSkill;
         PlayerSkillType selectedSecondSkill = requestedSecondSkill;
@@ -239,8 +244,13 @@ public class PlayerSkillController : NetworkBehaviour
         CurrentSelectedSkillIndex = 0;
 
         ActiveSkill = PlayerSkillType.None;
+        ActiveSecondSkill = PlayerSkillType.None;
+
         SkillActiveTimer = TickTimer.None;
+        SecondSkillActiveTimer = TickTimer.None;
+
         CooldownTimer = TickTimer.None;
+        SecondCooldownTimer = TickTimer.None;
 
         ApplySkillEffects();
     }
@@ -301,7 +311,8 @@ public class PlayerSkillController : NetworkBehaviour
             return;
         }
 
-        PlayerSkillType selectedSkill = CurrentSelectedRoundSkill;
+        int slotIndex = GetNormalizedCurrentSelectedSkillIndex();
+        PlayerSkillType selectedSkill = GetRoundSkillBySlot(slotIndex);
 
         if (selectedSkill == PlayerSkillType.None)
         {
@@ -309,15 +320,22 @@ public class PlayerSkillController : NetworkBehaviour
             return;
         }
 
-        if (IsSkillActive())
+        if (IsSkillSlotActive(slotIndex))
         {
-            Debug.Log($"[Skill] {gameObject.name}: Skill is already active.");
+            Debug.Log(
+                $"[Skill] {gameObject.name}: Current skill slot is already active. " +
+                $"Slot={slotIndex + 1}, Skill={selectedSkill}"
+            );
             return;
         }
 
-        if (IsCooldownActive())
+        if (IsSkillSlotCoolingDown(slotIndex))
         {
-            Debug.Log($"[Skill] {gameObject.name}: Skill is cooling down.");
+            Debug.Log(
+                $"[Skill] {gameObject.name}: Current skill slot is cooling down. " +
+                $"Slot={slotIndex + 1}, Skill={selectedSkill}, " +
+                $"Remaining={GetSkillCooldownRemaining(slotIndex):0.0}"
+            );
             return;
         }
 
@@ -381,23 +399,32 @@ public class PlayerSkillController : NetworkBehaviour
         }
     }
 
-    public bool IsXRayVisionActive()
+    private void BeginActiveSkill(PlayerSkillType skill, float duration)
     {
-        if (Runner == null)
+        int slotIndex = GetNormalizedCurrentSelectedSkillIndex();
+
+        TickTimer activeTimer = TickTimer.CreateFromSeconds(Runner, duration);
+
+        if (slotIndex <= 0)
         {
-            return false;
+            ActiveSkill = skill;
+            SkillActiveTimer = activeTimer;
+        }
+        else
+        {
+            ActiveSecondSkill = skill;
+            SecondSkillActiveTimer = activeTimer;
         }
 
-        return
-            ActiveSkill == PlayerSkillType.XRayVision &&
-            SkillActiveTimer.IsRunning &&
-            !SkillActiveTimer.Expired(Runner);
+        Debug.Log(
+            $"[Skill] {gameObject.name}: BeginActiveSkill. " +
+            $"Slot={slotIndex + 1}, Skill={skill}, Duration={duration}"
+        );
     }
 
     private void ActivateDoubleJump()
     {
-        ActiveSkill = PlayerSkillType.DoubleJump;
-        SkillActiveTimer = TickTimer.CreateFromSeconds(Runner, doubleJumpDuration);
+        BeginActiveSkill(PlayerSkillType.DoubleJump, doubleJumpDuration);
 
         ApplySkillEffects();
 
@@ -406,8 +433,7 @@ public class PlayerSkillController : NetworkBehaviour
 
     private void ActivateRapidFire()
     {
-        ActiveSkill = PlayerSkillType.RapidFire;
-        SkillActiveTimer = TickTimer.CreateFromSeconds(Runner, rapidFireDuration);
+        BeginActiveSkill(PlayerSkillType.RapidFire, rapidFireDuration);
 
         ApplySkillEffects();
 
@@ -419,8 +445,7 @@ public class PlayerSkillController : NetworkBehaviour
 
     private void ActivateBulletSpeedUp()
     {
-        ActiveSkill = PlayerSkillType.BulletSpeedUp;
-        SkillActiveTimer = TickTimer.CreateFromSeconds(Runner, bulletSpeedUpDuration);
+        BeginActiveSkill(PlayerSkillType.BulletSpeedUp, bulletSpeedUpDuration);
 
         ApplySkillEffects();
 
@@ -432,8 +457,7 @@ public class PlayerSkillController : NetworkBehaviour
 
     private void ActivateDamageReduction()
     {
-        ActiveSkill = PlayerSkillType.DamageReduction;
-        SkillActiveTimer = TickTimer.CreateFromSeconds(Runner, damageReductionDuration);
+        BeginActiveSkill(PlayerSkillType.DamageReduction, damageReductionDuration);
 
         ApplySkillEffects();
 
@@ -445,8 +469,7 @@ public class PlayerSkillController : NetworkBehaviour
 
     private void ActivateSlowFall()
     {
-        ActiveSkill = PlayerSkillType.SlowFall;
-        SkillActiveTimer = TickTimer.CreateFromSeconds(Runner, slowFallDuration);
+        BeginActiveSkill(PlayerSkillType.SlowFall, slowFallDuration);
 
         ApplySkillEffects();
 
@@ -458,8 +481,7 @@ public class PlayerSkillController : NetworkBehaviour
 
     private void ActivateShrink()
     {
-        ActiveSkill = PlayerSkillType.Shrink;
-        SkillActiveTimer = TickTimer.CreateFromSeconds(Runner, shrinkDuration);
+        BeginActiveSkill(PlayerSkillType.Shrink, shrinkDuration);
 
         ApplySkillEffects();
 
@@ -472,8 +494,7 @@ public class PlayerSkillController : NetworkBehaviour
 
     private void ActivateDelayedDamageInvincible()
     {
-        ActiveSkill = PlayerSkillType.DelayedDamageInvincible;
-        SkillActiveTimer = TickTimer.CreateFromSeconds(Runner, delayedDamageInvincibleDuration);
+        BeginActiveSkill(PlayerSkillType.DelayedDamageInvincible, delayedDamageInvincibleDuration);
 
         ApplySkillEffects();
 
@@ -484,8 +505,7 @@ public class PlayerSkillController : NetworkBehaviour
 
     private void ActivateInstantReload()
     {
-        ActiveSkill = PlayerSkillType.InstantReload;
-        SkillActiveTimer = TickTimer.CreateFromSeconds(Runner, instantReloadDuration);
+        BeginActiveSkill(PlayerSkillType.InstantReload, instantReloadDuration);
 
         ApplySkillEffects();
 
@@ -496,8 +516,7 @@ public class PlayerSkillController : NetworkBehaviour
 
     private void ActivateGravityBurstReload()
     {
-        ActiveSkill = PlayerSkillType.GravityBurstReload;
-        SkillActiveTimer = TickTimer.CreateFromSeconds(Runner, gravityBurstReloadDuration);
+        BeginActiveSkill(PlayerSkillType.GravityBurstReload, gravityBurstReloadDuration);
 
         if (playerWeapon != null)
         {
@@ -514,8 +533,7 @@ public class PlayerSkillController : NetworkBehaviour
 
     private void ActivateHeavyBulletReload()
     {
-        ActiveSkill = PlayerSkillType.HeavyBulletReload;
-        SkillActiveTimer = TickTimer.CreateFromSeconds(Runner, heavyBulletReloadDuration);
+        BeginActiveSkill(PlayerSkillType.HeavyBulletReload, heavyBulletReloadDuration);
 
         if (playerWeapon != null)
         {
@@ -532,8 +550,7 @@ public class PlayerSkillController : NetworkBehaviour
 
     private void ActivateNextShotDamageBoost()
     {
-        ActiveSkill = PlayerSkillType.NextShotDamageBoost;
-        SkillActiveTimer = TickTimer.CreateFromSeconds(Runner, nextShotDamageBoostDuration);
+        BeginActiveSkill(PlayerSkillType.NextShotDamageBoost, nextShotDamageBoostDuration);
 
         if (playerWeapon != null)
         {
@@ -550,29 +567,64 @@ public class PlayerSkillController : NetworkBehaviour
 
     private void ActivateXRayVision()
     {
-        ActiveSkill = PlayerSkillType.XRayVision;
-        SkillActiveTimer = TickTimer.CreateFromSeconds(Runner, xRayVisionDuration);
+        BeginActiveSkill(PlayerSkillType.XRayVision, xRayVisionDuration);
 
         ApplySkillEffects();
 
         Debug.Log($"[Skill] {gameObject.name}: XRayVision activated for {xRayVisionDuration} seconds.");
     }
 
+    private void ActivateMoveSpeedUp()
+    {
+        BeginActiveSkill(PlayerSkillType.MoveSpeedUp, moveSpeedUpDuration);
+
+        ApplySkillEffects();
+
+        Debug.Log(
+            $"[Skill] {gameObject.name}: MoveSpeedUp activated for {moveSpeedUpDuration} seconds. " +
+            $"MoveSpeedMultiplier={moveSpeedMultiplier}"
+        );
+    }
+
     private void UpdateSkillState()
     {
-        if (ActiveSkill != PlayerSkillType.None && SkillActiveTimer.Expired(Runner))
+        if (Runner == null)
         {
-            Debug.Log($"[Skill] {gameObject.name}: {ActiveSkill} ended. Cooldown started.");
+            return;
+        }
+
+        if (ActiveSkill != PlayerSkillType.None &&
+            SkillActiveTimer.IsRunning &&
+            SkillActiveTimer.Expired(Runner))
+        {
+            Debug.Log($"[Skill] {gameObject.name}: Slot 1 {ActiveSkill} ended. Cooldown started.");
 
             ActiveSkill = PlayerSkillType.None;
             SkillActiveTimer = TickTimer.None;
             CooldownTimer = TickTimer.CreateFromSeconds(Runner, cooldownAfterSkillEnd);
         }
 
-        if (CooldownTimer.Expired(Runner))
+        if (ActiveSecondSkill != PlayerSkillType.None &&
+            SecondSkillActiveTimer.IsRunning &&
+            SecondSkillActiveTimer.Expired(Runner))
+        {
+            Debug.Log($"[Skill] {gameObject.name}: Slot 2 {ActiveSecondSkill} ended. Cooldown started.");
+
+            ActiveSecondSkill = PlayerSkillType.None;
+            SecondSkillActiveTimer = TickTimer.None;
+            SecondCooldownTimer = TickTimer.CreateFromSeconds(Runner, cooldownAfterSkillEnd);
+        }
+
+        if (CooldownTimer.IsRunning && CooldownTimer.Expired(Runner))
         {
             CooldownTimer = TickTimer.None;
-            Debug.Log($"[Skill] {gameObject.name}: Cooldown ended.");
+            Debug.Log($"[Skill] {gameObject.name}: Slot 1 cooldown ended.");
+        }
+
+        if (SecondCooldownTimer.IsRunning && SecondCooldownTimer.Expired(Runner))
+        {
+            SecondCooldownTimer = TickTimer.None;
+            Debug.Log($"[Skill] {gameObject.name}: Slot 2 cooldown ended.");
         }
 
         ApplySkillEffects();
@@ -742,79 +794,148 @@ public class PlayerSkillController : NetworkBehaviour
 
     private bool IsInstantReloadActive()
     {
-        return ActiveSkill == PlayerSkillType.InstantReload && IsSkillActive();
+        return IsSkillCurrentlyActive(PlayerSkillType.InstantReload);
     }
 
     private bool IsMoveSpeedUpActive()
     {
-        return ActiveSkill == PlayerSkillType.MoveSpeedUp && IsSkillActive();
-    }
-
-    private void ActivateMoveSpeedUp()
-    {
-        ActiveSkill = PlayerSkillType.MoveSpeedUp;
-        SkillActiveTimer = TickTimer.CreateFromSeconds(Runner, moveSpeedUpDuration);
-
-        ApplySkillEffects();
-
-        Debug.Log(
-            $"[Skill] {gameObject.name}: MoveSpeedUp activated for {moveSpeedUpDuration} seconds. " +
-            $"MoveSpeedMultiplier={moveSpeedMultiplier}"
-        );
+        return IsSkillCurrentlyActive(PlayerSkillType.MoveSpeedUp);
     }
 
     private bool IsDoubleJumpActive()
     {
-        return ActiveSkill == PlayerSkillType.DoubleJump && IsSkillActive();
+        return IsSkillCurrentlyActive(PlayerSkillType.DoubleJump);
     }
 
     private bool IsRapidFireActive()
     {
-        return ActiveSkill == PlayerSkillType.RapidFire && IsSkillActive();
+        return IsSkillCurrentlyActive(PlayerSkillType.RapidFire);
     }
 
     private bool IsBulletSpeedUpActive()
     {
-        return ActiveSkill == PlayerSkillType.BulletSpeedUp && IsSkillActive();
+        return IsSkillCurrentlyActive(PlayerSkillType.BulletSpeedUp);
     }
 
     private bool IsDamageReductionActive()
     {
-        return ActiveSkill == PlayerSkillType.DamageReduction && IsSkillActive();
+        return IsSkillCurrentlyActive(PlayerSkillType.DamageReduction);
     }
 
     private bool IsSlowFallActive()
     {
-        return ActiveSkill == PlayerSkillType.SlowFall && IsSkillActive();
+        return IsSkillCurrentlyActive(PlayerSkillType.SlowFall);
     }
 
     private bool IsShrinkActive()
     {
-        return ActiveSkill == PlayerSkillType.Shrink && IsSkillActive();
+        return IsSkillCurrentlyActive(PlayerSkillType.Shrink);
     }
 
     private bool IsDelayedDamageInvincibleActive()
     {
-        return ActiveSkill == PlayerSkillType.DelayedDamageInvincible && IsSkillActive();
+        return IsSkillCurrentlyActive(PlayerSkillType.DelayedDamageInvincible);
+    }
+
+    public bool IsXRayVisionActive()
+    {
+        return IsSkillCurrentlyActive(PlayerSkillType.XRayVision);
+    }
+
+    private bool IsSkillCurrentlyActive(PlayerSkillType skill)
+    {
+        if (Runner == null || skill == PlayerSkillType.None)
+        {
+            return false;
+        }
+
+        bool firstSlotActive =
+            ActiveSkill == skill &&
+            SkillActiveTimer.IsRunning &&
+            !SkillActiveTimer.Expired(Runner);
+
+        bool secondSlotActive =
+            ActiveSecondSkill == skill &&
+            SecondSkillActiveTimer.IsRunning &&
+            !SecondSkillActiveTimer.Expired(Runner);
+
+        return firstSlotActive || secondSlotActive;
     }
 
     private bool IsSkillActive()
     {
-        if (Runner == null)
-        {
-            return false;
-        }
-
-        return SkillActiveTimer.IsRunning && !SkillActiveTimer.Expired(Runner);
+        return IsSkillSlotActive(0) || IsSkillSlotActive(1);
     }
 
     private bool IsCooldownActive()
+    {
+        return IsSkillSlotCoolingDown(GetNormalizedCurrentSelectedSkillIndex());
+    }
+
+    private bool IsSkillSlotActive(int slotIndex)
     {
         if (Runner == null)
         {
             return false;
         }
 
-        return CooldownTimer.IsRunning && !CooldownTimer.Expired(Runner);
+        PlayerSkillType activeSkill = slotIndex <= 0
+            ? ActiveSkill
+            : ActiveSecondSkill;
+
+        TickTimer activeTimer = slotIndex <= 0
+            ? SkillActiveTimer
+            : SecondSkillActiveTimer;
+
+        return
+            activeSkill != PlayerSkillType.None &&
+            activeTimer.IsRunning &&
+            !activeTimer.Expired(Runner);
+    }
+
+    private bool IsSkillSlotCoolingDown(int slotIndex)
+    {
+        if (Runner == null)
+        {
+            return false;
+        }
+
+        TickTimer cooldownTimer = slotIndex <= 0
+            ? CooldownTimer
+            : SecondCooldownTimer;
+
+        return cooldownTimer.IsRunning && !cooldownTimer.Expired(Runner);
+    }
+
+    private float GetSkillCooldownRemaining(int slotIndex)
+    {
+        if (Runner == null)
+        {
+            return 0.0f;
+        }
+
+        TickTimer cooldownTimer = slotIndex <= 0
+            ? CooldownTimer
+            : SecondCooldownTimer;
+
+        if (!cooldownTimer.IsRunning)
+        {
+            return 0.0f;
+        }
+
+        float remaining = cooldownTimer.RemainingTime(Runner) ?? 0.0f;
+        return Mathf.Max(remaining, 0.0f);
+    }
+
+    private int GetNormalizedCurrentSelectedSkillIndex()
+    {
+        return CurrentSelectedSkillIndex <= 0 ? 0 : 1;
+    }
+
+    private PlayerSkillType GetRoundSkillBySlot(int slotIndex)
+    {
+        return slotIndex <= 0
+            ? CurrentRoundSkill
+            : CurrentRoundSecondSkill;
     }
 }
