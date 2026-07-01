@@ -21,6 +21,9 @@ public class PlayerWeapon : NetworkBehaviour
     [Header("Reload")]
     [SerializeField] private float reloadDuration = 3.0f;
 
+    [SerializeField] private Transform muzzleTransform;
+    [SerializeField] private float muzzleExitOffset = 0.05f;
+
     private PlayerHealth playerHealth;
     private PlayerLook playerLook;
     private PlayerCamera playerCamera;
@@ -274,17 +277,26 @@ public class PlayerWeapon : NetworkBehaviour
     {
         if (!projectilePrefab.IsValid)
         {
-            Debug.LogError($"{name}: Projectile Prefab is not assigned or is not a NetworkPrefabRef.");
+            Debug.LogError($"{name}: Projectile Prefab is not assigned.");
             return;
         }
 
-        Vector3 fireDirection = playerLook.ViewForward;
+        Vector3 fireDirection;
+        Vector3 spawnPosition;
+        Quaternion spawnRotation;
 
-        Vector3 spawnPosition =
-            playerCamera.CameraPosition
-            + fireDirection * projectileSpawnDistance;
-
-        Quaternion spawnRotation = Quaternion.LookRotation(fireDirection, playerLook.ViewUp);
+        if (muzzleTransform != null)
+        {
+            fireDirection = muzzleTransform.forward.normalized;
+            spawnPosition = muzzleTransform.position + fireDirection * muzzleExitOffset;
+            spawnRotation = Quaternion.LookRotation(fireDirection, muzzleTransform.up);
+        }
+        else
+        {
+            fireDirection = playerLook.ViewForward;
+            spawnPosition = playerCamera.CameraPosition + fireDirection * projectileSpawnDistance;
+            spawnRotation = Quaternion.LookRotation(fireDirection, playerLook.ViewUp);
+        }
 
         NetworkObject projectileObject = Runner.Spawn(
             projectilePrefab,
@@ -294,10 +306,8 @@ public class PlayerWeapon : NetworkBehaviour
         );
 
         Projectile projectile = projectileObject.GetComponent<Projectile>();
-
         if (projectile == null)
         {
-            Debug.LogError($"{name}: Spawned projectile does not have Projectile component.");
             Runner.Despawn(projectileObject);
             return;
         }
