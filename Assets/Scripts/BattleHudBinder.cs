@@ -6,9 +6,11 @@ public class BattleHudBinder : MonoBehaviour
 {
     [SerializeField] private HealthBar healthBar;
     [SerializeField] private AmmoBar ammoBar;
+    [SerializeField] private SkillHudUI skillHudUI;
 
     private PlayerHealth currentHealth;
     private PlayerWeapon currentWeapon;
+    private PlayerSkillController currentSkillController;
 
     private bool spectatorOverride;
     private Coroutine bindLocalCoroutine;
@@ -23,6 +25,11 @@ public class BattleHudBinder : MonoBehaviour
         if (ammoBar == null)
         {
             ammoBar = FindFirstObjectByType<AmmoBar>();
+        }
+
+        if (skillHudUI == null)
+        {
+            skillHudUI = FindFirstObjectByType<SkillHudUI>();
         }
     }
 
@@ -104,9 +111,11 @@ public class BattleHudBinder : MonoBehaviour
         }
 
         PlayerWeapon playerWeapon = playerHealth.GetComponent<PlayerWeapon>();
+        PlayerSkillController playerSkillController = playerHealth.GetComponent<PlayerSkillController>();
 
         currentHealth = playerHealth;
         currentWeapon = playerWeapon;
+        currentSkillController = playerSkillController;
 
         if (healthBar != null)
         {
@@ -130,10 +139,24 @@ public class BattleHudBinder : MonoBehaviour
             Debug.LogWarning($"[BattleHudBinder] PlayerWeapon not found: {playerHealth.name}");
         }
 
+        if (skillHudUI != null && currentSkillController != null)
+        {
+            skillHudUI.SetupSkillController(currentSkillController);
+        }
+        else if (skillHudUI == null)
+        {
+            Debug.LogWarning("[BattleHudBinder] SkillHudUI is null.");
+        }
+        else
+        {
+            Debug.LogWarning($"[BattleHudBinder] PlayerSkillController not found: {playerHealth.name}");
+        }
+
         Debug.Log(
             $"[BattleHudBinder] Bound HUD to {playerHealth.name}. " +
             $"HP={playerHealth.CurrentHealth}/{playerHealth.MaxHealth}, " +
             $"Weapon={(playerWeapon != null ? playerWeapon.name : "null")}, " +
+            $"SkillController={(playerSkillController != null ? playerSkillController.name : "null")}, " +
             $"SpectatorOverride={spectatorOverride}"
         );
     }
