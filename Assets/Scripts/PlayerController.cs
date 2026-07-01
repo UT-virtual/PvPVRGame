@@ -126,6 +126,7 @@ public class PlayerController : NetworkBehaviour
         bool reloadPressed = pressedButtons.IsSet((int)PlayerInputButton.Reload);
         bool readyPressed = pressedButtons.IsSet((int)PlayerInputButton.Ready);
         bool skillPressed = pressedButtons.IsSet((int)PlayerInputButton.Skill);
+        bool switchSkillPressed = pressedButtons.IsSet((int)PlayerInputButton.SwitchSkill);
         bool fireHeld = input.Buttons.IsSet((int)PlayerInputButton.Fire);
 
         if (readyPressed && RoundManager.Instance != null)
@@ -207,6 +208,11 @@ public class PlayerController : NetworkBehaviour
         if (!canUseWeapon)
         {
             return;
+        }
+
+        if (switchSkillPressed && playerSkillController != null)
+        {
+            playerSkillController.SwitchCurrentSkill();
         }
 
         if (skillPressed && playerSkillController != null)

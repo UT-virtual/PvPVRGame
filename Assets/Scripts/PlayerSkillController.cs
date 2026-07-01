@@ -67,11 +67,21 @@ public class PlayerSkillController : NetworkBehaviour
     private PlayerHealth playerHealth;
 
     [Networked] public PlayerSkillType CurrentRoundSkill { get; private set; }
+    [Networked] public PlayerSkillType CurrentRoundSecondSkill { get; private set; }
+
     [Networked] public PlayerSkillType LastRoundSkill { get; private set; }
+    [Networked] public PlayerSkillType LastRoundSecondSkill { get; private set; }
+
     [Networked] public PlayerSkillType ActiveSkill { get; private set; }
+    [Networked] public int CurrentSelectedSkillIndex { get; private set; }
 
     [Networked] private TickTimer SkillActiveTimer { get; set; }
     [Networked] private TickTimer CooldownTimer { get; set; }
+
+    public PlayerSkillType CurrentSelectedRoundSkill =>
+        CurrentSelectedSkillIndex <= 0
+            ? CurrentRoundSkill
+            : CurrentRoundSecondSkill;
 
     private void Awake()
     {
@@ -112,10 +122,17 @@ public class PlayerSkillController : NetworkBehaviour
             return true;
         }
 
-        return skill != LastRoundSkill;
+        return
+            skill != LastRoundSkill &&
+            skill != LastRoundSecondSkill;
     }
 
     public void PrepareForRound(PlayerSkillType requestedSkill)
+    {
+        PrepareForRound(requestedSkill, PlayerSkillType.None);
+    }
+
+    public void PrepareForRound(PlayerSkillType requestedFirstSkill, PlayerSkillType requestedSecondSkill)
     {
         if (Object == null || !Object.HasStateAuthority)
         {
@@ -126,28 +143,62 @@ public class PlayerSkillController : NetworkBehaviour
         SkillActiveTimer = TickTimer.None;
         CooldownTimer = TickTimer.None;
 
-        PlayerSkillType selectedSkill = requestedSkill;
+        PlayerSkillType selectedFirstSkill = requestedFirstSkill;
+        PlayerSkillType selectedSecondSkill = requestedSecondSkill;
 
-        if (!CanSelectSkill(selectedSkill))
+        if (!CanSelectSkill(selectedFirstSkill))
         {
             Debug.Log(
-                $"[Skill] {gameObject.name}: {selectedSkill} cannot be used in consecutive rounds. Set to None."
+                $"[Skill] {gameObject.name}: {selectedFirstSkill} cannot be used in consecutive rounds. Set first skill to None."
             );
 
-            selectedSkill = PlayerSkillType.None;
+            selectedFirstSkill = PlayerSkillType.None;
         }
 
-        CurrentRoundSkill = selectedSkill;
-
-        if (selectedSkill != PlayerSkillType.None)
+        if (!CanSelectSkill(selectedSecondSkill))
         {
-            LastRoundSkill = selectedSkill;
+            Debug.Log(
+                $"[Skill] {gameObject.name}: {selectedSecondSkill} cannot be used in consecutive rounds. Set second skill to None."
+            );
+
+            selectedSecondSkill = PlayerSkillType.None;
         }
+
+        if (selectedSecondSkill != PlayerSkillType.None && selectedSecondSkill == selectedFirstSkill)
+        {
+            Debug.Log(
+                $"[Skill] {gameObject.name}: Same skill selected twice. Set second skill to None. Skill={selectedSecondSkill}"
+            );
+
+            selectedSecondSkill = PlayerSkillType.None;
+        }
+
+        CurrentRoundSkill = selectedFirstSkill;
+        CurrentRoundSecondSkill = selectedSecondSkill;
+
+        if (CurrentRoundSkill != PlayerSkillType.None)
+        {
+            CurrentSelectedSkillIndex = 0;
+        }
+        else if (CurrentRoundSecondSkill != PlayerSkillType.None)
+        {
+            CurrentSelectedSkillIndex = 1;
+        }
+        else
+        {
+            CurrentSelectedSkillIndex = 0;
+        }
+
+        LastRoundSkill = selectedFirstSkill;
+        LastRoundSecondSkill = selectedSecondSkill;
 
         ApplySkillEffects();
 
         Debug.Log(
-            $"[Skill] {gameObject.name}: RoundSkill={CurrentRoundSkill}, LastRoundSkill={LastRoundSkill}"
+            $"[Skill] {gameObject.name}: " +
+            $"RoundSkill1={CurrentRoundSkill}, RoundSkill2={CurrentRoundSecondSkill}, " +
+            $"SelectedIndex={CurrentSelectedSkillIndex}, " +
+            $"LastSkill1={LastRoundSkill}, LastSkill2={LastRoundSecondSkill}"
         );
     }
 
@@ -159,6 +210,9 @@ public class PlayerSkillController : NetworkBehaviour
         }
 
         CurrentRoundSkill = PlayerSkillType.None;
+        CurrentRoundSecondSkill = PlayerSkillType.None;
+        CurrentSelectedSkillIndex = 0;
+
         ActiveSkill = PlayerSkillType.None;
         SkillActiveTimer = TickTimer.None;
         CooldownTimer = TickTimer.None;
@@ -174,7 +228,45 @@ public class PlayerSkillController : NetworkBehaviour
         }
 
         LastRoundSkill = PlayerSkillType.None;
+        LastRoundSecondSkill = PlayerSkillType.None;
+
         ClearSkillState();
+    }
+
+    public void SwitchCurrentSkill()
+    {
+        if (Object == null || !Object.HasStateAuthority)
+        {
+            return;
+        }
+
+        bool hasFirstSkill = CurrentRoundSkill != PlayerSkillType.None;
+        bool hasSecondSkill = CurrentRoundSecondSkill != PlayerSkillType.None;
+
+        if (!hasFirstSkill && !hasSecondSkill)
+        {
+            Debug.Log($"[Skill] {gameObject.name}: Cannot switch skill because no skills are selected.");
+            return;
+        }
+
+        if (hasFirstSkill && !hasSecondSkill)
+        {
+            CurrentSelectedSkillIndex = 0;
+        }
+        else if (!hasFirstSkill && hasSecondSkill)
+        {
+            CurrentSelectedSkillIndex = 1;
+        }
+        else
+        {
+            CurrentSelectedSkillIndex = CurrentSelectedSkillIndex <= 0 ? 1 : 0;
+        }
+
+        Debug.Log(
+            $"[Skill] {gameObject.name}: Switched current skill. " +
+            $"SelectedIndex={CurrentSelectedSkillIndex}, " +
+            $"SelectedSkill={CurrentSelectedRoundSkill}"
+        );
     }
 
     public void TryActivateSkill()
@@ -184,9 +276,11 @@ public class PlayerSkillController : NetworkBehaviour
             return;
         }
 
-        if (CurrentRoundSkill == PlayerSkillType.None)
+        PlayerSkillType selectedSkill = CurrentSelectedRoundSkill;
+
+        if (selectedSkill == PlayerSkillType.None)
         {
-            Debug.Log($"[Skill] {gameObject.name}: No skill selected.");
+            Debug.Log($"[Skill] {gameObject.name}: No current skill selected.");
             return;
         }
 
@@ -202,7 +296,7 @@ public class PlayerSkillController : NetworkBehaviour
             return;
         }
 
-        switch (CurrentRoundSkill)
+        switch (selectedSkill)
         {
             case PlayerSkillType.DoubleJump:
                 ActivateDoubleJump();
@@ -257,7 +351,7 @@ public class PlayerSkillController : NetworkBehaviour
                 break;
 
             default:
-                Debug.LogWarning($"[Skill] Unsupported skill: {CurrentRoundSkill}");
+                Debug.LogWarning($"[Skill] Unsupported skill: {selectedSkill}");
                 break;
         }
     }

@@ -77,25 +77,38 @@ public class RoundManager : NetworkBehaviour
     [SerializeField] private bool countDebugSpectatorDummiesAsAlive = false;
 
     private readonly PlayerSkillType[] currentSkillOptions = new PlayerSkillType[4];
+    private readonly PlayerSkillType[] secondSkillOptions = new PlayerSkillType[4];
 
     public int SkillOptionSlotCount => currentSkillOptions.Length;
+    public int RequiredSkillSelectionCount => 2;
     public float SkillSelectionDuration => skillSelectionDuration;
 
     public PlayerSkillType GetSkillOption(int slotIndex)
+    {
+        return GetSkillOption(slotIndex, 0);
+    }
+
+    public PlayerSkillType GetSkillOption(int slotIndex, int selectionIndex)
     {
         if (slotIndex < 0 || slotIndex >= currentSkillOptions.Length)
         {
             return PlayerSkillType.None;
         }
 
-        return currentSkillOptions[slotIndex];
+        PlayerSkillType[] targetOptions = selectionIndex <= 0
+            ? currentSkillOptions
+            : secondSkillOptions;
+
+        return targetOptions[slotIndex];
     }
 
     private readonly List<PlayerHealth> players = new();
     private readonly Dictionary<PlayerHealth, int> points = new();
     private readonly Dictionary<PlayerHealth, bool> readyStates = new();
     private readonly Dictionary<PlayerHealth, bool> skillSelectedStates = new();
+    private readonly Dictionary<PlayerHealth, int> skillSelectionCounts = new();
     private readonly Dictionary<PlayerHealth, PlayerSkillType> selectedSkills = new();
+    private readonly Dictionary<PlayerHealth, PlayerSkillType> selectedSecondSkills = new();
 
     public int currentRound = 1;
     [Networked]
@@ -269,7 +282,9 @@ public class RoundManager : NetworkBehaviour
         points[player] = 0;
         readyStates[player] = false;
         skillSelectedStates[player] = false;
+        skillSelectionCounts[player] = 0;
         selectedSkills[player] = PlayerSkillType.None;
+        selectedSecondSkills[player] = PlayerSkillType.None;
 
         player.SetReadyState(false);
 
@@ -296,7 +311,9 @@ public class RoundManager : NetworkBehaviour
         points.Remove(player);
         readyStates.Remove(player);
         skillSelectedStates.Remove(player);
+        skillSelectionCounts.Remove(player);
         selectedSkills.Remove(player);
+        selectedSecondSkills.Remove(player);
 
         Debug.Log($"[RoundManager] Unregistered: {player.gameObject.name}, Count={players.Count}");
 
@@ -429,7 +446,9 @@ public class RoundManager : NetworkBehaviour
         foreach (PlayerHealth player in validPlayers)
         {
             skillSelectedStates[player] = false;
+            skillSelectionCounts[player] = 0;
             selectedSkills[player] = PlayerSkillType.None;
+            selectedSecondSkills[player] = PlayerSkillType.None;
         }
     }
 
@@ -451,7 +470,9 @@ public class RoundManager : NetworkBehaviour
             return;
         }
 
-        if (skillSelectedStates.TryGetValue(player, out bool alreadySelected) && alreadySelected)
+        int selectionIndex = GetSkillSelectionCount(player);
+
+        if (selectionIndex >= RequiredSkillSelectionCount)
         {
             return;
         }
@@ -462,7 +483,7 @@ public class RoundManager : NetworkBehaviour
             return;
         }
 
-        PlayerSkillType skill = currentSkillOptions[slotIndex];
+        PlayerSkillType skill = GetSkillOption(slotIndex, selectionIndex);
 
         if (skill == PlayerSkillType.None)
         {
@@ -473,9 +494,28 @@ public class RoundManager : NetworkBehaviour
         SelectSkill(player, skill, false);
     }
 
+    private int GetSkillSelectionCount(PlayerHealth player)
+    {
+        if (player == null)
+        {
+            return 0;
+        }
+
+        return skillSelectionCounts.TryGetValue(player, out int count)
+            ? count
+            : 0;
+    }
+
     private void SelectSkill(PlayerHealth player, PlayerSkillType skill, bool isAutoSelect)
     {
         if (player == null)
+        {
+            return;
+        }
+
+        int selectionIndex = GetSkillSelectionCount(player);
+
+        if (selectionIndex >= RequiredSkillSelectionCount)
         {
             return;
         }
@@ -501,11 +541,31 @@ public class RoundManager : NetworkBehaviour
             skill = PlayerSkillType.None;
         }
 
-        selectedSkills[player] = skill;
-        skillSelectedStates[player] = true;
+        if (selectionIndex > 0 &&
+            skill != PlayerSkillType.None &&
+            selectedSkills.TryGetValue(player, out PlayerSkillType firstSkill) &&
+            firstSkill == skill)
+        {
+            Debug.LogWarning($"[RoundManager] Same skill selected twice in same round: {skill}");
+            return;
+        }
+
+        if (selectionIndex == 0)
+        {
+            selectedSkills[player] = skill;
+        }
+        else
+        {
+            selectedSecondSkills[player] = skill;
+        }
+
+        int newSelectionCount = selectionIndex + 1;
+        skillSelectionCounts[player] = newSelectionCount;
+        skillSelectedStates[player] = newSelectionCount >= RequiredSkillSelectionCount;
 
         Debug.Log(
             $"[RoundManager] Skill Selected: {player.gameObject.name}, " +
+            $"Index={newSelectionCount}/{RequiredSkillSelectionCount}, " +
             $"Skill={skill}, Auto={isAutoSelect}"
         );
 
@@ -529,7 +589,9 @@ public class RoundManager : NetworkBehaviour
 
         foreach (PlayerHealth player in validPlayers)
         {
-            if (!skillSelectedStates.TryGetValue(player, out bool selected) || !selected)
+            int selectedCount = GetSkillSelectionCount(player);
+
+            if (selectedCount < RequiredSkillSelectionCount)
             {
                 return;
             }
@@ -545,6 +607,56 @@ public class RoundManager : NetworkBehaviour
         startRoundCoroutine = StartCoroutine(StartRoundAfterSkillSelectionCoroutine());
     }
 
+    private void AutoSelectMissingSkills()
+    {
+        List<PlayerHealth> validPlayers = GetValidPlayers();
+
+        foreach (PlayerHealth player in validPlayers)
+        {
+            while (GetSkillSelectionCount(player) < RequiredSkillSelectionCount)
+            {
+                int selectionIndex = GetSkillSelectionCount(player);
+                PlayerSkillType autoSkill = GetAutoSelectableSkill(player, selectionIndex);
+
+                SelectSkill(player, autoSkill, true);
+            }
+        }
+    }
+
+    private PlayerSkillType GetAutoSelectableSkill(PlayerHealth player, int selectionIndex)
+    {
+        if (player == null)
+        {
+            return PlayerSkillType.None;
+        }
+
+        PlayerSkillController skillController = player.GetComponent<PlayerSkillController>();
+
+        for (int i = 0; i < SkillOptionSlotCount; i++)
+        {
+            PlayerSkillType skill = GetSkillOption(i, selectionIndex);
+
+            if (skill == PlayerSkillType.None)
+            {
+                continue;
+            }
+
+            if (selectionIndex > 0 &&
+                selectedSkills.TryGetValue(player, out PlayerSkillType firstSkill) &&
+                firstSkill == skill)
+            {
+                continue;
+            }
+
+            if (skillController == null || skillController.CanSelectSkill(skill))
+            {
+                return skill;
+            }
+        }
+
+        return PlayerSkillType.None;
+    }
+
     private IEnumerator SkillSelectionTimeoutCoroutine()
     {
         yield return new WaitForSeconds(skillSelectionDuration);
@@ -558,47 +670,6 @@ public class RoundManager : NetworkBehaviour
 
         AutoSelectMissingSkills();
         TryFinishSkillSelection();
-    }
-
-    private void AutoSelectMissingSkills()
-    {
-        List<PlayerHealth> validPlayers = GetValidPlayers();
-
-        foreach (PlayerHealth player in validPlayers)
-        {
-            if (skillSelectedStates.TryGetValue(player, out bool selected) && selected)
-            {
-                continue;
-            }
-
-            PlayerSkillType autoSkill = GetAutoSelectableSkill(player);
-            SelectSkill(player, autoSkill, true);
-        }
-    }
-
-    private PlayerSkillType GetAutoSelectableSkill(PlayerHealth player)
-    {
-        if (player == null)
-        {
-            return PlayerSkillType.None;
-        }
-
-        PlayerSkillController skillController = player.GetComponent<PlayerSkillController>();
-
-        foreach (PlayerSkillType skill in currentSkillOptions)
-        {
-            if (skill == PlayerSkillType.None)
-            {
-                continue;
-            }
-
-            if (skillController == null || skillController.CanSelectSkill(skill))
-            {
-                return skill;
-            }
-        }
-
-        return PlayerSkillType.None;
     }
 
     private IEnumerator StartRoundAfterSkillSelectionCoroutine()
@@ -628,11 +699,17 @@ public class RoundManager : NetworkBehaviour
 
         foreach (PlayerHealth player in validPlayers)
         {
-            PlayerSkillType selectedSkill = PlayerSkillType.None;
+            PlayerSkillType selectedFirstSkill = PlayerSkillType.None;
+            PlayerSkillType selectedSecondSkill = PlayerSkillType.None;
 
-            if (selectedSkills.TryGetValue(player, out PlayerSkillType skill))
+            if (selectedSkills.TryGetValue(player, out PlayerSkillType firstSkill))
             {
-                selectedSkill = skill;
+                selectedFirstSkill = firstSkill;
+            }
+
+            if (selectedSecondSkills.TryGetValue(player, out PlayerSkillType secondSkill))
+            {
+                selectedSecondSkill = secondSkill;
             }
 
             PlayerSkillController skillController = player.GetComponent<PlayerSkillController>();
@@ -643,7 +720,7 @@ public class RoundManager : NetworkBehaviour
                 continue;
             }
 
-            skillController.PrepareForRound(selectedSkill);
+            skillController.PrepareForRound(selectedFirstSkill, selectedSecondSkill);
         }
     }
 
@@ -786,7 +863,9 @@ public class RoundManager : NetworkBehaviour
             points[player] = 0;
             readyStates[player] = false;
             skillSelectedStates[player] = false;
+            skillSelectionCounts[player] = 0;
             selectedSkills[player] = PlayerSkillType.None;
+            selectedSecondSkills[player] = PlayerSkillType.None;
 
             player.SetReadyState(false);
 
@@ -1026,29 +1105,39 @@ public class RoundManager : NetworkBehaviour
     {
         List<PlayerHealth> validPlayers = GetValidPlayers();
 
-        int selectedCount = 0;
+        int completedCount = 0;
 
         foreach (PlayerHealth player in validPlayers)
         {
-            bool selected = skillSelectedStates.TryGetValue(player, out bool value) && value;
-            PlayerSkillType skill = selectedSkills.TryGetValue(player, out PlayerSkillType selectedSkill)
-                ? selectedSkill
+            int selectedCount = GetSkillSelectionCount(player);
+
+            PlayerSkillType firstSkill = selectedSkills.TryGetValue(player, out PlayerSkillType selectedFirstSkill)
+                ? selectedFirstSkill
                 : PlayerSkillType.None;
 
-            if (selected)
+            PlayerSkillType secondSkill = selectedSecondSkills.TryGetValue(player, out PlayerSkillType selectedSecondSkill)
+                ? selectedSecondSkill
+                : PlayerSkillType.None;
+
+            bool completed = selectedCount >= RequiredSkillSelectionCount;
+
+            if (completed)
             {
-                selectedCount++;
+                completedCount++;
             }
 
             Debug.Log(
                 $"[RoundManager] SkillState: " +
-                $"{player.gameObject.name}, Selected={selected}, Skill={skill}"
+                $"{player.gameObject.name}, " +
+                $"Count={selectedCount}/{RequiredSkillSelectionCount}, " +
+                $"Completed={completed}, " +
+                $"First={firstSkill}, Second={secondSkill}"
             );
         }
 
         Debug.Log(
             $"[RoundManager] Skill Selected Count: " +
-            $"{selectedCount}/{validPlayers.Count}"
+            $"{completedCount}/{validPlayers.Count}"
         );
     }
 
@@ -1213,37 +1302,92 @@ public class RoundManager : NetworkBehaviour
             .Distinct()
             .ToList();
 
-        if (candidates.Count == 0)
-        {
-            for (int i = 0; i < currentSkillOptions.Length; i++)
-            {
-                currentSkillOptions[i] = PlayerSkillType.None;
-            }
+        FillSkillOptionArray(currentSkillOptions, candidates);
 
-            RPC_SetSkillOptions(
-                currentSkillOptions[0],
-                currentSkillOptions[1],
-                currentSkillOptions[2],
-                currentSkillOptions[3]
-            );
+        HashSet<PlayerSkillType> firstOptionSet = currentSkillOptions
+            .Where(skill => skill != PlayerSkillType.None)
+            .ToHashSet();
 
-            return;
-        }
+        List<PlayerSkillType> secondCandidates = candidates
+            .Where(skill => !firstOptionSet.Contains(skill))
+            .ToList();
 
-        ShuffleSkillList(candidates);
-
-        for (int i = 0; i < currentSkillOptions.Length; i++)
-        {
-            currentSkillOptions[i] = i < candidates.Count
-                ? candidates[i]
-                : PlayerSkillType.None;
-        }
+        FillSkillOptionArray(secondSkillOptions, secondCandidates);
 
         RPC_SetSkillOptions(
             currentSkillOptions[0],
             currentSkillOptions[1],
             currentSkillOptions[2],
-            currentSkillOptions[3]
+            currentSkillOptions[3],
+            secondSkillOptions[0],
+            secondSkillOptions[1],
+            secondSkillOptions[2],
+            secondSkillOptions[3]
+        );
+    }
+
+    private void FillSkillOptionArray(PlayerSkillType[] targetOptions, List<PlayerSkillType> candidates)
+    {
+        if (targetOptions == null)
+        {
+            return;
+        }
+
+        for (int i = 0; i < targetOptions.Length; i++)
+        {
+            targetOptions[i] = PlayerSkillType.None;
+        }
+
+        if (candidates == null || candidates.Count == 0)
+        {
+            return;
+        }
+
+        List<PlayerSkillType> shuffledCandidates = candidates
+            .Where(skill => skill != PlayerSkillType.None)
+            .Distinct()
+            .ToList();
+
+        ShuffleSkillList(shuffledCandidates);
+
+        for (int i = 0; i < targetOptions.Length; i++)
+        {
+            targetOptions[i] = i < shuffledCandidates.Count
+                ? shuffledCandidates[i]
+                : PlayerSkillType.None;
+        }
+    }
+
+    [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+    private void RPC_SetSkillOptions(
+        PlayerSkillType slot0,
+        PlayerSkillType slot1,
+        PlayerSkillType slot2,
+        PlayerSkillType slot3,
+        PlayerSkillType secondSlot0,
+        PlayerSkillType secondSlot1,
+        PlayerSkillType secondSlot2,
+        PlayerSkillType secondSlot3
+    )
+    {
+        currentSkillOptions[0] = slot0;
+        currentSkillOptions[1] = slot1;
+        currentSkillOptions[2] = slot2;
+        currentSkillOptions[3] = slot3;
+
+        secondSkillOptions[0] = secondSlot0;
+        secondSkillOptions[1] = secondSlot1;
+        secondSkillOptions[2] = secondSlot2;
+        secondSkillOptions[3] = secondSlot3;
+
+        Debug.Log(
+            $"[RoundManager] First Skill Options: " +
+            $"1={slot0}, 2={slot1}, 3={slot2}, 4={slot3}"
+        );
+
+        Debug.Log(
+            $"[RoundManager] Second Skill Options: " +
+            $"1={secondSlot0}, 2={secondSlot1}, 3={secondSlot2}, 4={secondSlot3}"
         );
     }
 
@@ -1263,26 +1407,6 @@ public class RoundManager : NetworkBehaviour
             list[randomIndex] = temp;
         }
     }
-
-    [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
-    private void RPC_SetSkillOptions(
-        PlayerSkillType slot0,
-        PlayerSkillType slot1,
-        PlayerSkillType slot2,
-        PlayerSkillType slot3
-    )
-    {
-        currentSkillOptions[0] = slot0;
-        currentSkillOptions[1] = slot1;
-        currentSkillOptions[2] = slot2;
-        currentSkillOptions[3] = slot3;
-
-        Debug.Log(
-            $"[RoundManager] Skill Options: " +
-            $"1={slot0}, 2={slot1}, 3={slot2}, 4={slot3}"
-        );
-    }
-    
     private int CountAliveDebugSpectatorDummies()
     {
         PlayerHealth[] allPlayers = FindObjectsByType<PlayerHealth>(FindObjectsSortMode.None);

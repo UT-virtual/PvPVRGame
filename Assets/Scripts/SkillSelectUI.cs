@@ -46,7 +46,11 @@ public class SkillSelectUI : MonoBehaviour
                 networkLauncher != null &&
                 networkLauncher.HasLocalSkillSelectionConfirmed;
 
-            UpdateTexts(localPlayerSelected);
+            int selectionStep = networkLauncher != null
+                ? networkLauncher.LocalSkillSelectionStep
+                : 0;
+
+            UpdateTexts(localPlayerSelected, selectionStep);
             SetSkillSelectionControlsVisible(!localPlayerSelected);
 
             if (!localPlayerSelected)
@@ -76,13 +80,20 @@ public class SkillSelectUI : MonoBehaviour
         }
     }
 
-    private void UpdateTexts(bool localPlayerSelected)
+    private void UpdateTexts(bool localPlayerSelected, int selectionStep)
     {
         if (titleText != null)
         {
-            titleText.text = localPlayerSelected
-                ? "他の参加者が選択しています。"
-                : "スキル選択";
+            if (localPlayerSelected)
+            {
+                titleText.text = "他の参加者が選択しています。";
+            }
+            else
+            {
+                titleText.text = selectionStep <= 0
+                    ? "スキル選択 1/2"
+                    : "スキル選択 2/2";
+            }
         }
 
         if (timerText != null)
@@ -137,6 +148,10 @@ public class SkillSelectUI : MonoBehaviour
             ? networkLauncher.CurrentSkillSelectionSlot
             : -1;
 
+        int selectionStep = networkLauncher != null
+            ? networkLauncher.LocalSkillSelectionStep
+            : 0;
+
         for (int i = 0; i < skillCards.Length; i++)
         {
             if (skillCards[i] == null)
@@ -144,7 +159,7 @@ public class SkillSelectUI : MonoBehaviour
                 continue;
             }
 
-            PlayerSkillType skill = roundManager.GetSkillOption(i);
+            PlayerSkillType skill = roundManager.GetSkillOption(i, selectionStep);
 
             skillCards[i].SetSkill(i, skill);
             skillCards[i].SetSelected(i == selectedSlot);

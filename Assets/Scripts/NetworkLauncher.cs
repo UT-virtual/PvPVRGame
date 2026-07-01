@@ -61,11 +61,14 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
     [SerializeField] private float skillSelectionStickThreshold = 0.6f;
 
     private int currentSkillSelectionSlot;
+    private int localSkillSelectionStep;
+    private PlayerSkillType localFirstSelectedSkill = PlayerSkillType.None;
     private bool wasSkillSelecting;
     private bool skillSelectionMoveHeld;
     private bool localSkillSelectionConfirmed;
 
     public int CurrentSkillSelectionSlot => currentSkillSelectionSlot;
+    public int LocalSkillSelectionStep => localSkillSelectionStep;
     public bool HasLocalSkillSelectionConfirmed => localSkillSelectionConfirmed;
 
     private bool isStartingGame;
@@ -86,6 +89,7 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
     private bool selectSkill2Queued;
     private bool selectSkill3Queued;
     private bool selectSkill4Queued;
+    private bool switchSkillQueued;
     private bool wasLeftTriggerPressed;
 
     private PlayerController localPlayerController;
@@ -485,6 +489,11 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
         {
             skillQueued = true;
         }
+
+        if (ReadSwitchSkillPressed())
+        {
+            switchSkillQueued = true;
+        }
     }
 
     private void UpdateSkillSelectionInput()
@@ -494,6 +503,8 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
         if (!wasSkillSelecting)
         {
             currentSkillSelectionSlot = 0;
+            localSkillSelectionStep = 0;
+            localFirstSelectedSkill = PlayerSkillType.None;
             localSkillSelectionConfirmed = false;
 
             skillSelectionMoveHeld = IsSkillSelectionNavigateActive(navigateInput);
@@ -526,6 +537,8 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
     {
         wasSkillSelecting = false;
         skillSelectionMoveHeld = false;
+        localSkillSelectionStep = 0;
+        localFirstSelectedSkill = PlayerSkillType.None;
         localSkillSelectionConfirmed = false;
     }
 
@@ -643,6 +656,11 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
             return;
         }
 
+        RoundManager roundManager = RoundManager.Instance;
+        PlayerSkillType selectedSkill = roundManager != null
+            ? roundManager.GetSkillOption(currentSkillSelectionSlot, localSkillSelectionStep)
+            : PlayerSkillType.None;
+
         bool queued = true;
 
         switch (currentSkillSelectionSlot)
@@ -674,45 +692,77 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
             return;
         }
 
-        localSkillSelectionConfirmed = true;
+        Debug.Log(
+            $"[NetworkLauncher] Confirm skill slot: " +
+            $"{currentSkillSelectionSlot + 1}, " +
+            $"Step={localSkillSelectionStep + 1}, " +
+            $"Skill={selectedSkill}"
+        );
 
-        Debug.Log($"[NetworkLauncher] Confirm skill slot: {currentSkillSelectionSlot + 1}");
+        if (localSkillSelectionStep <= 0)
+        {
+            localFirstSelectedSkill = selectedSkill;
+            localSkillSelectionStep = 1;
+            currentSkillSelectionSlot = 0;
+            skillSelectionMoveHeld = true;
+            localSkillSelectionConfirmed = false;
+            return;
+        }
+
+        localSkillSelectionConfirmed = true;
     }
     
     private bool CanConfirmCurrentSkillSelection()
+{
+    RoundManager roundManager = RoundManager.Instance;
+
+    if (roundManager == null)
     {
-        RoundManager roundManager = RoundManager.Instance;
+        return false;
+    }
 
-        if (roundManager == null)
-        {
-            return false;
-        }
+    PlayerSkillType selectedSkill = roundManager.GetSkillOption(
+        currentSkillSelectionSlot,
+        localSkillSelectionStep
+    );
 
-        PlayerSkillType selectedSkill = roundManager.GetSkillOption(currentSkillSelectionSlot);
+    if (selectedSkill == PlayerSkillType.None)
+    {
+        Debug.LogWarning(
+            $"[NetworkLauncher] Cannot confirm empty skill slot: " +
+            $"{currentSkillSelectionSlot + 1}, Step={localSkillSelectionStep + 1}"
+        );
 
-        if (selectedSkill == PlayerSkillType.None)
-        {
-            Debug.LogWarning($"[NetworkLauncher] Cannot confirm empty skill slot: {currentSkillSelectionSlot + 1}");
-            return false;
-        }
+        return false;
+    }
 
-        if (localPlayerController == null)
-        {
-            return true;
-        }
+    if (localSkillSelectionStep > 0 && selectedSkill == localFirstSelectedSkill)
+    {
+        Debug.LogWarning(
+            $"[NetworkLauncher] Cannot select same skill twice: {selectedSkill}"
+        );
 
-        PlayerSkillController skillController = localPlayerController.GetComponent<PlayerSkillController>();
+        return false;
+    }
 
-        if (skillController != null && !skillController.CanSelectSkill(selectedSkill))
-        {
-            Debug.LogWarning(
-                $"[NetworkLauncher] Cannot confirm skill because it cannot be selected: {selectedSkill}"
-            );
-            return false;
-        }
-
+    if (localPlayerController == null)
+    {
         return true;
     }
+
+    PlayerSkillController skillController = localPlayerController.GetComponent<PlayerSkillController>();
+
+    if (skillController != null && !skillController.CanSelectSkill(selectedSkill))
+    {
+        Debug.LogWarning(
+            $"[NetworkLauncher] Cannot confirm skill because it cannot be selected: {selectedSkill}"
+        );
+
+        return false;
+    }
+
+    return true;
+}
 
     private void UpdateHMD()
     {
@@ -938,6 +988,7 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
         buttons.Set((int)PlayerInputButton.Reload, reloadQueued);
         buttons.Set((int)PlayerInputButton.Ready, readyQueued);
         buttons.Set((int)PlayerInputButton.Skill, skillQueued);
+        buttons.Set((int)PlayerInputButton.SwitchSkill, switchSkillQueued);
         buttons.Set((int)PlayerInputButton.SelectSkill1, selectSkill1Queued);
         buttons.Set((int)PlayerInputButton.SelectSkill2, selectSkill2Queued);
         buttons.Set((int)PlayerInputButton.SelectSkill3, selectSkill3Queued);
@@ -952,6 +1003,7 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
         reloadQueued = false;
         readyQueued = false;
         skillQueued = false;
+        switchSkillQueued = false;
         selectSkill1Queued = false;
         selectSkill2Queued = false;
         selectSkill3Queued = false;
@@ -1159,6 +1211,23 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
         }
 
         if (Gamepad.current != null && Gamepad.current.leftShoulder.wasPressedThisFrame)
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    private bool ReadSwitchSkillPressed()
+    {
+        if (Keyboard.current != null && Keyboard.current.qKey.wasPressedThisFrame)
+        {
+            return true;
+        }
+
+        // 後でVRコントローラーのボタンに差し替えるならここに追加する
+        // 例: Gamepad.current.rightShoulder / XR controller primaryButton など
+        if (Gamepad.current != null && Gamepad.current.rightShoulder.wasPressedThisFrame)
         {
             return true;
         }
