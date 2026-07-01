@@ -7,6 +7,13 @@ using UnityEngine;
 [RequireComponent(typeof(PlayerCamera))]
 public class PlayerWeapon : NetworkBehaviour
 {
+    private enum ProjectileShotKind
+    {
+        Normal,
+        GravityBurst,
+        Heavy
+    }
+
     [Header("Shoot")]
     [SerializeField] private NetworkPrefabRef projectilePrefab;
     [SerializeField] private float projectileSpeed = 18.0f;
@@ -24,6 +31,18 @@ public class PlayerWeapon : NetworkBehaviour
     [SerializeField] private Transform muzzleTransform;
     [SerializeField] private float muzzleExitOffset = 0.05f;
 
+    [Header("Gravity Burst Ammo")]
+    [SerializeField] private float gravityBurstSpeedMultiplier = 0.75f;
+    [SerializeField] private float gravityBurstDamageMultiplier = 1.0f;
+    [SerializeField] private float gravityBurstGravityAcceleration = 18.0f;
+    [SerializeField] private float gravityBurstExplosionRadius = 3.0f;
+    [SerializeField] private float gravityBurstExplosionDamageMultiplier = 1.0f;
+
+    [Header("Heavy Bullet Ammo")]
+    [SerializeField] private float heavyBulletSpeedMultiplier = 3.0f;
+    [SerializeField] private float heavyBulletDamageMultiplier = 5.0f;
+    [SerializeField] private float heavyBulletFireIntervalMultiplier = 6.0f;
+
     private PlayerHealth playerHealth;
     private PlayerLook playerLook;
     private PlayerCamera playerCamera;
@@ -35,6 +54,9 @@ public class PlayerWeapon : NetworkBehaviour
     private float projectileSpeedMultiplier = 1.0f;
     private bool instantReloadEnabled;
     private float damageDealtMultiplier = 1.0f;
+    private ProjectileShotKind loadedShotKind = ProjectileShotKind.Normal;
+    private int loadedSpecialAmmoRemaining;
+    private float pendingNextShotDamageMultiplier = 1.0f;
 
     [Networked, OnChangedRender(nameof(OnNetworkedAmmoChanged))]
     public int NetworkedCurrentAmmo { get; private set; }
@@ -62,6 +84,10 @@ public class PlayerWeapon : NetworkBehaviour
 
         fireIntervalMultiplier = 1.0f;
         projectileSpeedMultiplier = 1.0f;
+
+        loadedShotKind = ProjectileShotKind.Normal;
+        loadedSpecialAmmoRemaining = 0;
+        pendingNextShotDamageMultiplier = 1.0f;
     }
 
     public override void Spawned()
@@ -131,12 +157,59 @@ public class PlayerWeapon : NetworkBehaviour
 
     private float GetCurrentFireInterval()
     {
-        return fireInterval * fireIntervalMultiplier;
+        float result = fireInterval * fireIntervalMultiplier;
+
+        if (GetCurrentShotKind() == ProjectileShotKind.Heavy)
+        {
+            result *= heavyBulletFireIntervalMultiplier;
+        }
+
+        return result;
     }
 
     private float GetCurrentProjectileSpeed()
     {
-        return projectileSpeed * projectileSpeedMultiplier;
+        return projectileSpeed * projectileSpeedMultiplier * GetShotSpeedMultiplier(GetCurrentShotKind());
+    }
+
+    private ProjectileShotKind GetCurrentShotKind()
+    {
+        if (loadedShotKind == ProjectileShotKind.Normal || loadedSpecialAmmoRemaining <= 0)
+        {
+            return ProjectileShotKind.Normal;
+        }
+
+        return loadedShotKind;
+    }
+
+    private float GetShotSpeedMultiplier(ProjectileShotKind shotKind)
+    {
+        switch (shotKind)
+        {
+            case ProjectileShotKind.GravityBurst:
+                return gravityBurstSpeedMultiplier;
+
+            case ProjectileShotKind.Heavy:
+                return heavyBulletSpeedMultiplier;
+
+            default:
+                return 1.0f;
+        }
+    }
+
+    private float GetShotDamageMultiplier(ProjectileShotKind shotKind)
+    {
+        switch (shotKind)
+        {
+            case ProjectileShotKind.GravityBurst:
+                return gravityBurstDamageMultiplier;
+
+            case ProjectileShotKind.Heavy:
+                return heavyBulletDamageMultiplier;
+
+            default:
+                return 1.0f;
+        }
     }
 
     public void ReloadAmmo()
@@ -153,6 +226,16 @@ public class PlayerWeapon : NetworkBehaviour
 
         if (NetworkedCurrentAmmo >= maxAmmo)
         {
+            return;
+        }
+
+        ClearLoadedSpecialAmmo();
+
+        if (instantReloadEnabled)
+        {
+            RefillAmmoImmediately();
+
+            Debug.Log("Instant reload activated.");
             return;
         }
 
@@ -183,6 +266,9 @@ public class PlayerWeapon : NetworkBehaviour
         reloadTimer = 0.0f;
         NetworkedCurrentAmmo = maxAmmo;
 
+        ClearLoadedSpecialAmmo();
+        pendingNextShotDamageMultiplier = 1.0f;
+
         NotifyAmmoChanged();
 
         Debug.Log($"Ammo refilled immediately: {NetworkedCurrentAmmo}/{maxAmmo}");
@@ -198,6 +284,8 @@ public class PlayerWeapon : NetworkBehaviour
         NetworkedIsReloading = false;
         reloadTimer = 0.0f;
         NetworkedCurrentAmmo = maxAmmo;
+
+        ClearLoadedSpecialAmmo();
 
         OnReloaded?.Invoke();
         NotifyAmmoChanged();
@@ -255,9 +343,15 @@ public class PlayerWeapon : NetworkBehaviour
             return;
         }
 
-        FireProjectile();
+        ProjectileShotKind shotKind = GetCurrentShotKind();
+
+        if (!FireProjectile(shotKind))
+        {
+            return;
+        }
 
         NetworkedCurrentAmmo--;
+        ConsumeLoadedSpecialAmmo();
         fireTimer = currentFireInterval;
 
         OnShot?.Invoke();
@@ -273,12 +367,12 @@ public class PlayerWeapon : NetworkBehaviour
         );
     }
 
-    private void FireProjectile()
+    private bool FireProjectile(ProjectileShotKind shotKind)
     {
         if (!projectilePrefab.IsValid)
         {
             Debug.LogError($"{name}: Projectile Prefab is not assigned.");
-            return;
+            return false;
         }
 
         Vector3 fireDirection;
@@ -309,21 +403,132 @@ public class PlayerWeapon : NetworkBehaviour
         if (projectile == null)
         {
             Runner.Despawn(projectileObject);
-            return;
+            return false;
         }
+
+        bool useGravityBurst = shotKind == ProjectileShotKind.GravityBurst;
+
+        float currentDamage =
+            projectileDamage *
+            damageDealtMultiplier *
+            GetShotDamageMultiplier(shotKind) *
+            ConsumeNextShotDamageMultiplier();
+
+        float currentSpeed =
+            projectileSpeed *
+            projectileSpeedMultiplier *
+            GetShotSpeedMultiplier(shotKind);
+
+        Vector3 gravityDirection = GetProjectileGravityDirection();
 
         projectile.Initialize(
             fireDirection,
-            GetCurrentProjectileSpeed(),
+            currentSpeed,
             projectileLifeTime,
-            projectileDamage * damageDealtMultiplier,
-            playerHealth
+            currentDamage,
+            playerHealth,
+            useGravityBurst,
+            gravityDirection,
+            gravityBurstGravityAcceleration,
+            useGravityBurst,
+            gravityBurstExplosionRadius,
+            currentDamage * gravityBurstExplosionDamageMultiplier
         );
+
+        return true;
     }
 
     public void SetDamageDealtMultiplier(float multiplier)
     {
         damageDealtMultiplier = Mathf.Clamp(multiplier, 0.0f, 10.0f);
+    }
+
+    public void LoadGravityBurstAmmo(int ammoCount)
+    {
+        LoadSpecialAmmo(ProjectileShotKind.GravityBurst, ammoCount);
+    }
+
+    public void LoadHeavyBulletAmmo(int ammoCount)
+    {
+        LoadSpecialAmmo(ProjectileShotKind.Heavy, ammoCount);
+    }
+
+    public void SetNextShotDamageMultiplier(float multiplier)
+    {
+        if (Object == null || !Object.HasStateAuthority)
+        {
+            return;
+        }
+
+        pendingNextShotDamageMultiplier = Mathf.Clamp(multiplier, 1.0f, 10.0f);
+    }
+
+    private void LoadSpecialAmmo(ProjectileShotKind shotKind, int ammoCount)
+    {
+        if (Object == null || !Object.HasStateAuthority)
+        {
+            return;
+        }
+
+        int clampedAmmoCount = Mathf.Clamp(ammoCount, 1, maxAmmo);
+
+        NetworkedIsReloading = false;
+        reloadTimer = 0.0f;
+        loadedShotKind = shotKind;
+        loadedSpecialAmmoRemaining = clampedAmmoCount;
+        NetworkedCurrentAmmo = clampedAmmoCount;
+
+        NotifyAmmoChanged();
+
+        Debug.Log(
+            $"Special ammo loaded: Kind={loadedShotKind}, " +
+            $"Ammo={NetworkedCurrentAmmo}/{maxAmmo}"
+        );
+    }
+
+    private void ConsumeLoadedSpecialAmmo()
+    {
+        if (loadedShotKind == ProjectileShotKind.Normal || loadedSpecialAmmoRemaining <= 0)
+        {
+            return;
+        }
+
+        loadedSpecialAmmoRemaining = Mathf.Max(loadedSpecialAmmoRemaining - 1, 0);
+
+        if (loadedSpecialAmmoRemaining > 0 && NetworkedCurrentAmmo > 0)
+        {
+            return;
+        }
+
+        ClearLoadedSpecialAmmo();
+    }
+
+    private void ClearLoadedSpecialAmmo()
+    {
+        loadedShotKind = ProjectileShotKind.Normal;
+        loadedSpecialAmmoRemaining = 0;
+    }
+
+    private float ConsumeNextShotDamageMultiplier()
+    {
+        float result = pendingNextShotDamageMultiplier;
+        pendingNextShotDamageMultiplier = 1.0f;
+        return result;
+    }
+
+    private Vector3 GetProjectileGravityDirection()
+    {
+        if (playerLook != null && playerLook.ViewUp.sqrMagnitude > 0.0001f)
+        {
+            return -playerLook.ViewUp.normalized;
+        }
+
+        if (Physics.gravity.sqrMagnitude > 0.0001f)
+        {
+            return Physics.gravity.normalized;
+        }
+
+        return Vector3.down;
     }
 
     public void SetInstantReloadEnabled(bool enabled)

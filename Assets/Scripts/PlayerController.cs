@@ -55,6 +55,18 @@ public class PlayerController : NetworkBehaviour
         {
             Cursor.lockState = CursorLockMode.Locked;
             Cursor.visible = false;
+
+            NetworkLauncher launcher = FindFirstObjectByType<NetworkLauncher>();
+
+            if (launcher != null)
+            {
+                launcher.RegisterLocalPlayer(this);
+                launcher.NotifyLocalPlayerSpawnedOnWaitingPlanet();
+            }
+            else
+            {
+                Debug.LogWarning("[PlayerController] NetworkLauncher was not found.");
+            }
         }
 
         Debug.Log(
@@ -64,6 +76,21 @@ public class PlayerController : NetworkBehaviour
             $"HasInputAuthority={Object.HasInputAuthority}, " +
             $"HasStateAuthority={Object.HasStateAuthority}"
         );
+    }
+
+    public override void Despawned(NetworkRunner runner, bool hasState)
+    {
+        if (!Object.HasInputAuthority)
+        {
+            return;
+        }
+
+        NetworkLauncher launcher = FindFirstObjectByType<NetworkLauncher>();
+
+        if (launcher != null)
+        {
+            launcher.UnregisterLocalPlayer(this);
+        }
     }
 
     public override void FixedUpdateNetwork()
@@ -99,6 +126,7 @@ public class PlayerController : NetworkBehaviour
         bool reloadPressed = pressedButtons.IsSet((int)PlayerInputButton.Reload);
         bool readyPressed = pressedButtons.IsSet((int)PlayerInputButton.Ready);
         bool skillPressed = pressedButtons.IsSet((int)PlayerInputButton.Skill);
+        bool switchSkillPressed = pressedButtons.IsSet((int)PlayerInputButton.SwitchSkill);
         bool fireHeld = input.Buttons.IsSet((int)PlayerInputButton.Fire);
 
         if (readyPressed && RoundManager.Instance != null)
@@ -180,6 +208,11 @@ public class PlayerController : NetworkBehaviour
         if (!canUseWeapon)
         {
             return;
+        }
+
+        if (switchSkillPressed && playerSkillController != null)
+        {
+            playerSkillController.SwitchCurrentSkill();
         }
 
         if (skillPressed && playerSkillController != null)

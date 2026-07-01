@@ -8,6 +8,7 @@ public enum PlayerInputButton
     Reload,
     Ready,
     Skill,
+    SwitchSkill,
     SelectSkill1,
     SelectSkill2,
     SelectSkill3,

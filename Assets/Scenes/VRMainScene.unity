@@ -2395,8 +2395,8 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 280388582}
   m_HandleRect: {fileID: 280388581}
   m_Direction: 0
-  m_Value: 1
-  m_Size: 0.999971
+  m_Value: 0
+  m_Size: 0.9999764
   m_NumberOfSteps: 0
   m_OnValueChanged:
     m_PersistentCalls:
@@ -3515,7 +3515,7 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: 847176050165502015, guid: b5a26f89cc7544331ba5909bd6973c24, type: 3}
       propertyPath: SortKey
-      value: 3848845340
+      value: 875610903
       objectReference: {fileID: 0}
     - target: {fileID: 1461872884026709090, guid: b5a26f89cc7544331ba5909bd6973c24, type: 3}
       propertyPath: m_Name
@@ -3648,7 +3648,7 @@ MonoBehaviour:
   m_Script: {fileID: -1552182283, guid: e725a070cec140c4caffb81624c8c787, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Fusion.Runtime.dll::Fusion.NetworkObject
-  SortKey: 1048161609
+  SortKey: 2369894468
   ObjectInterest: 1
   Flags: 262145
   NestedObjects: []
@@ -3942,7 +3942,7 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: 847176050165502015, guid: b5a26f89cc7544331ba5909bd6973c24, type: 3}
       propertyPath: SortKey
-      value: 2098861530
+      value: 3420594389
       objectReference: {fileID: 0}
     - target: {fileID: 1461872884026709090, guid: b5a26f89cc7544331ba5909bd6973c24, type: 3}
       propertyPath: m_Name
@@ -4711,7 +4711,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 1}
   m_AnchorMax: {x: 1, y: 1}
-  m_AnchoredPosition: {x: 11253483, y: 13380297}
+  m_AnchoredPosition: {x: 11996981, y: 14263733}
   m_SizeDelta: {x: -183, y: 0}
   m_Pivot: {x: 0, y: 1}
 --- !u!114 &1502683515
@@ -5698,7 +5698,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: 281, y: 198.9}
+  m_AnchoredPosition: {x: 175, y: 198.9}
   m_SizeDelta: {x: 200, y: 50}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &1732371415
@@ -5974,7 +5974,7 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: 847176050165502015, guid: b5a26f89cc7544331ba5909bd6973c24, type: 3}
       propertyPath: SortKey
-      value: 461413035
+      value: 1783145894
       objectReference: {fileID: 0}
     - target: {fileID: 1461872884026709090, guid: b5a26f89cc7544331ba5909bd6973c24, type: 3}
       propertyPath: m_Name
@@ -7194,7 +7194,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 1}
   m_AnchorMax: {x: 1, y: 1}
-  m_AnchoredPosition: {x: -0.014200852, y: 0.0007567761}
+  m_AnchoredPosition: {x: -0.014050466, y: -0.0029791857}
   m_SizeDelta: {x: -183, y: 0}
   m_Pivot: {x: 0, y: 1}
 --- !u!114 &2049869607
@@ -7390,7 +7390,7 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: 847176050165502015, guid: b5a26f89cc7544331ba5909bd6973c24, type: 3}
       propertyPath: SortKey
-      value: 2282504988
+      value: 3604237847
       objectReference: {fileID: 0}
     - target: {fileID: 1461872884026709090, guid: b5a26f89cc7544331ba5909bd6973c24, type: 3}
       propertyPath: m_Name

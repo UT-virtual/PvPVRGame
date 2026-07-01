@@ -61,10 +61,15 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
     [SerializeField] private float skillSelectionStickThreshold = 0.6f;
 
     private int currentSkillSelectionSlot;
+    private int localSkillSelectionStep;
+    private PlayerSkillType localFirstSelectedSkill = PlayerSkillType.None;
     private bool wasSkillSelecting;
     private bool skillSelectionMoveHeld;
+    private bool localSkillSelectionConfirmed;
 
     public int CurrentSkillSelectionSlot => currentSkillSelectionSlot;
+    public int LocalSkillSelectionStep => localSkillSelectionStep;
+    public bool HasLocalSkillSelectionConfirmed => localSkillSelectionConfirmed;
 
     private bool isStartingGame;
     private GameObject runnerObject;
@@ -84,6 +89,7 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
     private bool selectSkill2Queued;
     private bool selectSkill3Queued;
     private bool selectSkill4Queued;
+    private bool switchSkillQueued;
     private bool wasLeftTriggerPressed;
 
     private PlayerController localPlayerController;
@@ -111,6 +117,7 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
     private Quaternion currentHMD = Quaternion.identity;
 
     private bool connectionButtonLocked;
+    private bool isReconnecting;
 
     private void Awake()
     {
@@ -415,9 +422,10 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
                 return;
             }
 
-            statusText =
-                $"Room not found. Retrying Client... " +
-                $"Attempt {attemptCount}, Room: {roomName}";
+            SetStatusText(
+                $"再接続先を検索中... " +
+                $"Attempt {attemptCount}, Room: {roomName}"
+            );
 
             Debug.Log(
                 $"[NetworkLauncher] GameNotFound. Retry Client after {clientRetryInterval} sec. " +
@@ -456,6 +464,12 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
 
         ResetSkillSelectionInputState();
 
+        if (CanReconnectFromWaitingRoom() && ReadReconnectPressed())
+        {
+            ReconnectAsClient();
+            return;
+        }
+
         if (ReadJumpPressed())
         {
             jumpQueued = true;
@@ -475,6 +489,11 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
         {
             skillQueued = true;
         }
+
+        if (ReadSwitchSkillPressed())
+        {
+            switchSkillQueued = true;
+        }
     }
 
     private void UpdateSkillSelectionInput()
@@ -484,10 +503,17 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
         if (!wasSkillSelecting)
         {
             currentSkillSelectionSlot = 0;
+            localSkillSelectionStep = 0;
+            localFirstSelectedSkill = PlayerSkillType.None;
+            localSkillSelectionConfirmed = false;
 
-            // 移動中にスキル選択へ入った瞬間、左スティック入力で勝手に動かないようにする。
             skillSelectionMoveHeld = IsSkillSelectionNavigateActive(navigateInput);
             wasSkillSelecting = true;
+            return;
+        }
+
+        if (localSkillSelectionConfirmed)
+        {
             return;
         }
 
@@ -511,6 +537,9 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
     {
         wasSkillSelecting = false;
         skillSelectionMoveHeld = false;
+        localSkillSelectionStep = 0;
+        localFirstSelectedSkill = PlayerSkillType.None;
+        localSkillSelectionConfirmed = false;
     }
 
     private Vector2 ReadSkillSelectionNavigateInput()
@@ -622,6 +651,18 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
 
     private void QueueSelectedSkillSlot()
     {
+        if (!CanConfirmCurrentSkillSelection())
+        {
+            return;
+        }
+
+        RoundManager roundManager = RoundManager.Instance;
+        PlayerSkillType selectedSkill = roundManager != null
+            ? roundManager.GetSkillOption(currentSkillSelectionSlot, localSkillSelectionStep)
+            : PlayerSkillType.None;
+
+        bool queued = true;
+
         switch (currentSkillSelectionSlot)
         {
             case 0:
@@ -641,16 +682,91 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
                 break;
 
             default:
+                queued = false;
                 Debug.LogWarning($"[NetworkLauncher] Invalid skill selection slot: {currentSkillSelectionSlot}");
                 break;
         }
 
-        Debug.Log($"[NetworkLauncher] Confirm skill slot: {currentSkillSelectionSlot + 1}");
+        if (!queued)
+        {
+            return;
+        }
+
+        Debug.Log(
+            $"[NetworkLauncher] Confirm skill slot: " +
+            $"{currentSkillSelectionSlot + 1}, " +
+            $"Step={localSkillSelectionStep + 1}, " +
+            $"Skill={selectedSkill}"
+        );
+
+        if (localSkillSelectionStep <= 0)
+        {
+            localFirstSelectedSkill = selectedSkill;
+            localSkillSelectionStep = 1;
+            currentSkillSelectionSlot = 0;
+            skillSelectionMoveHeld = true;
+            localSkillSelectionConfirmed = false;
+            return;
+        }
+
+        localSkillSelectionConfirmed = true;
     }
+    
+    private bool CanConfirmCurrentSkillSelection()
+{
+    RoundManager roundManager = RoundManager.Instance;
+
+    if (roundManager == null)
+    {
+        return false;
+    }
+
+    PlayerSkillType selectedSkill = roundManager.GetSkillOption(
+        currentSkillSelectionSlot,
+        localSkillSelectionStep
+    );
+
+    if (selectedSkill == PlayerSkillType.None)
+    {
+        Debug.LogWarning(
+            $"[NetworkLauncher] Cannot confirm empty skill slot: " +
+            $"{currentSkillSelectionSlot + 1}, Step={localSkillSelectionStep + 1}"
+        );
+
+        return false;
+    }
+
+    if (localSkillSelectionStep > 0 && selectedSkill == localFirstSelectedSkill)
+    {
+        Debug.LogWarning(
+            $"[NetworkLauncher] Cannot select same skill twice: {selectedSkill}"
+        );
+
+        return false;
+    }
+
+    if (localPlayerController == null)
+    {
+        return true;
+    }
+
+    PlayerSkillController skillController = localPlayerController.GetComponent<PlayerSkillController>();
+
+    if (skillController != null && !skillController.CanSelectSkill(selectedSkill))
+    {
+        Debug.LogWarning(
+            $"[NetworkLauncher] Cannot confirm skill because it cannot be selected: {selectedSkill}"
+        );
+
+        return false;
+    }
+
+    return true;
+}
 
     private void UpdateHMD()
     {
-    #if UNITY_EDITOR
+#if UNITY_EDITOR
         if (forceVrSimulationInEditor && useKeyboardHmdSimulationInEditor)
         {
             if (Keyboard.current != null)
@@ -683,7 +799,7 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
 
             return;
         }
-    #endif
+#endif
 
         if (!isVRActive)
         {
@@ -872,6 +988,7 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
         buttons.Set((int)PlayerInputButton.Reload, reloadQueued);
         buttons.Set((int)PlayerInputButton.Ready, readyQueued);
         buttons.Set((int)PlayerInputButton.Skill, skillQueued);
+        buttons.Set((int)PlayerInputButton.SwitchSkill, switchSkillQueued);
         buttons.Set((int)PlayerInputButton.SelectSkill1, selectSkill1Queued);
         buttons.Set((int)PlayerInputButton.SelectSkill2, selectSkill2Queued);
         buttons.Set((int)PlayerInputButton.SelectSkill3, selectSkill3Queued);
@@ -886,6 +1003,7 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
         reloadQueued = false;
         readyQueued = false;
         skillQueued = false;
+        switchSkillQueued = false;
         selectSkill1Queued = false;
         selectSkill2Queued = false;
         selectSkill3Queued = false;
@@ -1100,6 +1218,46 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
         return false;
     }
 
+    private bool ReadSwitchSkillPressed()
+    {
+        if (Keyboard.current != null && Keyboard.current.qKey.wasPressedThisFrame)
+        {
+            return true;
+        }
+
+        // 後でVRコントローラーのボタンに差し替えるならここに追加する
+        // 例: Gamepad.current.rightShoulder / XR controller primaryButton など
+        if (Gamepad.current != null && Gamepad.current.rightShoulder.wasPressedThisFrame)
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    private bool CanReconnectFromWaitingRoom()
+    {
+        if (isStartingGame || isReconnecting)
+        {
+            return false;
+        }
+
+        return
+            RoundManager.Instance != null &&
+            RoundManager.Instance.IsWaitingForReady;
+    }
+
+    private bool ReadReconnectPressed()
+    {
+        if (Keyboard.current != null && Keyboard.current.rKey.wasPressedThisFrame)
+        {
+            return true;
+        }
+
+        // 後でVRコントローラーのボタンに差し替えるならここに追加する
+        return false;
+    }
+
     private bool ReadSelectSkill1Pressed()
     {
         if (Keyboard.current != null)
@@ -1219,6 +1377,60 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
         return false;
     }
 
+    private async void ReconnectAsClient()
+    {
+        if (isStartingGame || isReconnecting)
+        {
+            return;
+        }
+
+        isReconnecting = true;
+
+        Debug.Log("[NetworkLauncher] Reconnect requested from waiting room.");
+
+        SetConnectionMenuVisible(false);
+        SetConnectionButtonsInteractable(false);
+        SetStatusText("再接続中...");
+        SetStatusTextVisible(true);
+
+        if (waitingRoomUI == null)
+        {
+            waitingRoomUI = FindFirstObjectByType<WaitingRoomUI>();
+        }
+
+        if (waitingRoomUI != null)
+        {
+            waitingRoomUI.SetLocalPlayerSpawned(false);
+            waitingRoomUI.HideRoomUI();
+        }
+
+        NetworkRunner currentRunner = runner;
+
+        if (currentRunner != null)
+        {
+            try
+            {
+                await currentRunner.Shutdown();
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning($"[NetworkLauncher] Runner shutdown during reconnect failed: {e}");
+            }
+        }
+
+        if (this == null)
+        {
+            return;
+        }
+
+        CleanupFailedRunner();
+
+        isReconnecting = false;
+        connectionButtonLocked = true;
+
+        StartGame(GameMode.Client);
+    }
+
     public void NotifyLocalPlayerSpawnedOnWaitingPlanet()
     {
         Debug.Log("[NetworkLauncher] Local player spawned on waiting planet.");
@@ -1246,16 +1458,28 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
 
     public void UnregisterLocalPlayer(PlayerController playerController)
     {
-        if (localPlayerController == playerController)
+        if (playerController == null)
         {
-            localPlayerController = null;
+            return;
         }
+
+        if (localPlayerController != playerController)
+        {
+            Debug.Log(
+                $"[NetworkLauncher] Ignore unregister because this is not current local player: {playerController.name}"
+            );
+            return;
+        }
+
+        localPlayerController = null;
 
         if (waitingRoomUI != null)
         {
             waitingRoomUI.SetLocalPlayerSpawned(false);
             waitingRoomUI.HideRoomUI();
         }
+
+        Debug.Log($"[NetworkLauncher] Unregistered local player: {playerController.name}");
     }
     
     private void CleanupFailedRunner()

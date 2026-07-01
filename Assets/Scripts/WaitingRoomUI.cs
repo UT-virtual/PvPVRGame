@@ -49,10 +49,40 @@ public class WaitingRoomUI : MonoBehaviour
 
     private void Update()
     {
+        bool hasLocalPlayer = localPlayerSpawned || HasLocalInputAuthorityPlayer();
+
+        if (hasLocalPlayer && !localPlayerSpawned)
+        {
+            localPlayerSpawned = true;
+            Debug.Log("[WaitingRoomUI] Local player detected automatically.");
+        }
+
+        RoundManager roundManager = RoundManager.Instance;
+
+        bool canShowByRoundManager =
+            roundManager != null &&
+            roundManager.IsNetworkReady &&
+            roundManager.CanShowWaitingRoomUI;
+
+        bool roundManagerNotReadyYet =
+            roundManager == null ||
+            !roundManager.IsNetworkReady;
+
         bool shouldShow =
-            localPlayerSpawned &&
-            RoundManager.Instance != null &&
-            RoundManager.Instance.CanShowWaitingRoomUI;
+            hasLocalPlayer &&
+            (
+                canShowByRoundManager ||
+                roundManagerNotReadyYet
+            );
+
+        Debug.Log(
+            $"[WaitingRoomUI] Update. " +
+            $"hasLocalPlayer={hasLocalPlayer}, " +
+            $"roundManagerExists={roundManager != null}, " +
+            $"roundManagerReady={(roundManager != null && roundManager.IsNetworkReady)}, " +
+            $"canShowByRoundManager={canShowByRoundManager}, " +
+            $"shouldShow={shouldShow}"
+        );
 
         SetPanelVisible(shouldShow);
 
@@ -64,6 +94,35 @@ public class WaitingRoomUI : MonoBehaviour
         {
             ClearEntries();
         }
+    }
+
+    private bool HasLocalInputAuthorityPlayer()
+    {
+        PlayerHealth[] players = FindObjectsByType<PlayerHealth>(
+            FindObjectsSortMode.None
+        );
+
+        foreach (PlayerHealth player in players)
+        {
+            if (player == null)
+            {
+                continue;
+            }
+
+            NetworkObject networkObject = player.GetComponent<NetworkObject>();
+
+            if (networkObject == null)
+            {
+                continue;
+            }
+
+            if (networkObject.HasInputAuthority)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private void SetPanelVisible(bool visible)

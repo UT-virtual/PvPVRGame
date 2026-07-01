@@ -10,5 +10,8 @@ public enum PlayerSkillType
     SlowFall,
     Shrink,
     DelayedDamageInvincible,
-    InstantReload
+    InstantReload,
+    GravityBurstReload,
+    HeavyBulletReload,
+    NextShotDamageBoost
 }
