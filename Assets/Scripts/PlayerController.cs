@@ -55,6 +55,18 @@ public class PlayerController : NetworkBehaviour
         {
             Cursor.lockState = CursorLockMode.Locked;
             Cursor.visible = false;
+
+            NetworkLauncher launcher = FindFirstObjectByType<NetworkLauncher>();
+
+            if (launcher != null)
+            {
+                launcher.RegisterLocalPlayer(this);
+                launcher.NotifyLocalPlayerSpawnedOnWaitingPlanet();
+            }
+            else
+            {
+                Debug.LogWarning("[PlayerController] NetworkLauncher was not found.");
+            }
         }
 
         Debug.Log(
@@ -64,6 +76,21 @@ public class PlayerController : NetworkBehaviour
             $"HasInputAuthority={Object.HasInputAuthority}, " +
             $"HasStateAuthority={Object.HasStateAuthority}"
         );
+    }
+
+    public override void Despawned(NetworkRunner runner, bool hasState)
+    {
+        if (!Object.HasInputAuthority)
+        {
+            return;
+        }
+
+        NetworkLauncher launcher = FindFirstObjectByType<NetworkLauncher>();
+
+        if (launcher != null)
+        {
+            launcher.UnregisterLocalPlayer(this);
+        }
     }
 
     public override void FixedUpdateNetwork()

@@ -143,6 +143,9 @@ public class RoundManager : NetworkBehaviour
         CanReadNetworkedPhase &&
         phase == GamePhase.WaitingForReady;
 
+    public bool IsNetworkReady =>
+        CanReadNetworkedPhase;
+
     public class PlayerTeam : MonoBehaviour
     {
         public TeamColor Team { get; private set; }

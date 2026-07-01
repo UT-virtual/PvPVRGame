@@ -2395,8 +2395,8 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 280388582}
   m_HandleRect: {fileID: 280388581}
   m_Direction: 0
-  m_Value: 0
-  m_Size: 0.9999764
+  m_Value: 1
+  m_Size: 0.999971
   m_NumberOfSteps: 0
   m_OnValueChanged:
     m_PersistentCalls:
@@ -2504,7 +2504,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: New Text
+  m_text: "\u30D7\u30EC\u30A4\u30E4\u30FC\u6570"
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 08c6cf5a3ee474ab694e6c9d0c240e0d, type: 2}
   m_sharedMaterial: {fileID: 3242469309538654361, guid: 08c6cf5a3ee474ab694e6c9d0c240e0d, type: 2}
@@ -4711,7 +4711,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 1}
   m_AnchorMax: {x: 1, y: 1}
-  m_AnchoredPosition: {x: 10779323, y: 12816837}
+  m_AnchoredPosition: {x: 11253483, y: 13380297}
   m_SizeDelta: {x: -183, y: 0}
   m_Pivot: {x: 0, y: 1}
 --- !u!114 &1502683515
@@ -5698,7 +5698,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: 111, y: 198.9}
+  m_AnchoredPosition: {x: 281, y: 198.9}
   m_SizeDelta: {x: 200, y: 50}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &1732371415
@@ -5729,7 +5729,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: New Text
+  m_text: "\u30B9\u30AD\u30EB\u9078\u629E"
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 08c6cf5a3ee474ab694e6c9d0c240e0d, type: 2}
   m_sharedMaterial: {fileID: 3242469309538654361, guid: 08c6cf5a3ee474ab694e6c9d0c240e0d, type: 2}
@@ -5795,7 +5795,7 @@ MonoBehaviour:
   m_VertexBufferAutoSizeReduction: 0
   m_useMaxVisibleDescender: 1
   m_pageToDisplay: 1
-  m_margin: {x: -205.68846, y: 0, z: 0, w: 0}
+  m_margin: {x: -345.41824, y: 0, z: 0, w: 0}
   m_isUsingLegacyAnimationComponent: 0
   m_isVolumetricText: 0
   m_hasFontAssetChanged: 0
@@ -6271,7 +6271,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: New Text
+  m_text: "\u6B8B\u308A"
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 08c6cf5a3ee474ab694e6c9d0c240e0d, type: 2}
   m_sharedMaterial: {fileID: 3242469309538654361, guid: 08c6cf5a3ee474ab694e6c9d0c240e0d, type: 2}
@@ -7194,7 +7194,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 1}
   m_AnchorMax: {x: 1, y: 1}
-  m_AnchoredPosition: {x: -0.014113935, y: -0.0029523044}
+  m_AnchoredPosition: {x: -0.014200852, y: 0.0007567761}
   m_SizeDelta: {x: -183, y: 0}
   m_Pivot: {x: 0, y: 1}
 --- !u!114 &2049869607

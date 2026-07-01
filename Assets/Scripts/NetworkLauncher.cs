@@ -113,6 +113,7 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
     private Quaternion currentHMD = Quaternion.identity;
 
     private bool connectionButtonLocked;
+    private bool isReconnecting;
 
     private void Awake()
     {
@@ -417,9 +418,10 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
                 return;
             }
 
-            statusText =
-                $"Room not found. Retrying Client... " +
-                $"Attempt {attemptCount}, Room: {roomName}";
+            SetStatusText(
+                $"再接続先を検索中... " +
+                $"Attempt {attemptCount}, Room: {roomName}"
+            );
 
             Debug.Log(
                 $"[NetworkLauncher] GameNotFound. Retry Client after {clientRetryInterval} sec. " +
@@ -457,6 +459,12 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
         }
 
         ResetSkillSelectionInputState();
+
+        if (CanReconnectFromWaitingRoom() && ReadReconnectPressed())
+        {
+            ReconnectAsClient();
+            return;
+        }
 
         if (ReadJumpPressed())
         {
@@ -1158,6 +1166,29 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
         return false;
     }
 
+    private bool CanReconnectFromWaitingRoom()
+    {
+        if (isStartingGame || isReconnecting)
+        {
+            return false;
+        }
+
+        return
+            RoundManager.Instance != null &&
+            RoundManager.Instance.IsWaitingForReady;
+    }
+
+    private bool ReadReconnectPressed()
+    {
+        if (Keyboard.current != null && Keyboard.current.rKey.wasPressedThisFrame)
+        {
+            return true;
+        }
+
+        // 後でVRコントローラーのボタンに差し替えるならここに追加する
+        return false;
+    }
+
     private bool ReadSelectSkill1Pressed()
     {
         if (Keyboard.current != null)
@@ -1277,6 +1308,60 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
         return false;
     }
 
+    private async void ReconnectAsClient()
+    {
+        if (isStartingGame || isReconnecting)
+        {
+            return;
+        }
+
+        isReconnecting = true;
+
+        Debug.Log("[NetworkLauncher] Reconnect requested from waiting room.");
+
+        SetConnectionMenuVisible(false);
+        SetConnectionButtonsInteractable(false);
+        SetStatusText("再接続中...");
+        SetStatusTextVisible(true);
+
+        if (waitingRoomUI == null)
+        {
+            waitingRoomUI = FindFirstObjectByType<WaitingRoomUI>();
+        }
+
+        if (waitingRoomUI != null)
+        {
+            waitingRoomUI.SetLocalPlayerSpawned(false);
+            waitingRoomUI.HideRoomUI();
+        }
+
+        NetworkRunner currentRunner = runner;
+
+        if (currentRunner != null)
+        {
+            try
+            {
+                await currentRunner.Shutdown();
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning($"[NetworkLauncher] Runner shutdown during reconnect failed: {e}");
+            }
+        }
+
+        if (this == null)
+        {
+            return;
+        }
+
+        CleanupFailedRunner();
+
+        isReconnecting = false;
+        connectionButtonLocked = true;
+
+        StartGame(GameMode.Client);
+    }
+
     public void NotifyLocalPlayerSpawnedOnWaitingPlanet()
     {
         Debug.Log("[NetworkLauncher] Local player spawned on waiting planet.");
@@ -1304,16 +1389,28 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
 
     public void UnregisterLocalPlayer(PlayerController playerController)
     {
-        if (localPlayerController == playerController)
+        if (playerController == null)
         {
-            localPlayerController = null;
+            return;
         }
+
+        if (localPlayerController != playerController)
+        {
+            Debug.Log(
+                $"[NetworkLauncher] Ignore unregister because this is not current local player: {playerController.name}"
+            );
+            return;
+        }
+
+        localPlayerController = null;
 
         if (waitingRoomUI != null)
         {
             waitingRoomUI.SetLocalPlayerSpawned(false);
             waitingRoomUI.HideRoomUI();
         }
+
+        Debug.Log($"[NetworkLauncher] Unregistered local player: {playerController.name}");
     }
     
     private void CleanupFailedRunner()
