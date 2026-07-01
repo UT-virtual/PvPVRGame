@@ -1509,7 +1509,7 @@ CapsuleCollider:
   m_LayerOverridePriority: 0
   m_IsTrigger: 0
   m_ProvidesContacts: 0
-  m_Enabled: 1
+  m_Enabled: 0
   serializedVersion: 2
   m_Radius: 0.5050624
   m_Height: 2.59
@@ -1673,6 +1673,14 @@ MonoBehaviour:
   reloadDuration: 2
   muzzleTransform: {fileID: 1803891075514819316}
   muzzleExitOffset: 0.05
+  gravityBurstSpeedMultiplier: 0.75
+  gravityBurstDamageMultiplier: 1
+  gravityBurstGravityAcceleration: 18
+  gravityBurstExplosionRadius: 3
+  gravityBurstExplosionDamageMultiplier: 1
+  heavyBulletSpeedMultiplier: 3
+  heavyBulletDamageMultiplier: 2
+  heavyBulletFireIntervalMultiplier: 6
   _NetworkedCurrentAmmo: 0
   _NetworkedIsReloading:
     _value: 0
@@ -1883,6 +1891,12 @@ MonoBehaviour:
   shrinkDamageDealtMultiplier: 0.5
   delayedDamageInvincibleDuration: 5
   instantReloadDuration: 20
+  gravityBurstReloadDuration: 0.1
+  gravityBurstReloadAmmoCount: 20
+  heavyBulletReloadDuration: 0.1
+  heavyBulletReloadAmmoCount: 5
+  nextShotDamageBoostDuration: 0.1
+  nextShotDamageBoostMultiplier: 1.5
   allowSameSkillConsecutiveForDebug: 0
   _CurrentRoundSkill: 0
   _LastRoundSkill: 0

@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Fusion;
 using UnityEngine;
 
@@ -5,10 +6,20 @@ using UnityEngine;
 public class Projectile : NetworkBehaviour
 {
     private Vector3 moveDirection;
+    private Vector3 velocity;
+    private Vector3 gravityDirection = Vector3.down;
+
     private float moveSpeed;
     private float lifeTime;
     private float timer;
     private float damage;
+
+    private float gravityAcceleration;
+    private bool useGravity;
+
+    private bool explodeOnHit;
+    private float explosionRadius;
+    private float explosionDamage;
 
     private PlayerHealth owner;
     private bool initialized;
@@ -25,6 +36,34 @@ public class Projectile : NetworkBehaviour
         float projectileDamage,
         PlayerHealth projectileOwner)
     {
+        Initialize(
+            direction,
+            speed,
+            duration,
+            projectileDamage,
+            projectileOwner,
+            false,
+            Vector3.down,
+            0.0f,
+            false,
+            0.0f,
+            0.0f
+        );
+    }
+
+    public void Initialize(
+        Vector3 direction,
+        float speed,
+        float duration,
+        float projectileDamage,
+        PlayerHealth projectileOwner,
+        bool projectileUsesGravity,
+        Vector3 projectileGravityDirection,
+        float projectileGravityAcceleration,
+        bool projectileExplodesOnHit,
+        float projectileExplosionRadius,
+        float projectileExplosionDamage)
+    {
         if (!Object.HasStateAuthority)
         {
             return;
@@ -32,9 +71,21 @@ public class Projectile : NetworkBehaviour
 
         moveDirection = direction.normalized;
         moveSpeed = speed;
+        velocity = moveDirection * moveSpeed;
+
         lifeTime = duration;
         damage = projectileDamage;
         owner = projectileOwner;
+
+        useGravity = projectileUsesGravity;
+        gravityDirection = projectileGravityDirection.sqrMagnitude > 0.0001f
+            ? projectileGravityDirection.normalized
+            : Vector3.down;
+        gravityAcceleration = Mathf.Max(0.0f, projectileGravityAcceleration);
+
+        explodeOnHit = projectileExplodesOnHit;
+        explosionRadius = Mathf.Max(0.0f, projectileExplosionRadius);
+        explosionDamage = Mathf.Max(0.0f, projectileExplosionDamage);
 
         timer = 0.0f;
         initialized = true;
@@ -54,9 +105,29 @@ public class Projectile : NetworkBehaviour
             return;
         }
 
-        transform.position += moveDirection * moveSpeed * Runner.DeltaTime;
+        float deltaTime = Runner.DeltaTime;
 
-        timer += Runner.DeltaTime;
+        if (useGravity)
+        {
+            velocity += gravityDirection * gravityAcceleration * deltaTime;
+        }
+
+        transform.position += velocity * deltaTime;
+
+        if (velocity.sqrMagnitude > 0.0001f)
+        {
+            Vector3 forward = velocity.normalized;
+            Vector3 up = -gravityDirection;
+
+            if (Mathf.Abs(Vector3.Dot(forward, up)) > 0.98f)
+            {
+                up = Vector3.up;
+            }
+
+            transform.rotation = Quaternion.LookRotation(forward, up);
+        }
+
+        timer += deltaTime;
 
         if (timer >= lifeTime)
         {
@@ -78,12 +149,19 @@ public class Projectile : NetworkBehaviour
 
         PlayerHealth targetHealth = other.GetComponentInParent<PlayerHealth>();
 
-        if (targetHealth == null)
+        if (targetHealth == owner)
         {
             return;
         }
 
-        if (targetHealth == owner)
+        if (explodeOnHit)
+        {
+            ApplyExplosionDamage(transform.position);
+            Runner.Despawn(Object);
+            return;
+        }
+
+        if (targetHealth == null)
         {
             return;
         }
@@ -91,6 +169,50 @@ public class Projectile : NetworkBehaviour
         targetHealth.TakeDamage(damage);
 
         Runner.Despawn(Object);
+    }
+
+    private void ApplyExplosionDamage(Vector3 explosionPosition)
+    {
+        if (explosionRadius <= 0.0f || explosionDamage <= 0.0f)
+        {
+            return;
+        }
+
+        Collider[] hitColliders = Physics.OverlapSphere(
+            explosionPosition,
+            explosionRadius,
+            ~0,
+            QueryTriggerInteraction.Collide
+        );
+
+        HashSet<PlayerHealth> damagedTargets = new();
+
+        foreach (Collider hitCollider in hitColliders)
+        {
+            if (hitCollider == null)
+            {
+                continue;
+            }
+
+            PlayerHealth targetHealth = hitCollider.GetComponentInParent<PlayerHealth>();
+
+            if (targetHealth == null)
+            {
+                continue;
+            }
+
+            if (targetHealth == owner)
+            {
+                continue;
+            }
+
+            if (!damagedTargets.Add(targetHealth))
+            {
+                continue;
+            }
+
+            targetHealth.TakeDamage(explosionDamage);
+        }
     }
 
     private void SetupCollision()

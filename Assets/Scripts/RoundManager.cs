@@ -44,7 +44,11 @@ public class RoundManager : NetworkBehaviour
         PlayerSkillType.SlowFall,
         PlayerSkillType.Shrink,
         PlayerSkillType.DelayedDamageInvincible,
-        PlayerSkillType.InstantReload
+        PlayerSkillType.InstantReload,
+
+        PlayerSkillType.GravityBurstReload,
+        PlayerSkillType.HeavyBulletReload,
+        PlayerSkillType.NextShotDamageBoost
     };
 
     [Header("Round")]

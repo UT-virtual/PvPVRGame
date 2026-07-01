@@ -47,6 +47,18 @@ public class PlayerSkillController : NetworkBehaviour
     [Header("Instant Reload")]
     [SerializeField] private float instantReloadDuration = 20.0f;
 
+    [Header("Gravity Burst Reload")]
+    [SerializeField] private float gravityBurstReloadDuration = 0.1f;
+    [SerializeField] private int gravityBurstReloadAmmoCount = 20;
+
+    [Header("Heavy Bullet Reload")]
+    [SerializeField] private float heavyBulletReloadDuration = 0.1f;
+    [SerializeField] private int heavyBulletReloadAmmoCount = 5;
+
+    [Header("Next Shot Damage Boost")]
+    [SerializeField] private float nextShotDamageBoostDuration = 0.1f;
+    [SerializeField] private float nextShotDamageBoostMultiplier = 1.5f;
+
     [Header("Debug")]
     [SerializeField] private bool allowSameSkillConsecutiveForDebug = false;
 
@@ -232,6 +244,18 @@ public class PlayerSkillController : NetworkBehaviour
                 ActivateInstantReload();
                 break;
 
+            case PlayerSkillType.GravityBurstReload:
+                ActivateGravityBurstReload();
+                break;
+
+            case PlayerSkillType.HeavyBulletReload:
+                ActivateHeavyBulletReload();
+                break;
+
+            case PlayerSkillType.NextShotDamageBoost:
+                ActivateNextShotDamageBoost();
+                break;
+
             default:
                 Debug.LogWarning($"[Skill] Unsupported skill: {CurrentRoundSkill}");
                 break;
@@ -351,6 +375,60 @@ public class PlayerSkillController : NetworkBehaviour
         );
     }
 
+    private void ActivateGravityBurstReload()
+    {
+        ActiveSkill = PlayerSkillType.GravityBurstReload;
+        SkillActiveTimer = TickTimer.CreateFromSeconds(Runner, gravityBurstReloadDuration);
+
+        if (playerWeapon != null)
+        {
+            playerWeapon.LoadGravityBurstAmmo(gravityBurstReloadAmmoCount);
+        }
+
+        ApplySkillEffects();
+
+        Debug.Log(
+            $"[Skill] {gameObject.name}: GravityBurstReload activated. " +
+            $"Ammo={gravityBurstReloadAmmoCount}"
+        );
+    }
+
+    private void ActivateHeavyBulletReload()
+    {
+        ActiveSkill = PlayerSkillType.HeavyBulletReload;
+        SkillActiveTimer = TickTimer.CreateFromSeconds(Runner, heavyBulletReloadDuration);
+
+        if (playerWeapon != null)
+        {
+            playerWeapon.LoadHeavyBulletAmmo(heavyBulletReloadAmmoCount);
+        }
+
+        ApplySkillEffects();
+
+        Debug.Log(
+            $"[Skill] {gameObject.name}: HeavyBulletReload activated. " +
+            $"Ammo={heavyBulletReloadAmmoCount}"
+        );
+    }
+
+    private void ActivateNextShotDamageBoost()
+    {
+        ActiveSkill = PlayerSkillType.NextShotDamageBoost;
+        SkillActiveTimer = TickTimer.CreateFromSeconds(Runner, nextShotDamageBoostDuration);
+
+        if (playerWeapon != null)
+        {
+            playerWeapon.SetNextShotDamageMultiplier(nextShotDamageBoostMultiplier);
+        }
+
+        ApplySkillEffects();
+
+        Debug.Log(
+            $"[Skill] {gameObject.name}: NextShotDamageBoost activated. " +
+            $"Multiplier={nextShotDamageBoostMultiplier}"
+        );
+    }
+
     private void ActivateXRayVision()
     {
         ActiveSkill = PlayerSkillType.XRayVision;
@@ -387,6 +465,7 @@ public class PlayerSkillController : NetworkBehaviour
         ApplyRapidFireEffect();
         ApplyBulletSpeedUpEffect();
         ApplyDamageReductionEffect();
+        ApplyMoveSpeedUpEffect();
         ApplySlowFallEffect();
         ApplyShrinkEffect();
         ApplyDelayedDamageInvincibleEffect();
