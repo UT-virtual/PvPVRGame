@@ -29,6 +29,7 @@ public class SkillSelectUI : MonoBehaviour
         if (shouldShow && !wasShowing)
         {
             remainingTime = roundManager.SkillSelectionDuration;
+            SetSkillSelectionControlsVisible(true);
             RefreshCards(roundManager);
         }
 
@@ -36,14 +37,35 @@ public class SkillSelectUI : MonoBehaviour
 
         if (shouldShow)
         {
+            EnsureNetworkLauncher();
+
             remainingTime -= Time.deltaTime;
             remainingTime = Mathf.Max(remainingTime, 0.0f);
 
-            UpdateTexts();
-            RefreshCards(roundManager);
+            bool localPlayerSelected =
+                networkLauncher != null &&
+                networkLauncher.HasLocalSkillSelectionConfirmed;
+
+            UpdateTexts(localPlayerSelected);
+            SetSkillSelectionControlsVisible(!localPlayerSelected);
+
+            if (!localPlayerSelected)
+            {
+                RefreshCards(roundManager);
+            }
         }
 
         wasShowing = shouldShow;
+    }
+
+    private void EnsureNetworkLauncher()
+    {
+        if (networkLauncher != null)
+        {
+            return;
+        }
+
+        networkLauncher = FindFirstObjectByType<NetworkLauncher>();
     }
 
     private void SetVisible(bool visible)
@@ -54,11 +76,13 @@ public class SkillSelectUI : MonoBehaviour
         }
     }
 
-    private void UpdateTexts()
+    private void UpdateTexts(bool localPlayerSelected)
     {
         if (titleText != null)
         {
-            titleText.text = "スキル選択";
+            titleText.text = localPlayerSelected
+                ? "他の参加者が選択しています。"
+                : "スキル選択";
         }
 
         if (timerText != null)
@@ -72,6 +96,34 @@ public class SkillSelectUI : MonoBehaviour
         }
     }
 
+    private void SetSkillSelectionControlsVisible(bool visible)
+    {
+        if (operationText != null && operationText.gameObject.activeSelf != visible)
+        {
+            operationText.gameObject.SetActive(visible);
+        }
+
+        if (skillCards == null)
+        {
+            return;
+        }
+
+        foreach (SkillCardUI skillCard in skillCards)
+        {
+            if (skillCard == null)
+            {
+                continue;
+            }
+
+            GameObject cardObject = skillCard.gameObject;
+
+            if (cardObject.activeSelf != visible)
+            {
+                cardObject.SetActive(visible);
+            }
+        }
+    }
+
     private void RefreshCards(RoundManager roundManager)
     {
         if (roundManager == null || skillCards == null)
@@ -79,10 +131,7 @@ public class SkillSelectUI : MonoBehaviour
             return;
         }
 
-        if (networkLauncher == null)
-        {
-            networkLauncher = FindFirstObjectByType<NetworkLauncher>();
-        }
+        EnsureNetworkLauncher();
 
         int selectedSlot = networkLauncher != null
             ? networkLauncher.CurrentSkillSelectionSlot

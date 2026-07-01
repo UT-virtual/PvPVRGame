@@ -63,8 +63,10 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
     private int currentSkillSelectionSlot;
     private bool wasSkillSelecting;
     private bool skillSelectionMoveHeld;
+    private bool localSkillSelectionConfirmed;
 
     public int CurrentSkillSelectionSlot => currentSkillSelectionSlot;
+    public bool HasLocalSkillSelectionConfirmed => localSkillSelectionConfirmed;
 
     private bool isStartingGame;
     private GameObject runnerObject;
@@ -484,10 +486,15 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
         if (!wasSkillSelecting)
         {
             currentSkillSelectionSlot = 0;
+            localSkillSelectionConfirmed = false;
 
-            // 移動中にスキル選択へ入った瞬間、左スティック入力で勝手に動かないようにする。
             skillSelectionMoveHeld = IsSkillSelectionNavigateActive(navigateInput);
             wasSkillSelecting = true;
+            return;
+        }
+
+        if (localSkillSelectionConfirmed)
+        {
             return;
         }
 
@@ -511,6 +518,7 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
     {
         wasSkillSelecting = false;
         skillSelectionMoveHeld = false;
+        localSkillSelectionConfirmed = false;
     }
 
     private Vector2 ReadSkillSelectionNavigateInput()
@@ -622,6 +630,13 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
 
     private void QueueSelectedSkillSlot()
     {
+        if (!CanConfirmCurrentSkillSelection())
+        {
+            return;
+        }
+
+        bool queued = true;
+
         switch (currentSkillSelectionSlot)
         {
             case 0:
@@ -641,16 +656,59 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
                 break;
 
             default:
+                queued = false;
                 Debug.LogWarning($"[NetworkLauncher] Invalid skill selection slot: {currentSkillSelectionSlot}");
                 break;
         }
 
+        if (!queued)
+        {
+            return;
+        }
+
+        localSkillSelectionConfirmed = true;
+
         Debug.Log($"[NetworkLauncher] Confirm skill slot: {currentSkillSelectionSlot + 1}");
+    }
+    
+    private bool CanConfirmCurrentSkillSelection()
+    {
+        RoundManager roundManager = RoundManager.Instance;
+
+        if (roundManager == null)
+        {
+            return false;
+        }
+
+        PlayerSkillType selectedSkill = roundManager.GetSkillOption(currentSkillSelectionSlot);
+
+        if (selectedSkill == PlayerSkillType.None)
+        {
+            Debug.LogWarning($"[NetworkLauncher] Cannot confirm empty skill slot: {currentSkillSelectionSlot + 1}");
+            return false;
+        }
+
+        if (localPlayerController == null)
+        {
+            return true;
+        }
+
+        PlayerSkillController skillController = localPlayerController.GetComponent<PlayerSkillController>();
+
+        if (skillController != null && !skillController.CanSelectSkill(selectedSkill))
+        {
+            Debug.LogWarning(
+                $"[NetworkLauncher] Cannot confirm skill because it cannot be selected: {selectedSkill}"
+            );
+            return false;
+        }
+
+        return true;
     }
 
     private void UpdateHMD()
     {
-    #if UNITY_EDITOR
+#if UNITY_EDITOR
         if (forceVrSimulationInEditor && useKeyboardHmdSimulationInEditor)
         {
             if (Keyboard.current != null)
@@ -683,7 +741,7 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
 
             return;
         }
-    #endif
+#endif
 
         if (!isVRActive)
         {
