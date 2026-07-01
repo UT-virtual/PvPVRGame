@@ -141,7 +141,7 @@ public class SkillCardUI : MonoBehaviour
             case PlayerSkillType.InstantReload:
                 return new SkillDisplayData(
                     "弾",
-                    "即時リロード",
+                    "即時装填",
                     "10秒間、リロードが即座に完了する"
                 );
             

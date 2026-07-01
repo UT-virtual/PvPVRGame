@@ -83,6 +83,31 @@ public class PlayerSkillController : NetworkBehaviour
             ? CurrentRoundSkill
             : CurrentRoundSecondSkill;
 
+    public bool CanUseCurrentSelectedSkill
+    {
+        get
+        {
+            return
+                CurrentSelectedRoundSkill != PlayerSkillType.None &&
+                !IsSkillActive() &&
+                !IsCooldownActive();
+        }
+    }
+
+    public float CurrentSkillCooldownRemaining
+    {
+        get
+        {
+            if (Runner == null || !CooldownTimer.IsRunning)
+            {
+                return 0.0f;
+            }
+
+            float remaining = CooldownTimer.RemainingTime(Runner) ?? 0.0f;
+            return Mathf.Max(remaining, 0.0f);
+        }
+    }
+
     private void Awake()
     {
         playerMove = GetComponent<PlayerMove>();
@@ -785,6 +810,11 @@ public class PlayerSkillController : NetworkBehaviour
 
     private bool IsCooldownActive()
     {
+        if (Runner == null)
+        {
+            return false;
+        }
+
         return CooldownTimer.IsRunning && !CooldownTimer.Expired(Runner);
     }
 }
