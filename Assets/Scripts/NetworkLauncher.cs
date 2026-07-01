@@ -24,6 +24,13 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
     [SerializeField] private InputActionReference moveAction;
     [SerializeField] private InputActionReference lookAction;
     [SerializeField] private InputActionReference hmdRotationAction;
+    [SerializeField] private InputActionReference hmdPositionAction;
+
+    [SerializeField] private InputActionReference leftHandPositionAction;
+    [SerializeField] private InputActionReference leftHandRotationAction;
+
+    [SerializeField] private InputActionReference rightHandPositionAction;
+    [SerializeField] private InputActionReference rightHandRotationAction;
     [SerializeField] private InputActionReference jumpAction;
     [SerializeField] private InputActionReference fireAction;
     [SerializeField] private InputActionReference reloadAction;
@@ -214,7 +221,16 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
     {
         EnableAction(moveAction);
         EnableAction(lookAction);
+
         EnableAction(hmdRotationAction);
+        EnableAction(hmdPositionAction);
+
+        EnableAction(leftHandPositionAction);
+        EnableAction(leftHandRotationAction);
+
+        EnableAction(rightHandPositionAction);
+        EnableAction(rightHandRotationAction);
+
         EnableAction(jumpAction);
         EnableAction(fireAction);
         EnableAction(reloadAction);
@@ -224,7 +240,16 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
     {
         DisableAction(moveAction);
         DisableAction(lookAction);
+
         DisableAction(hmdRotationAction);
+        DisableAction(hmdPositionAction);
+
+        DisableAction(leftHandPositionAction);
+        DisableAction(leftHandRotationAction);
+
+        DisableAction(rightHandPositionAction);
+        DisableAction(rightHandRotationAction);
+
         DisableAction(jumpAction);
         DisableAction(fireAction);
         DisableAction(reloadAction);
@@ -814,6 +839,15 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
 
         data.IsVR = isVRActive;
         data.HMDRotation = currentHMD;
+        data.HMDPosition = ReadVector3Action(hmdPositionAction);
+
+        data.LeftHandPosition = ReadVector3Action(leftHandPositionAction);
+        data.LeftHandRotation = ReadQuaternionAction(leftHandRotationAction);
+        data.HasLeftHand = HasActionValue(leftHandPositionAction) ? (byte)1 : (byte)0;
+
+        data.RightHandPosition = ReadVector3Action(rightHandPositionAction);
+        data.RightHandRotation = ReadQuaternionAction(rightHandRotationAction);
+        data.HasRightHand = HasActionValue(rightHandPositionAction) ? (byte)1 : (byte)0;
 
         data.MoveInput = ReadMoveInput();
         data.LookInput = queuedLookInput;
@@ -862,52 +896,57 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
     {
         if (moveAction != null && moveAction.action != null)
         {
-            return moveAction.action.ReadValue<Vector2>();
-        }
+            Vector2 actionMove = moveAction.action.ReadValue<Vector2>();
 
-        Vector2 input = Vector2.zero;
+            if (actionMove.sqrMagnitude > 0.0001f)
+            {
+                return actionMove;
+            }
+        }
 
         if (Gamepad.current != null)
         {
-            input = Gamepad.current.leftStick.ReadValue();
+            Vector2 stick = Gamepad.current.leftStick.ReadValue();
+
+            if (stick.sqrMagnitude > 0.0001f)
+            {
+                return stick;
+            }
         }
+
+    #if UNITY_EDITOR
+        if (forceVrSimulationInEditor)
+        {
+            return Vector2.zero;
+        }
+    #endif
+
+        Vector2 moveInput = Vector2.zero;
 
         if (Keyboard.current != null)
         {
-            Vector2 keyboardInput = Vector2.zero;
-
             if (Keyboard.current.wKey.isPressed)
             {
-                keyboardInput.y += 1.0f;
+                moveInput.y += 1.0f;
             }
 
             if (Keyboard.current.sKey.isPressed)
             {
-                keyboardInput.y -= 1.0f;
-            }
-
-            if (Keyboard.current.dKey.isPressed)
-            {
-                keyboardInput.x += 1.0f;
+                moveInput.y -= 1.0f;
             }
 
             if (Keyboard.current.aKey.isPressed)
             {
-                keyboardInput.x -= 1.0f;
+                moveInput.x -= 1.0f;
             }
 
-            if (keyboardInput.sqrMagnitude > 1.0f)
+            if (Keyboard.current.dKey.isPressed)
             {
-                keyboardInput.Normalize();
-            }
-
-            if (keyboardInput.sqrMagnitude > 0.01f)
-            {
-                input = keyboardInput;
+                moveInput.x += 1.0f;
             }
         }
 
-        return input;
+        return Vector2.ClampMagnitude(moveInput, 1.0f);
     }
 
     private Vector2 ReadLookInput()
@@ -1268,6 +1307,41 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
         {
             statusTextLabel.gameObject.SetActive(visible);
         }
+    }
+
+    private Vector3 ReadVector3Action(InputActionReference actionReference)
+    {
+        if (actionReference == null || actionReference.action == null)
+        {
+            return Vector3.zero;
+        }
+
+        return actionReference.action.ReadValue<Vector3>();
+    }
+
+    private Quaternion ReadQuaternionAction(InputActionReference actionReference)
+    {
+        if (actionReference == null || actionReference.action == null)
+        {
+            return Quaternion.identity;
+        }
+
+        Quaternion value = actionReference.action.ReadValue<Quaternion>();
+
+        if (value.x == 0.0f &&
+            value.y == 0.0f &&
+            value.z == 0.0f &&
+            value.w == 0.0f)
+        {
+            return Quaternion.identity;
+        }
+
+        return value;
+    }
+
+    private bool HasActionValue(InputActionReference actionReference)
+    {
+        return actionReference != null && actionReference.action != null;
     }
 
     public void OnInputMissing(NetworkRunner runner, PlayerRef player, NetworkInput input) { }

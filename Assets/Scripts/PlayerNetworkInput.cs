@@ -26,4 +26,14 @@ public struct PlayerNetworkInput : INetworkInput
 
     public NetworkBool IsVR;
     public Quaternion HMDRotation;
+
+    public Vector3 HMDPosition;
+
+    public Vector3 LeftHandPosition;
+    public Quaternion LeftHandRotation;
+    public byte HasLeftHand;
+
+    public Vector3 RightHandPosition;
+    public Quaternion RightHandRotation;
+    public byte HasRightHand;
 }
