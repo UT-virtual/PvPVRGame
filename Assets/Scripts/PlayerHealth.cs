@@ -73,6 +73,17 @@ public class PlayerHealth : NetworkBehaviour
 
     private float damageTakenMultiplier = 1.0f;
 
+    private bool delayedDamageActive;
+    private float delayedDamageTotal;
+
+    private Vector3 originalVisualRootScale = Vector3.one;
+    private bool hasOriginalVisualRootScale;
+
+    private float originalCharacterControllerHeight;
+    private float originalCharacterControllerRadius;
+    private Vector3 originalCharacterControllerCenter;
+    private bool hasOriginalCharacterControllerValues;
+
     public float CurrentHealth => NetworkedCurrentHealth;
     public float MaxHealth => maxHealth;
     public bool IsDead => NetworkedIsDead;
@@ -91,6 +102,8 @@ public class PlayerHealth : NetworkBehaviour
         {
             renderers = visualRoot.GetComponentsInChildren<Renderer>(true);
             colliders = visualRoot.GetComponentsInChildren<Collider>(true);
+            originalVisualRootScale = visualRoot.transform.localScale;
+            hasOriginalVisualRootScale = true;
         }
         else
         {
@@ -105,6 +118,14 @@ public class PlayerHealth : NetworkBehaviour
         else
         {
             weaponRenderers = System.Array.Empty<Renderer>();
+        }
+
+        if (characterController != null)
+        {
+            originalCharacterControllerHeight = characterController.height;
+            originalCharacterControllerRadius = characterController.radius;
+            originalCharacterControllerCenter = characterController.center;
+            hasOriginalCharacterControllerValues = true;
         }
     }
 
@@ -176,6 +197,88 @@ public class PlayerHealth : NetworkBehaviour
         damageTakenMultiplier = Mathf.Clamp(multiplier, 0.0f, 10.0f);
     }
 
+    public void SetDelayedDamageMode(bool active)
+    {
+        if (Object != null && !Object.HasStateAuthority)
+        {
+            return;
+        }
+
+        if (delayedDamageActive == active)
+        {
+            return;
+        }
+
+        delayedDamageActive = active;
+
+        if (!delayedDamageActive)
+        {
+            ApplyDelayedDamage();
+        }
+    }
+
+    private void ApplyDelayedDamage()
+    {
+        if (delayedDamageTotal <= 0.0f)
+        {
+            delayedDamageTotal = 0.0f;
+            return;
+        }
+
+        if (IsDead)
+        {
+            delayedDamageTotal = 0.0f;
+            return;
+        }
+
+        float damageToApply = delayedDamageTotal;
+        delayedDamageTotal = 0.0f;
+
+        ApplyDamageImmediately(
+            damageToApply,
+            damageToApply,
+            "DelayedDamage"
+        );
+    }
+
+    private void ApplyDamageImmediately(float actualDamage, float baseDamage, string reason)
+    {
+        NetworkedCurrentHealth -= actualDamage;
+        NetworkedCurrentHealth = Mathf.Max(NetworkedCurrentHealth, 0.0f);
+
+        NotifyHealthChanged();
+
+        Debug.Log(
+            $"{gameObject.name} HP: {NetworkedCurrentHealth:0.00}/{maxHealth:0.00}, " +
+            $"Reason={reason}, " +
+            $"BaseDamage={baseDamage:0.00}, " +
+            $"ActualDamage={actualDamage:0.00}, " +
+            $"DamageTakenMultiplier={damageTakenMultiplier:0.00}"
+        );
+
+        if (NetworkedCurrentHealth <= 0.0f)
+        {
+            Die();
+        }
+    }
+
+    public void SetBodySizeMultiplier(float multiplier)
+    {
+        multiplier = Mathf.Clamp(multiplier, 0.2f, 2.0f);
+
+        if (visualRoot != null && hasOriginalVisualRootScale)
+        {
+            visualRoot.transform.localScale = originalVisualRootScale * multiplier;
+        }
+
+        if (characterController != null && hasOriginalCharacterControllerValues)
+        {
+            characterController.height = originalCharacterControllerHeight * multiplier;
+            characterController.radius = originalCharacterControllerRadius * multiplier;
+            characterController.center = originalCharacterControllerCenter * multiplier;
+        }
+    }
+
     public void TakeDamage(float damage)
     {
         if (Object != null && !Object.HasStateAuthority)
@@ -205,22 +308,24 @@ public class PlayerHealth : NetworkBehaviour
             return;
         }
 
-        NetworkedCurrentHealth -= actualDamage;
-        NetworkedCurrentHealth = Mathf.Max(NetworkedCurrentHealth, 0.0f);
-
-        NotifyHealthChanged();
-
-        Debug.Log(
-            $"{gameObject.name} HP: {NetworkedCurrentHealth:0.00}/{maxHealth:0.00}, " +
-            $"BaseDamage={damage:0.00}, " +
-            $"ActualDamage={actualDamage:0.00}, " +
-            $"DamageTakenMultiplier={damageTakenMultiplier:0.00}"
-        );
-
-        if (NetworkedCurrentHealth <= 0.0f)
+        if (delayedDamageActive)
         {
-            Die();
+            delayedDamageTotal += actualDamage;
+
+            Debug.Log(
+                $"{gameObject.name} delayed damage stored. " +
+                $"Stored={delayedDamageTotal:0.00}, " +
+                $"Incoming={actualDamage:0.00}"
+            );
+
+            return;
         }
+
+        ApplyDamageImmediately(
+            actualDamage,
+            damage,
+            "TakeDamage"
+        );
     }
 
     public bool Heal(float amount)

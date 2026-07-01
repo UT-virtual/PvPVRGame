@@ -38,7 +38,13 @@ public class RoundManager : NetworkBehaviour
         PlayerSkillType.DoubleJump,
         PlayerSkillType.RapidFire,
         PlayerSkillType.BulletSpeedUp,
-        PlayerSkillType.DamageReduction
+        PlayerSkillType.DamageReduction,
+        PlayerSkillType.XRayVision,
+        PlayerSkillType.MoveSpeedUp,
+        PlayerSkillType.SlowFall,
+        PlayerSkillType.Shrink,
+        PlayerSkillType.DelayedDamageInvincible,
+        PlayerSkillType.InstantReload
     };
 
     [Header("Round")]

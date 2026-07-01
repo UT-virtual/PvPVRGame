@@ -81,7 +81,26 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
 
     private PlayerController localPlayerController;
 
-    private bool isVRActive => UnityEngine.XR.XRSettings.isDeviceActive;
+    [Header("Editor VR Simulation")]
+    [SerializeField] private bool forceVrSimulationInEditor = false;
+    [SerializeField] private bool useKeyboardHmdSimulationInEditor = false;
+    [SerializeField] private float editorHmdRotationSpeed = 90.0f;
+
+    private Vector2 editorHmdEuler;
+
+    private bool isVRActive
+    {
+        get
+        {
+    #if UNITY_EDITOR
+            if (forceVrSimulationInEditor)
+            {
+                return true;
+            }
+    #endif
+            return UnityEngine.XR.XRSettings.isDeviceActive;
+        }
+    }
     private Quaternion currentHMD = Quaternion.identity;
 
     private bool connectionButtonLocked;
@@ -420,11 +439,6 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
         if (ReadReloadPressed())
         {
             reloadQueued = true;
-
-            if (isVRActive)
-            {
-                readyQueued = true;
-            }
         }
 
         if (ReadReadyPressed())
@@ -611,6 +625,41 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
 
     private void UpdateHMD()
     {
+    #if UNITY_EDITOR
+        if (forceVrSimulationInEditor && useKeyboardHmdSimulationInEditor)
+        {
+            if (Keyboard.current != null)
+            {
+                if (Keyboard.current.iKey.isPressed)
+                {
+                    editorHmdEuler.x -= editorHmdRotationSpeed * Time.deltaTime;
+                }
+
+                if (Keyboard.current.kKey.isPressed)
+                {
+                    editorHmdEuler.x += editorHmdRotationSpeed * Time.deltaTime;
+                }
+
+                if (Keyboard.current.jKey.isPressed)
+                {
+                    editorHmdEuler.y -= editorHmdRotationSpeed * Time.deltaTime;
+                }
+
+                if (Keyboard.current.lKey.isPressed)
+                {
+                    editorHmdEuler.y += editorHmdRotationSpeed * Time.deltaTime;
+                }
+            }
+
+            editorHmdEuler.x = Mathf.Clamp(editorHmdEuler.x, -85.0f, 85.0f);
+            currentHMD = Quaternion.Euler(editorHmdEuler.x, editorHmdEuler.y, 0.0f);
+
+            Debug.Log($"[Editor HMD] Euler={currentHMD.eulerAngles}");
+
+            return;
+        }
+    #endif
+
         if (!isVRActive)
         {
             currentHMD = Quaternion.identity;
@@ -624,6 +673,8 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
         }
 
         currentHMD = hmdRotationAction.action.ReadValue<Quaternion>();
+
+        Debug.Log($"[HMD] Euler={currentHMD.eulerAngles}");
     }
 
     public void OnPlayerJoined(NetworkRunner runner, PlayerRef player)

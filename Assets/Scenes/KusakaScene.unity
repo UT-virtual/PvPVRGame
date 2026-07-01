@@ -2764,6 +2764,63 @@ MonoBehaviour:
   m_EffectColor: {r: 0.3019608, g: 0.67058825, b: 0.96862745, a: 0.5}
   m_EffectDistance: {x: 2, y: -2}
   m_UseGraphicAlpha: 1
+--- !u!1001 &983202009
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 0}
+    m_Modifications:
+    - target: {fileID: 6598815579406187027, guid: 18ddb545287c546e19cc77dc9fbb2189, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -6.95792
+      objectReference: {fileID: 0}
+    - target: {fileID: 6598815579406187027, guid: 18ddb545287c546e19cc77dc9fbb2189, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: -1.48605
+      objectReference: {fileID: 0}
+    - target: {fileID: 6598815579406187027, guid: 18ddb545287c546e19cc77dc9fbb2189, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: -27.78094
+      objectReference: {fileID: 0}
+    - target: {fileID: 6598815579406187027, guid: 18ddb545287c546e19cc77dc9fbb2189, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 6598815579406187027, guid: 18ddb545287c546e19cc77dc9fbb2189, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 6598815579406187027, guid: 18ddb545287c546e19cc77dc9fbb2189, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 6598815579406187027, guid: 18ddb545287c546e19cc77dc9fbb2189, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 6598815579406187027, guid: 18ddb545287c546e19cc77dc9fbb2189, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 6598815579406187027, guid: 18ddb545287c546e19cc77dc9fbb2189, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 6598815579406187027, guid: 18ddb545287c546e19cc77dc9fbb2189, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 6598815579406187037, guid: 18ddb545287c546e19cc77dc9fbb2189, type: 3}
+      propertyPath: m_Name
+      value: XR Device Simulator
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: 18ddb545287c546e19cc77dc9fbb2189, type: 3}
 --- !u!1 &986464950
 GameObject:
   m_ObjectHideFlags: 0
@@ -2937,12 +2994,12 @@ MonoBehaviour:
   mouseLookSpeed: 0.12
   gamepadLookSpeed: 120
   vrStickTurnSpeed: 150
-  moveAction: {fileID: 0}
-  lookAction: {fileID: 0}
-  hmdRotationAction: {fileID: 0}
-  jumpAction: {fileID: 0}
-  fireAction: {fileID: 0}
-  reloadAction: {fileID: 0}
+  moveAction: {fileID: -1680190386980627800, guid: 052faaac586de48259a63d0c4782560b, type: 3}
+  lookAction: {fileID: -5630151704836100654, guid: 052faaac586de48259a63d0c4782560b, type: 3}
+  hmdRotationAction: {fileID: -530380113134220495, guid: c348712bda248c246b8c49b3db54643f, type: 3}
+  jumpAction: {fileID: -2099379676528639254, guid: 052faaac586de48259a63d0c4782560b, type: 3}
+  fireAction: {fileID: 1120369429361536294, guid: 052faaac586de48259a63d0c4782560b, type: 3}
+  reloadAction: {fileID: -570809305380780285, guid: 052faaac586de48259a63d0c4782560b, type: 3}
   waitingRoomUI: {fileID: 81070261}
   connectionMenuRoot: {fileID: 0}
   statusTextLabel: {fileID: 1540781615}
@@ -2955,6 +3012,9 @@ MonoBehaviour:
   spawnDebugSpectatorDummies: 1
   debugSpectatorDummyCount: 1
   skillSelectionStickThreshold: 0.6
+  forceVrSimulationInEditor: 1
+  useKeyboardHmdSimulationInEditor: 1
+  editorHmdRotationSpeed: 90
 --- !u!4 &993431733
 Transform:
   m_ObjectHideFlags: 0
@@ -3600,7 +3660,7 @@ MonoBehaviour:
   minPlayersToStart: 1
   skillSelectionDuration: 30
   startAfterAllSkillsSelectedDelay: 3
-  availableRoundSkills: 01000000020000000300000004000000
+  availableRoundSkills: 0a000000090000000a0000000900000008000000090000000a00000008000000090000000a000000
   maxRoundCount: 3
   nextRoundDelay: 2
   returnToWaitingDelay: 3
@@ -3611,7 +3671,7 @@ MonoBehaviour:
   waitingRoomUI: {fileID: 81070261}
   battleStartUI: {fileID: 1760244462}
   skillOptionSlotCount: 4
-  countDebugSpectatorDummiesAsAlive: 1
+  countDebugSpectatorDummiesAsAlive: 0
   currentRound: 1
 --- !u!4 &1119373598
 Transform:
@@ -4703,7 +4763,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 1}
   m_AnchorMax: {x: 1, y: 1}
-  m_AnchoredPosition: {x: 5046687, y: 6001975}
+  m_AnchoredPosition: {x: 7016455, y: 8344660.5}
   m_SizeDelta: {x: -183, y: 0}
   m_Pivot: {x: 0, y: 1}
 --- !u!114 &1502683515
@@ -7186,7 +7246,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 1}
   m_AnchorMax: {x: 1, y: 1}
-  m_AnchoredPosition: {x: -0.018172316, y: 0.0052142777}
+  m_AnchoredPosition: {x: -0.01421146, y: -0.0029200006}
   m_SizeDelta: {x: -183, y: 0}
   m_Pivot: {x: 0, y: 1}
 --- !u!114 &2049869607
@@ -7580,3 +7640,4 @@ SceneRoots:
   - {fileID: 513531580}
   - {fileID: 1964602099}
   - {fileID: 773190231}
+  - {fileID: 983202009}

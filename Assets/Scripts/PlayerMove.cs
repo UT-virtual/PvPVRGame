@@ -6,10 +6,12 @@ public class PlayerMove : MonoBehaviour
 {
     [Header("Move")]
     [SerializeField] private float moveSpeed = 5.0f;
+    private float moveSpeedMultiplier = 1.0f;
 
     [Header("Gravity / Jump")]
     [SerializeField] private float gravity = 25.0f;
     [SerializeField] private float jumpSpeed = 8.0f;
+    private float fallGravityMultiplier = 1.0f;
 
     [Header("Ground Check")]
     [SerializeField] private Transform planetCenter;
@@ -198,7 +200,7 @@ public class PlayerMove : MonoBehaviour
             moveDir.Normalize();
         }
 
-        controller.Move(moveDir * moveSpeed * deltaTime);
+        controller.Move(moveDir * moveSpeed * moveSpeedMultiplier * deltaTime);
     }
 
     public void AlignToSurface(float deltaTime)
@@ -243,7 +245,11 @@ public class PlayerMove : MonoBehaviour
         }
         else
         {
-            verticalSpeed -= gravity * deltaTime;
+            float currentGravityMultiplier = verticalSpeed < 0.0f
+                ? fallGravityMultiplier
+                : 1.0f;
+
+            verticalSpeed -= gravity * currentGravityMultiplier * deltaTime;
         }
 
         Vector3 verticalMove = surfaceUp * verticalSpeed;
@@ -380,5 +386,15 @@ public class PlayerMove : MonoBehaviour
         {
             remainingAirJumps = extraAirJumpCount;
         }
+    }
+
+    public void SetMoveSpeedMultiplier(float multiplier)
+    {
+        moveSpeedMultiplier = Mathf.Clamp(multiplier, 0.1f, 10.0f);
+    }
+
+    public void SetFallGravityMultiplier(float multiplier)
+    {
+        fallGravityMultiplier = Mathf.Clamp(multiplier, 0.05f, 5.0f);
     }
 }
