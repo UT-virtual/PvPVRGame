@@ -33,6 +33,10 @@ public class SpectatorCameraController : MonoBehaviour
     private bool isSpectating;
     private bool switchInputHeld;
     private int targetIndex;
+    public bool IsSpectatingActive =>
+        isSpectating && currentTarget != null;
+
+    public PlayerHealth CurrentSpectatorTarget => currentTarget;
 
     private void Awake()
     {
@@ -284,7 +288,7 @@ public class SpectatorCameraController : MonoBehaviour
                 return -1;
             }
 
-            if (Keyboard.current.sKey.wasPressedThisFrame)
+            if (Keyboard.current.dKey.wasPressedThisFrame)
             {
                 return 1;
             }
