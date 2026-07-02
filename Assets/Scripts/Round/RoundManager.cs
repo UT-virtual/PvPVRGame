@@ -69,6 +69,7 @@ public class RoundManager : NetworkBehaviour
     [Header("UI")]
     [SerializeField] private WaitingRoomUI waitingRoomUI;
     [SerializeField] private BattleStartUI battleStartUI;
+    [SerializeField] private RoundEndUI roundEndUI;
 
     [Header("Skill Selection UI")]
     [SerializeField] private int skillOptionSlotCount = 4;
@@ -193,6 +194,11 @@ public class RoundManager : NetworkBehaviour
         {
             Destroy(gameObject);
             return;
+        }
+
+        if (roundEndUI == null)
+        {
+            roundEndUI = FindFirstObjectByType<RoundEndUI>();
         }
 
         Instance = this;
@@ -802,6 +808,16 @@ public class RoundManager : NetworkBehaviour
 
         ClearHealthItems();
 
+        if (roundEndUI == null)
+        {
+            roundEndUI = FindFirstObjectByType<RoundEndUI>();
+        }
+
+        if (roundEndUI != null)
+        {
+            roundEndUI.Show(currentRound, roundWinner);
+        }
+
         if (roundWinner != null)
         {
             points[roundWinner]++;
@@ -817,6 +833,11 @@ public class RoundManager : NetworkBehaviour
         }
 
         yield return new WaitForSeconds(nextRoundDelay);
+
+        if (roundEndUI != null)
+        {
+            roundEndUI.Hide();
+        }
 
         DespawnProjectiles();
 
