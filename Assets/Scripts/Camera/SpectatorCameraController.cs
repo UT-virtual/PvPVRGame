@@ -3,7 +3,6 @@ using Fusion;
 using Unity.Cinemachine;
 using UnityEngine;
 using UnityEngine.InputSystem;
-using System.Collections.Generic;
 
 public class SpectatorCameraController : MonoBehaviour
 {
@@ -33,6 +32,10 @@ public class SpectatorCameraController : MonoBehaviour
     private bool isSpectating;
     private bool switchInputHeld;
     private int targetIndex;
+    public bool IsSpectatingActive =>
+        isSpectating && currentTarget != null;
+
+    public PlayerHealth CurrentSpectatorTarget => currentTarget;
 
     private void Awake()
     {
@@ -49,6 +52,17 @@ public class SpectatorCameraController : MonoBehaviour
 
         if (localPlayer == null || localPlayer.Object == null)
         {
+            ResetSpectatorState();
+            return;
+        }
+
+        if (!CanSpectateInCurrentPhase())
+        {
+            if (isSpectating)
+            {
+                RestoreLocalCamera();
+            }
+
             ResetSpectatorState();
             return;
         }
@@ -100,6 +114,16 @@ public class SpectatorCameraController : MonoBehaviour
         }
 
         HandleSwitchInput();
+    }
+
+    private bool CanSpectateInCurrentPhase()
+    {
+        RoundManager roundManager = RoundManager.Instance;
+
+        return
+            roundManager != null &&
+            roundManager.IsNetworkReady &&
+            roundManager.IsRoundPlaying;
     }
 
     private void LateUpdate()
@@ -284,7 +308,7 @@ public class SpectatorCameraController : MonoBehaviour
                 return -1;
             }
 
-            if (Keyboard.current.sKey.wasPressedThisFrame)
+            if (Keyboard.current.dKey.wasPressedThisFrame)
             {
                 return 1;
             }
@@ -391,7 +415,7 @@ public class SpectatorCameraController : MonoBehaviour
 
         if (battleHudBinder != null)
         {
-            battleHudBinder.BindToSpectatorTarget(currentTarget);
+            battleHudBinder.BindToLocalPlayer();
         }
 
         localCamera.UpdateCameraTarget();

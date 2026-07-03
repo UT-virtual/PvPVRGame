@@ -135,21 +135,26 @@ public class PlayerSkillController : NetworkBehaviour
         UpdateSkillState();
     }
 
+    // public bool CanSelectSkill(PlayerSkillType skill)
+    // {
+    //     if (skill == PlayerSkillType.None)
+    //     {
+    //         return true;
+    //     }
+
+    //     if (allowSameSkillConsecutiveForDebug)
+    //     {
+    //         return true;
+    //     }
+
+    //     return
+    //         skill != LastRoundSkill &&
+    //         skill != LastRoundSecondSkill;
+    // }
+
     public bool CanSelectSkill(PlayerSkillType skill)
     {
-        if (skill == PlayerSkillType.None)
-        {
-            return true;
-        }
-
-        if (allowSameSkillConsecutiveForDebug)
-        {
-            return true;
-        }
-
-        return
-            skill != LastRoundSkill &&
-            skill != LastRoundSecondSkill;
+        return true;
     }
 
     public void PrepareForRound(PlayerSkillType requestedSkill)
