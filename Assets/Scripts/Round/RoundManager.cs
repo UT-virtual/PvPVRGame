@@ -500,6 +500,75 @@ public class RoundManager : NetworkBehaviour
         SelectSkill(player, skill, false);
     }
 
+    [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
+    public void RPC_RequestSelectSkillBySlot(PlayerRef playerRef, int slotIndex)
+    {
+        if (phase != GamePhase.SkillSelecting)
+        {
+            Debug.Log(
+                $"[RoundManager] Skill RPC ignored. " +
+                $"Phase={phase}, PlayerRef={playerRef}, Slot={slotIndex + 1}"
+            );
+            return;
+        }
+
+        PlayerHealth player = FindRegisteredPlayerByRef(playerRef);
+
+        if (player == null)
+        {
+            Debug.LogWarning(
+                $"[RoundManager] Skill RPC ignored. Player was not found. " +
+                $"PlayerRef={playerRef}, Slot={slotIndex + 1}"
+            );
+            return;
+        }
+
+        int beforeCount = GetSkillSelectionCount(player);
+
+        SelectSkillBySlot(player, slotIndex);
+
+        int afterCount = GetSkillSelectionCount(player);
+
+        Debug.Log(
+            $"[RoundManager] Skill RPC processed. " +
+            $"Player={player.name}, PlayerRef={playerRef}, Slot={slotIndex + 1}, " +
+            $"Count={beforeCount}->{afterCount}"
+        );
+
+        RPC_NotifySkillSelectionProgress(playerRef, afterCount);
+    }
+
+    [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+    private void RPC_NotifySkillSelectionProgress(PlayerRef playerRef, int selectedCount)
+    {
+        NetworkLauncher launcher = FindFirstObjectByType<NetworkLauncher>();
+
+        if (launcher != null)
+        {
+            launcher.OnServerSkillSelectionProgress(playerRef, selectedCount);
+        }
+    }
+
+    private PlayerHealth FindRegisteredPlayerByRef(PlayerRef playerRef)
+    {
+        List<PlayerHealth> validPlayers = GetValidPlayers();
+
+        foreach (PlayerHealth player in validPlayers)
+        {
+            if (player == null || player.Object == null)
+            {
+                continue;
+            }
+
+            if (player.Object.InputAuthority == playerRef)
+            {
+                return player;
+            }
+        }
+
+        return null;
+    }
+
     private int GetSkillSelectionCount(PlayerHealth player)
     {
         if (player == null)
@@ -822,27 +891,19 @@ public class RoundManager : NetworkBehaviour
             Debug.Log($"Round {currentRound} ended with no winner.");
         }
 
-        if (roundEndUI == null)
-        {
-            roundEndUI = FindFirstObjectByType<RoundEndUI>();
-        }
-
-        if (roundEndUI != null)
-        {
-            roundEndUI.Show(
-                currentRound,
-                roundWinner,
-                GetValidPlayers(),
-                points
-            );
-        }
+        RpcShowRoundEndUI(
+            currentRound,
+            GetWinnerTeamIndex(roundWinner),
+            CreateRoundEndTeamMask(),
+            GetPointForTeam(TeamColor.Red),
+            GetPointForTeam(TeamColor.Blue),
+            GetPointForTeam(TeamColor.Green),
+            GetPointForTeam(TeamColor.Yellow)
+        );
 
         yield return new WaitForSeconds(nextRoundDelay);
 
-        if (roundEndUI != null)
-        {
-            roundEndUI.Hide();
-        }
+        RpcHideRoundEndUI();
 
         DespawnProjectiles();
 
@@ -855,6 +916,102 @@ public class RoundManager : NetworkBehaviour
         currentRound++;
 
         BeginSkillSelectionForRound(currentRound);
+    }
+
+    [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+    private void RpcShowRoundEndUI(
+        int roundNumber,
+        int winnerTeamIndex,
+        int teamMask,
+        int redWins,
+        int blueWins,
+        int greenWins,
+        int yellowWins
+    )
+    {
+        if (roundEndUI == null)
+        {
+            roundEndUI = FindFirstObjectByType<RoundEndUI>();
+        }
+
+        if (roundEndUI == null)
+        {
+            Debug.LogWarning("[RoundManager] RoundEndUI was not found.");
+            return;
+        }
+
+        roundEndUI.ShowTeamScores(
+            roundNumber,
+            winnerTeamIndex,
+            teamMask,
+            redWins,
+            blueWins,
+            greenWins,
+            yellowWins
+        );
+    }
+
+    [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+    private void RpcHideRoundEndUI()
+    {
+        if (roundEndUI == null)
+        {
+            roundEndUI = FindFirstObjectByType<RoundEndUI>();
+        }
+
+        if (roundEndUI != null)
+        {
+            roundEndUI.Hide();
+        }
+    }
+
+    private int GetWinnerTeamIndex(PlayerHealth winner)
+    {
+        if (winner == null || !winner.HasTeamAssigned)
+        {
+            return -1;
+        }
+
+        return (int)winner.Team;
+    }
+
+    private int CreateRoundEndTeamMask()
+    {
+        int mask = 0;
+
+        foreach (PlayerHealth player in GetValidPlayers())
+        {
+            if (player == null || !player.HasTeamAssigned)
+            {
+                continue;
+            }
+
+            mask |= 1 << (int)player.Team;
+        }
+
+        return mask;
+    }
+
+    private int GetPointForTeam(TeamColor team)
+    {
+        int result = 0;
+
+        foreach (KeyValuePair<PlayerHealth, int> pair in points)
+        {
+            PlayerHealth player = pair.Key;
+
+            if (player == null || !player.HasTeamAssigned)
+            {
+                continue;
+            }
+
+            if (player.Team == team)
+            {
+                result += pair.Value;
+            }
+        }
+
+        return result;
     }
 
     private IEnumerator FinishMatchAndReturnToWaitingCoroutine()

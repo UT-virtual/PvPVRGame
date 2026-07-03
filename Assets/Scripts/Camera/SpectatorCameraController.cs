@@ -3,7 +3,6 @@ using Fusion;
 using Unity.Cinemachine;
 using UnityEngine;
 using UnityEngine.InputSystem;
-using System.Collections.Generic;
 
 public class SpectatorCameraController : MonoBehaviour
 {
@@ -57,6 +56,17 @@ public class SpectatorCameraController : MonoBehaviour
             return;
         }
 
+        if (!CanSpectateInCurrentPhase())
+        {
+            if (isSpectating)
+            {
+                RestoreLocalCamera();
+            }
+
+            ResetSpectatorState();
+            return;
+        }
+
         if (!localPlayer.IsDead)
         {
             if (isSpectating)
@@ -104,6 +114,16 @@ public class SpectatorCameraController : MonoBehaviour
         }
 
         HandleSwitchInput();
+    }
+
+    private bool CanSpectateInCurrentPhase()
+    {
+        RoundManager roundManager = RoundManager.Instance;
+
+        return
+            roundManager != null &&
+            roundManager.IsNetworkReady &&
+            roundManager.IsRoundPlaying;
     }
 
     private void LateUpdate()
@@ -395,7 +415,7 @@ public class SpectatorCameraController : MonoBehaviour
 
         if (battleHudBinder != null)
         {
-            battleHudBinder.BindToSpectatorTarget(currentTarget);
+            battleHudBinder.BindToLocalPlayer();
         }
 
         localCamera.UpdateCameraTarget();

@@ -43,6 +43,27 @@ public class RoundEndUI : MonoBehaviour
         RefreshScoreList(players, points);
     }
 
+    public void ShowTeamScores(
+    int roundNumber,
+    int winnerTeamIndex,
+    int teamMask,
+    int redWins,
+    int blueWins,
+    int greenWins,
+    int yellowWins
+    )
+    {
+        SetVisible(true);
+
+        if (roundEndText != null)
+        {
+            roundEndText.text = $"ラウンド{roundNumber}終了";
+        }
+
+        ApplyWinnerByTeamIndex(winnerTeamIndex);
+        RefreshScoreListByTeam(teamMask, redWins, blueWins, greenWins, yellowWins);
+    }
+
     public void Hide()
     {
         ClearScoreEntries();
@@ -187,6 +208,92 @@ public class RoundEndUI : MonoBehaviour
         }
     }
 
+    private void ApplyWinnerByTeamIndex(int winnerTeamIndex)
+    {
+        if (winnerTeamIndex < 0)
+        {
+            if (winnerColorIcon != null)
+            {
+                winnerColorIcon.gameObject.SetActive(false);
+            }
+
+            if (winSuffixText != null)
+            {
+                winSuffixText.text = "勝者なし";
+            }
+
+            return;
+        }
+
+        RoundManager.TeamColor winnerTeam = (RoundManager.TeamColor)winnerTeamIndex;
+
+        if (winnerColorIcon != null)
+        {
+            winnerColorIcon.gameObject.SetActive(true);
+            winnerColorIcon.color = GetTeamColor(winnerTeam);
+        }
+
+        if (winSuffixText != null)
+        {
+            winSuffixText.text = "の勝利";
+        }
+    }
+
+    private void RefreshScoreListByTeam(
+        int teamMask,
+        int redWins,
+        int blueWins,
+        int greenWins,
+        int yellowWins
+    )
+    {
+        ClearScoreEntries();
+
+        if (scoreTitleText != null)
+        {
+            scoreTitleText.text = "現在の勝利数";
+        }
+
+        if (scoreContentRoot == null || scoreEntryPrefab == null)
+        {
+            Debug.LogWarning("[RoundEndUI] scoreContentRoot or scoreEntryPrefab is null.");
+            return;
+        }
+
+        CreateScoreEntryIfTeamExists(teamMask, RoundManager.TeamColor.Red, redWins);
+        CreateScoreEntryIfTeamExists(teamMask, RoundManager.TeamColor.Blue, blueWins);
+        CreateScoreEntryIfTeamExists(teamMask, RoundManager.TeamColor.Green, greenWins);
+        CreateScoreEntryIfTeamExists(teamMask, RoundManager.TeamColor.Yellow, yellowWins);
+    }
+
+    private void CreateScoreEntryIfTeamExists(
+        int teamMask,
+        RoundManager.TeamColor team,
+        int winCount
+    )
+    {
+        int bit = 1 << (int)team;
+
+        if ((teamMask & bit) == 0)
+        {
+            return;
+        }
+
+        GameObject entryObject = Instantiate(scoreEntryPrefab, scoreContentRoot);
+        entryObject.SetActive(true);
+        scoreEntryObjects.Add(entryObject);
+
+        RoundEndScoreEntryUI entryUI = entryObject.GetComponent<RoundEndScoreEntryUI>();
+
+        if (entryUI == null)
+        {
+            Debug.LogWarning("[RoundEndUI] RoundEndScoreEntryUI was not found on scoreEntryPrefab.");
+            return;
+        }
+
+        entryUI.Setup(GetTeamColor(team), winCount);
+    }
+
     private Color GetTeamColor(PlayerHealth player)
     {
         if (player == null || !player.HasTeamAssigned)
@@ -194,7 +301,12 @@ public class RoundEndUI : MonoBehaviour
             return Color.gray;
         }
 
-        switch (player.Team)
+        return GetTeamColor(player.Team);
+    }
+
+    private Color GetTeamColor(RoundManager.TeamColor team)
+    {
+        switch (team)
         {
             case RoundManager.TeamColor.Red:
                 return new Color32(255, 77, 109, 255);

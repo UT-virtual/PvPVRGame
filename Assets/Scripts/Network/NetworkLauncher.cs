@@ -661,40 +661,13 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
             ? roundManager.GetSkillOption(currentSkillSelectionSlot, localSkillSelectionStep)
             : PlayerSkillType.None;
 
-        bool queued = true;
+        int selectedSlot = currentSkillSelectionSlot;
 
-        switch (currentSkillSelectionSlot)
-        {
-            case 0:
-                selectSkill1Queued = true;
-                break;
-
-            case 1:
-                selectSkill2Queued = true;
-                break;
-
-            case 2:
-                selectSkill3Queued = true;
-                break;
-
-            case 3:
-                selectSkill4Queued = true;
-                break;
-
-            default:
-                queued = false;
-                Debug.LogWarning($"[NetworkLauncher] Invalid skill selection slot: {currentSkillSelectionSlot}");
-                break;
-        }
-
-        if (!queued)
-        {
-            return;
-        }
+        SendSkillSelectionRpc(selectedSlot);
 
         Debug.Log(
-            $"[NetworkLauncher] Confirm skill slot: " +
-            $"{currentSkillSelectionSlot + 1}, " +
+            $"[NetworkLauncher] Confirm skill slot by RPC: " +
+            $"{selectedSlot + 1}, " +
             $"Step={localSkillSelectionStep + 1}, " +
             $"Skill={selectedSkill}"
         );
@@ -712,57 +685,100 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
         localSkillSelectionConfirmed = true;
     }
     
+    private void SendSkillSelectionRpc(int slotIndex)
+    {
+        if (runner == null)
+        {
+            Debug.LogWarning("[NetworkLauncher] Cannot send skill RPC. runner is null.");
+            return;
+        }
+
+        if (RoundManager.Instance == null)
+        {
+            Debug.LogWarning("[NetworkLauncher] Cannot send skill RPC. RoundManager.Instance is null.");
+            return;
+        }
+
+        RoundManager.Instance.RPC_RequestSelectSkillBySlot(
+            runner.LocalPlayer,
+            slotIndex
+        );
+    }
+
+    public void OnServerSkillSelectionProgress(PlayerRef playerRef, int selectedCount)
+    {
+        if (runner == null)
+        {
+            return;
+        }
+
+        if (playerRef != runner.LocalPlayer)
+        {
+            return;
+        }
+
+        Debug.Log(
+            $"[NetworkLauncher] Server confirmed skill selection. " +
+            $"PlayerRef={playerRef}, Count={selectedCount}/2"
+        );
+
+        if (selectedCount >= 2)
+        {
+            localSkillSelectionConfirmed = true;
+        }
+    }
+    
     private bool CanConfirmCurrentSkillSelection()
-{
-    RoundManager roundManager = RoundManager.Instance;
-
-    if (roundManager == null)
     {
-        return false;
-    }
+        RoundManager roundManager = RoundManager.Instance;
 
-    PlayerSkillType selectedSkill = roundManager.GetSkillOption(
-        currentSkillSelectionSlot,
-        localSkillSelectionStep
-    );
+        if (roundManager == null)
+        {
+            return false;
+        }
 
-    if (selectedSkill == PlayerSkillType.None)
-    {
-        Debug.LogWarning(
-            $"[NetworkLauncher] Cannot confirm empty skill slot: " +
-            $"{currentSkillSelectionSlot + 1}, Step={localSkillSelectionStep + 1}"
+        PlayerSkillType selectedSkill = roundManager.GetSkillOption(
+            currentSkillSelectionSlot,
+            localSkillSelectionStep
         );
 
-        return false;
-    }
+        if (selectedSkill == PlayerSkillType.None)
+        {
+            Debug.LogWarning(
+                $"[NetworkLauncher] Cannot confirm empty skill slot: " +
+                $"{currentSkillSelectionSlot + 1}, Step={localSkillSelectionStep + 1}"
+            );
 
-    if (localSkillSelectionStep > 0 && selectedSkill == localFirstSelectedSkill)
-    {
-        Debug.LogWarning(
-            $"[NetworkLauncher] Cannot select same skill twice: {selectedSkill}"
-        );
+            return false;
+        }
 
-        return false;
-    }
+        if (localSkillSelectionStep > 0 && selectedSkill == localFirstSelectedSkill)
+        {
+            Debug.LogWarning(
+                $"[NetworkLauncher] Cannot select same skill twice: {selectedSkill}"
+            );
 
-    if (localPlayerController == null)
-    {
+            return false;
+        }
+
+        if (localPlayerController == null)
+        {
+            return true;
+        }
+
+        PlayerSkillController skillController = localPlayerController.GetComponent<PlayerSkillController>();
+
+        if (skillController != null && !skillController.CanSelectSkill(selectedSkill))
+        {
+            Debug.LogWarning(
+                $"[NetworkLauncher] Cannot confirm skill because it cannot be selected: {selectedSkill}"
+            );
+
+            return false;
+        }
+
         return true;
     }
-
-    PlayerSkillController skillController = localPlayerController.GetComponent<PlayerSkillController>();
-
-    if (skillController != null && !skillController.CanSelectSkill(selectedSkill))
-    {
-        Debug.LogWarning(
-            $"[NetworkLauncher] Cannot confirm skill because it cannot be selected: {selectedSkill}"
-        );
-
-        return false;
-    }
-
-    return true;
-}
 
     private void UpdateHMD()
     {
