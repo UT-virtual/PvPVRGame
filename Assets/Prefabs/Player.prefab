@@ -326,11 +326,11 @@ GameObject:
   - component: {fileID: 7632850862143163386}
   m_Layer: 0
   m_Name: Long_Rifle_03
-  m_TagString: Untagged
+  m_TagString: EditorOnly
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!4 &7223188121678694669
 Transform:
   m_ObjectHideFlags: 0
@@ -1570,7 +1570,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::PlayerHealth
   maxHealth: 10
   visualRoot: {fileID: 4762586069857500457}
-  weaponVisualRoot: {fileID: 3831090507889256747}
+  weaponVisualRoot: {fileID: 2209430232442334037}
   overheadIconRoot: {fileID: 4915071045229155744}
   _NetworkedCurrentHealth: 0
   _NetworkedIsDead:
@@ -1744,7 +1744,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::NetworkPlayer
   playerCamera: {fileID: 1904617270884353107}
   visualRoot: {fileID: 4762586069857500457}
-  hideLocalVisual: 1
+  hideLocalVisual: 0
   localOnlyObjects: []
 --- !u!82 &-7183140537700069115
 AudioSource:
@@ -1899,8 +1899,12 @@ MonoBehaviour:
   nextShotDamageBoostMultiplier: 1.5
   allowSameSkillConsecutiveForDebug: 0
   _CurrentRoundSkill: 0
+  _CurrentRoundSecondSkill: 0
   _LastRoundSkill: 0
+  _LastRoundSecondSkill: 0
   _ActiveSkill: 0
+  _ActiveSecondSkill: 0
+  _CurrentSelectedSkillIndex: 0
 --- !u!114 &921368895039534941
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2422,7 +2426,7 @@ MonoBehaviour:
       target: {fileID: 2450436882394348749}
       bendGoal: {fileID: 0}
       positionWeight: 1
-      rotationWeight: 0
+      rotationWeight: 1
       shoulderRotationMode: 0
       shoulderRotationWeight: 1
       bendGoalWeight: 0
@@ -2441,7 +2445,7 @@ MonoBehaviour:
       target: {fileID: 7065976539238515889}
       bendGoal: {fileID: 0}
       positionWeight: 1
-      rotationWeight: 0
+      rotationWeight: 1
       shoulderRotationMode: 0
       shoulderRotationWeight: 1
       bendGoalWeight: 0
