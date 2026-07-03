@@ -808,16 +808,6 @@ public class RoundManager : NetworkBehaviour
 
         ClearHealthItems();
 
-        if (roundEndUI == null)
-        {
-            roundEndUI = FindFirstObjectByType<RoundEndUI>();
-        }
-
-        if (roundEndUI != null)
-        {
-            roundEndUI.Show(currentRound, roundWinner);
-        }
-
         if (roundWinner != null)
         {
             points[roundWinner]++;
@@ -830,6 +820,21 @@ public class RoundManager : NetworkBehaviour
         else
         {
             Debug.Log($"Round {currentRound} ended with no winner.");
+        }
+
+        if (roundEndUI == null)
+        {
+            roundEndUI = FindFirstObjectByType<RoundEndUI>();
+        }
+
+        if (roundEndUI != null)
+        {
+            roundEndUI.Show(
+                currentRound,
+                roundWinner,
+                GetValidPlayers(),
+                points
+            );
         }
 
         yield return new WaitForSeconds(nextRoundDelay);
