@@ -70,6 +70,7 @@ public class RoundManager : NetworkBehaviour
     [SerializeField] private WaitingRoomUI waitingRoomUI;
     [SerializeField] private BattleStartUI battleStartUI;
     [SerializeField] private RoundEndUI roundEndUI;
+    [SerializeField] private FinalResultUI finalResultUI;
 
     [Header("Skill Selection UI")]
     [SerializeField] private int skillOptionSlotCount = 4;
@@ -1024,15 +1025,116 @@ public class RoundManager : NetworkBehaviour
 
         LogMatchResult();
 
+        RpcShowFinalResultUI(CreateFinalWinnerTeamMask());
+
         Debug.Log($"[RoundManager] Match finished. Returning to waiting state in {returnToWaitingDelay} seconds.");
 
         yield return new WaitForSeconds(returnToWaitingDelay);
 
+        RpcHideFinalResultUI();
+
         ResetMatchStateToWaiting();
     }
 
+    [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+    private void RpcShowFinalResultUI(int winnerTeamMask)
+    {
+        if (finalResultUI == null)
+        {
+            finalResultUI = FindFirstObjectByType<FinalResultUI>();
+        }
+
+        if (finalResultUI == null)
+        {
+            Debug.LogWarning("[RoundManager] FinalResultUI was not found.");
+            return;
+        }
+
+        finalResultUI.ShowWinners(winnerTeamMask);
+    }
+
+    [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+    private void RpcHideFinalResultUI()
+    {
+        if (finalResultUI == null)
+        {
+            finalResultUI = FindFirstObjectByType<FinalResultUI>();
+        }
+
+        if (finalResultUI != null)
+        {
+            finalResultUI.Hide();
+        }
+    }
+
+    private int CreateFinalWinnerTeamMask()
+    {
+        int teamMask = CreateRoundEndTeamMask();
+
+        if (teamMask == 0)
+        {
+            return 0;
+        }
+
+        int highestPoint = int.MinValue;
+
+        UpdateHighestPointIfTeamExists(teamMask, TeamColor.Red, ref highestPoint);
+        UpdateHighestPointIfTeamExists(teamMask, TeamColor.Blue, ref highestPoint);
+        UpdateHighestPointIfTeamExists(teamMask, TeamColor.Green, ref highestPoint);
+        UpdateHighestPointIfTeamExists(teamMask, TeamColor.Yellow, ref highestPoint);
+
+        int winnerTeamMask = 0;
+
+        AddWinnerTeamIfHighest(teamMask, TeamColor.Red, highestPoint, ref winnerTeamMask);
+        AddWinnerTeamIfHighest(teamMask, TeamColor.Blue, highestPoint, ref winnerTeamMask);
+        AddWinnerTeamIfHighest(teamMask, TeamColor.Green, highestPoint, ref winnerTeamMask);
+        AddWinnerTeamIfHighest(teamMask, TeamColor.Yellow, highestPoint, ref winnerTeamMask);
+
+        return winnerTeamMask;
+    }
+
+    private void UpdateHighestPointIfTeamExists(
+        int teamMask,
+        TeamColor team,
+        ref int highestPoint
+    )
+    {
+        if (!HasTeamInMask(teamMask, team))
+        {
+            return;
+        }
+
+        highestPoint = Mathf.Max(highestPoint, GetPointForTeam(team));
+    }
+
+    private void AddWinnerTeamIfHighest(
+        int teamMask,
+        TeamColor team,
+        int highestPoint,
+        ref int winnerTeamMask
+    )
+    {
+        if (!HasTeamInMask(teamMask, team))
+        {
+            return;
+        }
+
+        if (GetPointForTeam(team) != highestPoint)
+        {
+            return;
+        }
+
+        winnerTeamMask |= 1 << (int)team;
+    }
+
+    private bool HasTeamInMask(int teamMask, TeamColor team)
+    {
+        return (teamMask & (1 << (int)team)) != 0;
+    }
     private void ResetMatchStateToWaiting()
     {
+        RpcHideFinalResultUI();
+        
         ClearHealthItems();
         DespawnProjectiles();
         StopSkillSelectionCoroutines();
