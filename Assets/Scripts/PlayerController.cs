@@ -193,7 +193,15 @@ public class PlayerController : NetworkBehaviour
             }
         }
 
-        playerMove.MoveOnSurface(moveInput, deltaTime);
+        //VRÇ≈ÇÕHMDÇÃå¸Ç´ÇéQè∆Ç∑ÇÈ
+        if (input.IsVR)
+        {
+            playerMove.MoveOnSurfaceVR(moveInput, deltaTime, playerLook.ViewForward, playerMove.AimRight);
+        }
+        else
+        {
+            playerMove.MoveOnSurface(moveInput, deltaTime);
+        }
 
         playerMove.ProbeGround();
         playerMove.UpdateAimBasis();

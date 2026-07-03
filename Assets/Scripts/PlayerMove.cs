@@ -203,6 +203,46 @@ public class PlayerMove : MonoBehaviour
         controller.Move(moveDir * moveSpeed * moveSpeedMultiplier * deltaTime);
     }
 
+    //VRÇ≈HMDÇÃå¸Ç´Ç…êiÇﬁèàóù
+    public void MoveOnSurfaceVR(Vector2 input, float deltaTime, Vector3 moveForward,Vector3 moveRight)
+    {
+        if (input.sqrMagnitude < 0.01f)
+        {
+            return;
+        }
+
+        if (input.sqrMagnitude > 1.0f)
+        {
+            input.Normalize();
+        }
+
+        moveForward = Vector3.ProjectOnPlane(moveForward, surfaceUp);
+
+        if (moveForward.sqrMagnitude < 0.001f)
+        {
+            moveForward = aimForward;
+        }
+
+        moveForward.Normalize();
+
+        moveRight = Vector3.Cross(surfaceUp, moveForward).normalized;
+        moveForward = Vector3.Cross(moveRight, surfaceUp).normalized;
+
+        Vector3 moveDir = moveForward * input.y + moveRight * input.x;
+
+        if (moveDir.sqrMagnitude < 0.001f)
+        {
+            return;
+        }
+
+        if (moveDir.sqrMagnitude > 1.0f)
+        {
+            moveDir.Normalize();
+        }
+
+        controller.Move(moveDir * moveSpeed * moveSpeedMultiplier * deltaTime);
+    }
+
     public void AlignToSurface(float deltaTime)
     {
         Quaternion targetRotation = Quaternion.LookRotation(aimForward, surfaceUp);
