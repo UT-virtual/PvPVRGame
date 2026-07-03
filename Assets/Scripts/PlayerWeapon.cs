@@ -69,6 +69,8 @@ public class PlayerWeapon : NetworkBehaviour
     public bool IsReloading => NetworkedIsReloading;
 
     public event Action OnShot;
+    public event Action OnReloadStarted;
+    public event Action OnReloadCanceled;
     public event Action OnReloaded;
     public event Action OnDryFire;
     public event Action<int, int> OnAmmoChanged;
@@ -250,6 +252,8 @@ public class PlayerWeapon : NetworkBehaviour
         NetworkedIsReloading = true;
         reloadTimer = reloadDuration;
 
+        OnReloadStarted?.Invoke();
+
         NotifyAmmoChanged();
 
         Debug.Log($"Reload started. Duration={reloadDuration} seconds.");
@@ -307,6 +311,8 @@ public class PlayerWeapon : NetworkBehaviour
 
         NetworkedIsReloading = false;
         reloadTimer = 0.0f;
+
+        OnReloadCanceled?.Invoke();
 
         NotifyAmmoChanged();
 
