@@ -114,8 +114,8 @@ public class PlayerSound : NetworkBehaviour
     {
         if(reloadingSE != null && audioSource != null)
         {
-            reloadAudioSource.pitch = Random.Range(0.95f, 1.05f); // 0.95倍 〜 1.05倍
-            reloadAudioSource.volume = Random.Range(0.85f, 1.00f); // 85% 〜 100%の音量
+            reloadAudioSource.pitch = Random.Range(0.9f, 1.1f); // 0.95倍 〜 1.05倍
+            reloadAudioSource.volume = Random.Range(1.2f, 1.3f); // 85% 〜 100%の音量
 
             // 2. 音声をセットし、ループ再生を有効にする
             reloadAudioSource.clip = reloadingSE;
