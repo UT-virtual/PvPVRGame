@@ -3610,7 +3610,7 @@ MonoBehaviour:
   minPlayersToStart: 1
   skillSelectionDuration: 30
   startAfterAllSkillsSelectedDelay: 3
-  availableRoundSkills: 0100000002000000030000000400000005000000060000000700000008000000090000000a0000000b0000000c0000000d000000
+  selectableRoundSkills: 0100000002000000030000000400000005000000060000000700000008000000090000000a0000000b0000000c0000000d000000
   maxRoundCount: 3
   nextRoundDelay: 2
   returnToWaitingDelay: 3
@@ -3622,9 +3622,7 @@ MonoBehaviour:
   battleStartUI: {fileID: 1760244462}
   roundEndUI: {fileID: 0}
   finalResultUI: {fileID: 0}
-  skillOptionSlotCount: 4
   countDebugSpectatorDummiesAsAlive: 0
-  currentRound: 1
 --- !u!4 &1119373598
 Transform:
   m_ObjectHideFlags: 0
@@ -4715,7 +4713,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 1}
   m_AnchorMax: {x: 1, y: 1}
-  m_AnchoredPosition: {x: 15428705, y: 18343342}
+  m_AnchoredPosition: {x: 15496439, y: 18423884}
   m_SizeDelta: {x: -183, y: 0}
   m_Pivot: {x: 0, y: 1}
 --- !u!114 &1502683515
@@ -7198,7 +7196,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 1}
   m_AnchorMax: {x: 1, y: 1}
-  m_AnchoredPosition: {x: 0.010331633, y: -0.00613831}
+  m_AnchoredPosition: {x: 0.0038897677, y: -0.008208374}
   m_SizeDelta: {x: -183, y: 0}
   m_Pivot: {x: 0, y: 1}
 --- !u!114 &2049869607
