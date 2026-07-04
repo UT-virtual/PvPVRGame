@@ -31,7 +31,7 @@ public class BattleStartUI : MonoBehaviour
         }
 
         // ENGAGE表示
-        yield return StartCoroutine(AnimateText("Round " + roundManager.currentRound + " Start!"));
+        yield return StartCoroutine(AnimateText("Round " + roundManager.CurrentRound + " Start!"));
 
         // フェードアウト
         float t = 0f;
