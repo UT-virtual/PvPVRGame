@@ -100,11 +100,6 @@ public class SkillSelectUI : MonoBehaviour
         {
             timerText.text = $"残り {remainingTime:0.0} 秒";
         }
-
-        if (operationText != null)
-        {
-            operationText.text = "選択: 左スティック 決定: A";
-        }
     }
 
     private void SetSkillSelectionControlsVisible(bool visible)
