@@ -14,12 +14,6 @@ public class AmmoBar : MonoBehaviour
 
     private void OnEnable()
     {
-        if (weapon != null)
-        {
-            SetupWeapon(weapon);
-            return;
-        }
-
         StartFindLocalWeapon();
     }
 
@@ -51,6 +45,14 @@ public class AmmoBar : MonoBehaviour
         {
             StopCoroutine(findWeaponCoroutine);
         }
+
+        if (weapon != null)
+        {
+            weapon.OnAmmoChanged -= UpdateCells;
+            weapon = null;
+        }
+
+        ClearCells();
 
         findWeaponCoroutine = StartCoroutine(FindLocalWeapon());
     }
@@ -104,6 +106,14 @@ public class AmmoBar : MonoBehaviour
             return;
         }
 
+        NetworkObject networkObject = targetWeapon.GetComponent<NetworkObject>();
+
+        if (networkObject == null || !networkObject.IsValid)
+        {
+            StartFindLocalWeapon();
+            return;
+        }
+
         if (weapon != null)
         {
             weapon.OnAmmoChanged -= UpdateCells;
@@ -121,6 +131,9 @@ public class AmmoBar : MonoBehaviour
 
         Debug.Log(
             $"[AmmoBar] Setup complete. " +
+            $"Target={weapon.name}, " +
+            $"HasInputAuthority={networkObject.HasInputAuthority}, " +
+            $"InputAuthority={networkObject.InputAuthority}, " +
             $"Ammo={weapon.CurrentAmmo}/{weapon.MaxAmmo}, " +
             $"Cells={cells.Count}"
         );

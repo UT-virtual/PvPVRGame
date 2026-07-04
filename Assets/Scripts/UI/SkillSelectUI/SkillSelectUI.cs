@@ -86,7 +86,7 @@ public class SkillSelectUI : MonoBehaviour
         {
             if (localPlayerSelected)
             {
-                titleText.text = "他の参加者が選択しています。";
+                titleText.text = "他の参加者が選択しています";
             }
             else
             {

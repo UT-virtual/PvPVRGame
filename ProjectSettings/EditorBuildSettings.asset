@@ -8,9 +8,15 @@ EditorBuildSettings:
   - enabled: 0
     path: Assets/Scenes/KusakaScene.unity
     guid: 99c9720ab356a0642a771bea13969a05
-  - enabled: 1
+  - enabled: 0
     path: Assets/Scenes/newmiganekoScene.unity
     guid: d33c26ca738e3440f83149aeca6f7b82
+  - enabled: 0
+    path: Assets/Scenes/VRMainScene.unity
+    guid: 9784048f534b84bce9bbe737e3442e33
+  - enabled: 1
+    path: Assets/Scenes/PCMainScene.unity
+    guid: ab489e00a5ec24c6c95b1825e27af476
   m_configObjects:
     com.unity.dt.app-ui: {fileID: 11400000, guid: 1b1c20d82303e4b5781c3ef50ac1449f, type: 2}
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 052faaac586de48259a63d0c4782560b, type: 3}
