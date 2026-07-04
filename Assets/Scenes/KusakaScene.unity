@@ -872,7 +872,7 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 432667075}
   m_HandleRect: {fileID: 432667074}
   m_Direction: 2
-  m_Value: 0
+  m_Value: 1
   m_Size: 0.9999933
   m_NumberOfSteps: 0
   m_OnValueChanged:
@@ -2217,6 +2217,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::BattleHudBinder
   healthBar: {fileID: 1221322612}
   ammoBar: {fileID: 1061165987}
+  skillHudUI: {fileID: 0}
 --- !u!4 &773190231
 Transform:
   m_ObjectHideFlags: 0
@@ -2395,7 +2396,7 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 280388582}
   m_HandleRect: {fileID: 280388581}
   m_Direction: 0
-  m_Value: 0
+  m_Value: 1
   m_Size: 0.999971
   m_NumberOfSteps: 0
   m_OnValueChanged:
@@ -3505,6 +3506,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::BattleHudBinder
   healthBar: {fileID: 1221322612}
   ammoBar: {fileID: 1061165987}
+  skillHudUI: {fileID: 0}
 --- !u!1001 &1107965855
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -4711,7 +4713,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 1}
   m_AnchorMax: {x: 1, y: 1}
-  m_AnchoredPosition: {x: 10061544, y: 11964097}
+  m_AnchoredPosition: {x: 10913740, y: 12976853}
   m_SizeDelta: {x: -183, y: 0}
   m_Pivot: {x: 0, y: 1}
 --- !u!114 &1502683515
@@ -7251,7 +7253,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 1}
   m_AnchorMax: {x: 1, y: 1}
-  m_AnchoredPosition: {x: -0.009509038, y: 0.0027903258}
+  m_AnchoredPosition: {x: -0.01419802, y: -0.0030258081}
   m_SizeDelta: {x: -183, y: 0}
   m_Pivot: {x: 0, y: 1}
 --- !u!114 &2049869607
