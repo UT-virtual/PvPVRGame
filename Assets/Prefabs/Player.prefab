@@ -1568,7 +1568,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 315b6328bde944c308c7c13ecf849319, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerHealth
-  maxHealth: 10
+  maxHealth: 20
   visualRoot: {fileID: 4762586069857500457}
   weaponVisualRoot: {fileID: 3831090507889256747}
   overheadIconRoot: {fileID: 4915071045229155744}
