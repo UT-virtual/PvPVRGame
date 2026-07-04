@@ -68,7 +68,7 @@ public sealed class RoundScoreCalculator
 
     public int GetPointForTeam(
         IEnumerable<PlayerHealth> players,
-        RoundManager.TeamColor team
+        TeamColor team
     )
     {
         int result = 0;
@@ -131,17 +131,17 @@ public sealed class RoundScoreCalculator
 
         int highestPoint = int.MinValue;
 
-        UpdateHighestPointIfTeamExists(validPlayers, teamMask, RoundManager.TeamColor.Red, ref highestPoint);
-        UpdateHighestPointIfTeamExists(validPlayers, teamMask, RoundManager.TeamColor.Blue, ref highestPoint);
-        UpdateHighestPointIfTeamExists(validPlayers, teamMask, RoundManager.TeamColor.Green, ref highestPoint);
-        UpdateHighestPointIfTeamExists(validPlayers, teamMask, RoundManager.TeamColor.Yellow, ref highestPoint);
+        UpdateHighestPointIfTeamExists(validPlayers, teamMask, TeamColor.Red, ref highestPoint);
+        UpdateHighestPointIfTeamExists(validPlayers, teamMask, TeamColor.Blue, ref highestPoint);
+        UpdateHighestPointIfTeamExists(validPlayers, teamMask, TeamColor.Green, ref highestPoint);
+        UpdateHighestPointIfTeamExists(validPlayers, teamMask, TeamColor.Yellow, ref highestPoint);
 
         int winnerTeamMask = 0;
 
-        AddWinnerTeamIfHighest(validPlayers, teamMask, RoundManager.TeamColor.Red, highestPoint, ref winnerTeamMask);
-        AddWinnerTeamIfHighest(validPlayers, teamMask, RoundManager.TeamColor.Blue, highestPoint, ref winnerTeamMask);
-        AddWinnerTeamIfHighest(validPlayers, teamMask, RoundManager.TeamColor.Green, highestPoint, ref winnerTeamMask);
-        AddWinnerTeamIfHighest(validPlayers, teamMask, RoundManager.TeamColor.Yellow, highestPoint, ref winnerTeamMask);
+        AddWinnerTeamIfHighest(validPlayers, teamMask, TeamColor.Red, highestPoint, ref winnerTeamMask);
+        AddWinnerTeamIfHighest(validPlayers, teamMask, TeamColor.Blue, highestPoint, ref winnerTeamMask);
+        AddWinnerTeamIfHighest(validPlayers, teamMask, TeamColor.Green, highestPoint, ref winnerTeamMask);
+        AddWinnerTeamIfHighest(validPlayers, teamMask, TeamColor.Yellow, highestPoint, ref winnerTeamMask);
 
         return winnerTeamMask;
     }
@@ -176,7 +176,7 @@ public sealed class RoundScoreCalculator
     private void UpdateHighestPointIfTeamExists(
         IEnumerable<PlayerHealth> players,
         int teamMask,
-        RoundManager.TeamColor team,
+        TeamColor team,
         ref int highestPoint
     )
     {
@@ -191,7 +191,7 @@ public sealed class RoundScoreCalculator
     private void AddWinnerTeamIfHighest(
         IEnumerable<PlayerHealth> players,
         int teamMask,
-        RoundManager.TeamColor team,
+        TeamColor team,
         int highestPoint,
         ref int winnerTeamMask
     )
@@ -209,7 +209,7 @@ public sealed class RoundScoreCalculator
         winnerTeamMask |= 1 << (int)team;
     }
 
-    private bool HasTeamInMask(int teamMask, RoundManager.TeamColor team)
+    private bool HasTeamInMask(int teamMask, TeamColor team)
     {
         return (teamMask & (1 << (int)team)) != 0;
     }

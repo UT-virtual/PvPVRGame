@@ -7,14 +7,6 @@ public class RoundManager : NetworkBehaviour
 {
     public static RoundManager Instance { get; private set; }
 
-    public enum TeamColor
-    {
-        Red,
-        Blue,
-        Green,
-        Yellow
-    }
-
     public enum GamePhase
     {
         WaitingForReady,
@@ -25,7 +17,7 @@ public class RoundManager : NetworkBehaviour
         MatchFinished
     }
 
-    private const int SkillOptionArrayLength = 4;
+    private const int SkillOptionSlotCountValue = 4;
 
     [Header("Ready")]
     [SerializeField] private int minPlayersToStart = 2;
@@ -33,8 +25,9 @@ public class RoundManager : NetworkBehaviour
     [Header("Skill Selection")]
     [SerializeField] private float skillSelectionDuration = 10.0f;
     [SerializeField] private float startAfterAllSkillsSelectedDelay = 2.0f;
+
     [SerializeField]
-    private List<PlayerSkillType> availableRoundSkills = new()
+    private List<PlayerSkillType> selectableRoundSkills = new()
     {
         PlayerSkillType.DoubleJump,
         PlayerSkillType.RapidFire,
@@ -46,7 +39,6 @@ public class RoundManager : NetworkBehaviour
         PlayerSkillType.Shrink,
         PlayerSkillType.DelayedDamageInvincible,
         PlayerSkillType.InstantReload,
-
         PlayerSkillType.GravityBurstReload,
         PlayerSkillType.HeavyBulletReload,
         PlayerSkillType.NextShotDamageBoost
@@ -73,13 +65,10 @@ public class RoundManager : NetworkBehaviour
     [SerializeField] private RoundEndUI roundEndUI;
     [SerializeField] private FinalResultUI finalResultUI;
 
-    [Header("Skill Selection UI")]
-    [SerializeField] private int skillOptionSlotCount = SkillOptionArrayLength;
-
     [Header("Debug Spectator Dummy")]
     [SerializeField] private bool countDebugSpectatorDummiesAsAlive = false;
 
-    public int currentRound = 1;
+    public int CurrentRound { get; private set; } = 1;
 
     [Networked]
     private GamePhase phase { get; set; }
@@ -93,6 +82,7 @@ public class RoundManager : NetworkBehaviour
     private RoundReadyController readyController;
     private RoundScoreCalculator scoreCalculator;
     private RoundSkillSelectionController skillSelectionController;
+    private RoundStartController roundStartController;
     private RoundFlowController flowController;
     private RoundSpawnController spawnController;
     private RoundHealthItemController healthItemController;
@@ -154,20 +144,11 @@ public class RoundManager : NetworkBehaviour
     public int SkillOptionSlotCount =>
         skillSelectionController != null
             ? skillSelectionController.SkillOptionSlotCount
-            : SkillOptionArrayLength;
+            : SkillOptionSlotCountValue;
 
     public int RequiredSkillSelectionCount => 2;
+
     public float SkillSelectionDuration => skillSelectionDuration;
-
-    public class PlayerTeam : MonoBehaviour
-    {
-        public TeamColor Team { get; private set; }
-
-        public void SetTeam(TeamColor team)
-        {
-            Team = team;
-        }
-    }
 
     public PlayerSkillType GetSkillOption(int slotIndex)
     {
@@ -176,7 +157,6 @@ public class RoundManager : NetworkBehaviour
 
     public PlayerSkillType GetSkillOption(int slotIndex, int selectionIndex)
     {
-        EnsureControllers();
         return skillSelectionController.GetSkillOption(slotIndex, selectionIndex);
     }
 
@@ -188,17 +168,15 @@ public class RoundManager : NetworkBehaviour
             return;
         }
 
-        EnsureControllers();
-
         Instance = this;
+
+        InitializeControllers();
 
         Debug.Log("[RoundManager] Awake");
     }
 
     public override void Spawned()
     {
-        EnsureControllers();
-
         isSpawned = true;
 
         if (Object.HasStateAuthority)
@@ -235,8 +213,6 @@ public class RoundManager : NetworkBehaviour
 
     public override void Render()
     {
-        EnsureControllers();
-
         if (!uiPhaseInitialized)
         {
             ApplyUIForPhase(phase, false);
@@ -260,13 +236,8 @@ public class RoundManager : NetworkBehaviour
         lastAppliedUIPhase = phase;
     }
 
-    private void EnsureControllers()
+    private void InitializeControllers()
     {
-        if (playerRegistry != null)
-        {
-            return;
-        }
-
         playerRegistry = new RoundPlayerRegistry(teamOrder, HandlePlayerDied);
         readyController = new RoundReadyController();
         scoreCalculator = new RoundScoreCalculator();
@@ -294,19 +265,30 @@ public class RoundManager : NetworkBehaviour
         debugLogger = new RoundDebugLogger();
         projectileCleaner = new RoundProjectileCleaner();
 
+        roundStartController = new RoundStartController(
+            this,
+            () => phase,
+            value => phase = value,
+            () => CurrentRound,
+            GetValidPlayers,
+            () => startAfterAllSkillsSelectedDelay,
+            player => skillSelectionController.GetFirstSelectedSkill(player),
+            player => skillSelectionController.GetSecondSelectedSkill(player),
+            healthItemController
+        );
+
         skillSelectionController = new RoundSkillSelectionController(
             this,
             () => phase,
             value => phase = value,
-            () => currentRound,
-            value => currentRound = value,
+            () => CurrentRound,
+            value => CurrentRound = value,
             GetValidPlayers,
             player => playerRegistry.Contains(player),
-            availableRoundSkills,
-            SkillOptionArrayLength,
+            selectableRoundSkills,
+            SkillOptionSlotCountValue,
             RequiredSkillSelectionCount,
             () => skillSelectionDuration,
-            () => startAfterAllSkillsSelectedDelay,
             new RoundSkillOptionBuilder(),
             spawnController,
             healthItemController,
@@ -314,15 +296,17 @@ public class RoundManager : NetworkBehaviour
             debugLogger,
             HideWaitingRoomUI,
             RPC_NotifySkillSelectionProgress,
-            RPC_SetSkillOptions
+            RPC_SetSkillOptions,
+            roundStartController.StartRoundAfterSkillSelection,
+            roundStartController.StopStartRoundCoroutine
         );
 
         flowController = new RoundFlowController(
             this,
             () => phase,
             value => phase = value,
-            () => currentRound,
-            value => currentRound = value,
+            () => CurrentRound,
+            value => CurrentRound = value,
             GetValidPlayers,
             () => RegisteredPlayerCount,
             () => countDebugSpectatorDummiesAsAlive,
@@ -335,10 +319,10 @@ public class RoundManager : NetworkBehaviour
             spawnController,
             healthItemController,
             projectileCleaner,
-            ShowRoundEndUIRpc,
-            HideRoundEndUIRpc,
-            ShowFinalResultUIRpc,
-            HideFinalResultUIRpc,
+            RPC_ShowRoundEndUI,
+            RPC_HideRoundEndUI,
+            RPC_ShowFinalResultUI,
+            RPC_HideFinalResultUI,
             ShowWaitingRoomUI,
             LogReadyStates
         );
@@ -346,14 +330,12 @@ public class RoundManager : NetworkBehaviour
 
     public void RegisterPlayer(PlayerHealth player)
     {
-        EnsureControllers();
-
         if (player == null)
         {
             return;
         }
 
-        if (!Object.HasStateAuthority)
+        if (Object == null || !Object.HasStateAuthority)
         {
             return;
         }
@@ -377,8 +359,6 @@ public class RoundManager : NetworkBehaviour
 
     public void UnregisterPlayer(PlayerHealth player)
     {
-        EnsureControllers();
-
         if (player == null)
         {
             return;
@@ -405,7 +385,7 @@ public class RoundManager : NetworkBehaviour
             return;
         }
 
-        if (!Object.HasStateAuthority)
+        if (Object == null || !Object.HasStateAuthority)
         {
             return;
         }
@@ -422,20 +402,17 @@ public class RoundManager : NetworkBehaviour
 
     public bool IsPlayerReady(PlayerHealth player)
     {
-        EnsureControllers();
         return readyController.IsPlayerReady(player);
     }
 
     public void SetPlayerReady(PlayerHealth player)
     {
-        EnsureControllers();
-
         if (player == null)
         {
             return;
         }
 
-        if (!Object.HasStateAuthority)
+        if (Object == null || !Object.HasStateAuthority)
         {
             return;
         }
@@ -464,14 +441,12 @@ public class RoundManager : NetworkBehaviour
 
     public void SelectSkillBySlot(PlayerHealth player, int slotIndex)
     {
-        EnsureControllers();
         skillSelectionController.SelectSkillBySlot(player, slotIndex);
     }
 
     [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
     public void RPC_RequestSelectSkillBySlot(PlayerRef playerRef, int slotIndex)
     {
-        EnsureControllers();
         skillSelectionController.HandleRequestSelectSkillBySlot(playerRef, slotIndex);
     }
 
@@ -498,8 +473,6 @@ public class RoundManager : NetworkBehaviour
         PlayerSkillType secondSlot3
     )
     {
-        EnsureControllers();
-
         skillSelectionController.ApplySkillOptionsFromNetwork(
             slot0,
             slot1,
@@ -513,7 +486,7 @@ public class RoundManager : NetworkBehaviour
     }
 
     [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
-    private void RpcShowRoundEndUI(
+    private void RPC_ShowRoundEndUI(
         int roundNumber,
         int winnerTeamIndex,
         int teamMask,
@@ -523,8 +496,6 @@ public class RoundManager : NetworkBehaviour
         int yellowWins
     )
     {
-        EnsureControllers();
-
         uiController.ShowRoundEndUI(
             roundNumber,
             winnerTeamIndex,
@@ -537,30 +508,25 @@ public class RoundManager : NetworkBehaviour
     }
 
     [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
-    private void RpcHideRoundEndUI()
+    private void RPC_HideRoundEndUI()
     {
-        EnsureControllers();
         uiController.HideRoundEndUI();
     }
 
     [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
-    private void RpcShowFinalResultUI(int winnerTeamMask)
+    private void RPC_ShowFinalResultUI(int winnerTeamMask)
     {
-        EnsureControllers();
         uiController.ShowFinalResultUI(winnerTeamMask);
     }
 
     [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
-    private void RpcHideFinalResultUI()
+    private void RPC_HideFinalResultUI()
     {
-        EnsureControllers();
         uiController.HideFinalResultUI();
     }
 
     private void TryStartFirstRound()
     {
-        EnsureControllers();
-
         if (!IsWaitingForReady)
         {
             return;
@@ -583,80 +549,37 @@ public class RoundManager : NetworkBehaviour
             return;
         }
 
-        currentRound = 1;
-        skillSelectionController.BeginSkillSelectionForRound(currentRound);
+        CurrentRound = 1;
+        skillSelectionController.BeginSkillSelectionForRound(CurrentRound);
     }
 
     private List<PlayerHealth> GetValidPlayers()
     {
-        EnsureControllers();
         return playerRegistry.GetValidPlayers();
     }
 
     private void HandlePlayerDied(PlayerHealth deadPlayer)
     {
-        EnsureControllers();
         flowController.HandlePlayerDied(deadPlayer);
-    }
-
-    private void ShowRoundEndUIRpc(
-        int roundNumber,
-        int winnerTeamIndex,
-        int teamMask,
-        int redWins,
-        int blueWins,
-        int greenWins,
-        int yellowWins
-    )
-    {
-        RpcShowRoundEndUI(
-            roundNumber,
-            winnerTeamIndex,
-            teamMask,
-            redWins,
-            blueWins,
-            greenWins,
-            yellowWins
-        );
-    }
-
-    private void HideRoundEndUIRpc()
-    {
-        RpcHideRoundEndUI();
-    }
-
-    private void ShowFinalResultUIRpc(int winnerTeamMask)
-    {
-        RpcShowFinalResultUI(winnerTeamMask);
-    }
-
-    private void HideFinalResultUIRpc()
-    {
-        RpcHideFinalResultUI();
     }
 
     private void ShowWaitingRoomUI()
     {
-        EnsureControllers();
         uiController.ShowWaitingRoomUI();
     }
 
     private void HideWaitingRoomUI()
     {
-        EnsureControllers();
         uiController.HideWaitingRoomUI();
     }
 
     private void ApplyUIForPhase(GamePhase targetPhase, bool playBattleStartUI)
     {
-        EnsureControllers();
         uiController.ApplyUIForPhase(targetPhase, playBattleStartUI);
     }
 
     private void LogReadyStates()
     {
-        EnsureControllers();
-
         debugLogger.LogReadyStates(
             GetValidPlayers(),
             readyController,
@@ -666,13 +589,11 @@ public class RoundManager : NetworkBehaviour
 
     private void LogSkillSlots()
     {
-        EnsureControllers();
-        debugLogger.LogSkillSlots(availableRoundSkills);
+        debugLogger.LogSkillSlots(selectableRoundSkills);
     }
 
     private void LogSpawnPointSettings()
     {
-        EnsureControllers();
         debugLogger.LogSpawnPointSettings(spawnController.GetAvailableSpawnPoints());
     }
 }

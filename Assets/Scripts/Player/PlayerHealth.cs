@@ -40,7 +40,7 @@ public class PlayerHealth : NetworkBehaviour
 
     public bool IsReady => NetworkedIsReady;
     public bool HasTeamAssigned => NetworkedTeamIndex >= 0;
-    public RoundManager.TeamColor Team => (RoundManager.TeamColor)NetworkedTeamIndex;
+    public TeamColor Team => (TeamColor)NetworkedTeamIndex;
 
     public void SetReadyState(bool ready)
     {
@@ -52,7 +52,7 @@ public class PlayerHealth : NetworkBehaviour
         NetworkedIsReady = ready;
     }
 
-    public void SetTeam(RoundManager.TeamColor team)
+    public void SetTeam(TeamColor team)
     {
         if (Object != null && !Object.HasStateAuthority)
         {

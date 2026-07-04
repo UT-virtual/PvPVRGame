@@ -17,11 +17,10 @@ public sealed class RoundSkillSelectionController
     private readonly Func<List<PlayerHealth>> getValidPlayers;
     private readonly Func<PlayerHealth, bool> containsPlayer;
 
-    private readonly IReadOnlyList<PlayerSkillType> availableRoundSkills;
+    private readonly IReadOnlyList<PlayerSkillType> selectableRoundSkills;
     private readonly int requiredSkillSelectionCount;
 
     private readonly Func<float> getSkillSelectionDuration;
-    private readonly Func<float> getStartAfterAllSkillsSelectedDelay;
 
     private readonly RoundSkillOptionBuilder skillOptionBuilder;
     private readonly RoundSpawnController spawnController;
@@ -43,6 +42,9 @@ public sealed class RoundSkillSelectionController
         PlayerSkillType
     > setSkillOptionsRpc;
 
+    private readonly Action startRoundAfterSkillSelection;
+    private readonly Action stopStartRoundCoroutine;
+
     private readonly PlayerSkillType[] currentSkillOptions;
     private readonly PlayerSkillType[] secondSkillOptions;
 
@@ -51,7 +53,6 @@ public sealed class RoundSkillSelectionController
     private readonly Dictionary<PlayerHealth, PlayerSkillType> selectedSecondSkills = new();
 
     private Coroutine skillSelectionCoroutine;
-    private Coroutine startRoundCoroutine;
 
     public RoundSkillSelectionController(
         MonoBehaviour coroutineRunner,
@@ -61,11 +62,10 @@ public sealed class RoundSkillSelectionController
         Action<int> setCurrentRound,
         Func<List<PlayerHealth>> getValidPlayers,
         Func<PlayerHealth, bool> containsPlayer,
-        IReadOnlyList<PlayerSkillType> availableRoundSkills,
+        IReadOnlyList<PlayerSkillType> selectableRoundSkills,
         int skillOptionSlotCount,
         int requiredSkillSelectionCount,
         Func<float> getSkillSelectionDuration,
-        Func<float> getStartAfterAllSkillsSelectedDelay,
         RoundSkillOptionBuilder skillOptionBuilder,
         RoundSpawnController spawnController,
         RoundHealthItemController healthItemController,
@@ -82,7 +82,9 @@ public sealed class RoundSkillSelectionController
             PlayerSkillType,
             PlayerSkillType,
             PlayerSkillType
-        > setSkillOptionsRpc
+        > setSkillOptionsRpc,
+        Action startRoundAfterSkillSelection,
+        Action stopStartRoundCoroutine
     )
     {
         this.coroutineRunner = coroutineRunner;
@@ -96,11 +98,10 @@ public sealed class RoundSkillSelectionController
         this.getValidPlayers = getValidPlayers;
         this.containsPlayer = containsPlayer;
 
-        this.availableRoundSkills = availableRoundSkills;
+        this.selectableRoundSkills = selectableRoundSkills;
         this.requiredSkillSelectionCount = requiredSkillSelectionCount;
 
         this.getSkillSelectionDuration = getSkillSelectionDuration;
-        this.getStartAfterAllSkillsSelectedDelay = getStartAfterAllSkillsSelectedDelay;
 
         this.skillOptionBuilder = skillOptionBuilder;
         this.spawnController = spawnController;
@@ -111,6 +112,9 @@ public sealed class RoundSkillSelectionController
         this.hideWaitingRoomUI = hideWaitingRoomUI;
         this.notifySkillSelectionProgressRpc = notifySkillSelectionProgressRpc;
         this.setSkillOptionsRpc = setSkillOptionsRpc;
+
+        this.startRoundAfterSkillSelection = startRoundAfterSkillSelection;
+        this.stopStartRoundCoroutine = stopStartRoundCoroutine;
 
         currentSkillOptions = new PlayerSkillType[skillOptionSlotCount];
         secondSkillOptions = new PlayerSkillType[skillOptionSlotCount];
@@ -234,9 +238,9 @@ public sealed class RoundSkillSelectionController
 
         ResetSelectionStates(getValidPlayers());
 
-        Debug.Log($"[RoundManager] Round {getCurrentRound()} Skill Selection Start.");
-        Debug.Log($"[RoundManager] Select skill within {getSkillSelectionDuration()} seconds.");
-        Debug.Log("[RoundManager] During skill selection, players cannot move.");
+        Debug.Log($"[RoundSkillSelectionController] Round {getCurrentRound()} Skill Selection Start.");
+        Debug.Log($"[RoundSkillSelectionController] Select skill within {getSkillSelectionDuration()} seconds.");
+        Debug.Log("[RoundSkillSelectionController] During skill selection, players cannot move.");
 
         skillSelectionCoroutine = coroutineRunner.StartCoroutine(SkillSelectionTimeoutCoroutine());
     }
@@ -255,7 +259,7 @@ public sealed class RoundSkillSelectionController
 
         if (!containsPlayer(player))
         {
-            Debug.LogWarning($"[RoundManager] Skill selection ignored. Player is not registered: {player.gameObject.name}");
+            Debug.LogWarning($"[RoundSkillSelectionController] Skill selection ignored. Player is not registered: {player.gameObject.name}");
             return;
         }
 
@@ -268,7 +272,7 @@ public sealed class RoundSkillSelectionController
 
         if (slotIndex < 0 || slotIndex >= currentSkillOptions.Length)
         {
-            Debug.LogWarning($"[RoundManager] Invalid skill slot: {slotIndex + 1}");
+            Debug.LogWarning($"[RoundSkillSelectionController] Invalid skill slot: {slotIndex + 1}");
             return;
         }
 
@@ -276,7 +280,7 @@ public sealed class RoundSkillSelectionController
 
         if (skill == PlayerSkillType.None)
         {
-            Debug.LogWarning($"[RoundManager] Empty skill slot: {slotIndex + 1}");
+            Debug.LogWarning($"[RoundSkillSelectionController] Empty skill slot: {slotIndex + 1}");
             return;
         }
 
@@ -288,7 +292,7 @@ public sealed class RoundSkillSelectionController
         if (!IsSkillSelecting)
         {
             Debug.Log(
-                $"[RoundManager] Skill RPC ignored. " +
+                $"[RoundSkillSelectionController] Skill RPC ignored. " +
                 $"Phase={getPhase()}, PlayerRef={playerRef}, Slot={slotIndex + 1}"
             );
             return;
@@ -299,7 +303,7 @@ public sealed class RoundSkillSelectionController
         if (player == null)
         {
             Debug.LogWarning(
-                $"[RoundManager] Skill RPC ignored. Player was not found. " +
+                $"[RoundSkillSelectionController] Skill RPC ignored. Player was not found. " +
                 $"PlayerRef={playerRef}, Slot={slotIndex + 1}"
             );
             return;
@@ -312,7 +316,7 @@ public sealed class RoundSkillSelectionController
         int afterCount = GetSkillSelectionCount(player);
 
         Debug.Log(
-            $"[RoundManager] Skill RPC processed. " +
+            $"[RoundSkillSelectionController] Skill RPC processed. " +
             $"Player={player.name}, PlayerRef={playerRef}, Slot={slotIndex + 1}, " +
             $"Count={beforeCount}->{afterCount}"
         );
@@ -342,12 +346,12 @@ public sealed class RoundSkillSelectionController
         secondSkillOptions[3] = secondSlot3;
 
         Debug.Log(
-            $"[RoundManager] First Skill Options: " +
-            $"1={slot0}, 2={slot1}, 3={slot2}, 4={slot3}"
+            $"[RoundSkillSelectionController] First Skill Options: " +
+            $"1={slot0}, 2={slot1}, 3={slot2}"
         );
 
         Debug.Log(
-            $"[RoundManager] Second Skill Options: " +
+            $"[RoundSkillSelectionController] Second Skill Options: " +
             $"1={secondSlot0}, 2={secondSlot1}, 3={secondSlot2}, 4={secondSlot3}"
         );
     }
@@ -378,42 +382,30 @@ public sealed class RoundSkillSelectionController
 
         StopSkillSelectionCoroutineOnly();
 
-        if (startRoundCoroutine != null)
-        {
-            return;
-        }
-
-        startRoundCoroutine = coroutineRunner.StartCoroutine(StartRoundAfterSkillSelectionCoroutine());
+        startRoundAfterSkillSelection();
     }
 
     public void StopSkillSelectionCoroutineOnly()
     {
-        if (skillSelectionCoroutine != null)
+        if (skillSelectionCoroutine == null)
         {
-            coroutineRunner.StopCoroutine(skillSelectionCoroutine);
-            skillSelectionCoroutine = null;
+            return;
         }
+
+        coroutineRunner.StopCoroutine(skillSelectionCoroutine);
+        skillSelectionCoroutine = null;
     }
 
     public void StopSkillSelectionCoroutines()
     {
-        if (skillSelectionCoroutine != null)
-        {
-            coroutineRunner.StopCoroutine(skillSelectionCoroutine);
-            skillSelectionCoroutine = null;
-        }
-
-        if (startRoundCoroutine != null)
-        {
-            coroutineRunner.StopCoroutine(startRoundCoroutine);
-            startRoundCoroutine = null;
-        }
+        StopSkillSelectionCoroutineOnly();
+        stopStartRoundCoroutine();
     }
 
     private void BuildSkillOptionsForRound()
     {
         skillOptionBuilder.BuildSkillOptions(
-            availableRoundSkills,
+            selectableRoundSkills,
             currentSkillOptions,
             secondSkillOptions
         );
@@ -468,13 +460,13 @@ public sealed class RoundSkillSelectionController
 
         if (skillController == null)
         {
-            Debug.LogWarning($"[RoundManager] PlayerSkillController was not found: {player.gameObject.name}");
+            Debug.LogWarning($"[RoundSkillSelectionController] PlayerSkillController was not found: {player.gameObject.name}");
             skill = PlayerSkillType.None;
         }
         else if (!skillController.CanSelectSkill(skill))
         {
             Debug.Log(
-                $"[RoundManager] {player.gameObject.name} cannot select {skill} because it was used last round."
+                $"[RoundSkillSelectionController] {player.gameObject.name} cannot select {skill} because it was used last round."
             );
 
             if (!isAutoSelect)
@@ -489,7 +481,7 @@ public sealed class RoundSkillSelectionController
             skill != PlayerSkillType.None &&
             GetFirstSelectedSkill(player) == skill)
         {
-            Debug.LogWarning($"[RoundManager] Same skill selected twice in same round: {skill}");
+            Debug.LogWarning($"[RoundSkillSelectionController] Same skill selected twice in same round: {skill}");
             return;
         }
 
@@ -506,7 +498,7 @@ public sealed class RoundSkillSelectionController
         skillSelectionCounts[player] = newSelectionCount;
 
         Debug.Log(
-            $"[RoundManager] Skill Selected: {player.gameObject.name}, " +
+            $"[RoundSkillSelectionController] Skill Selected: {player.gameObject.name}, " +
             $"Index={newSelectionCount}/{requiredSkillSelectionCount}, " +
             $"Skill={skill}, Auto={isAutoSelect}"
         );
@@ -521,6 +513,11 @@ public sealed class RoundSkillSelectionController
 
         foreach (PlayerHealth player in validPlayers)
         {
+            if (player == null)
+            {
+                continue;
+            }
+
             while (GetSkillSelectionCount(player) < requiredSkillSelectionCount)
             {
                 int selectionIndex = GetSkillSelectionCount(player);
@@ -572,52 +569,10 @@ public sealed class RoundSkillSelectionController
             yield break;
         }
 
-        Debug.Log("[RoundManager] Skill selection timeout. Auto selecting missing skills.");
+        Debug.Log("[RoundSkillSelectionController] Skill selection timeout. Auto selecting missing skills.");
 
         AutoSelectMissingSkills();
         TryFinishSkillSelection();
-    }
-
-    private IEnumerator StartRoundAfterSkillSelectionCoroutine()
-    {
-        setPhase(RoundManager.GamePhase.RoundStarting);
-
-        ApplySelectedSkillsForCurrentRound();
-
-        Debug.Log(
-            $"[RoundManager] All players selected skills. " +
-            $"Round {getCurrentRound()} starts in {getStartAfterAllSkillsSelectedDelay()} seconds."
-        );
-
-        yield return new WaitForSeconds(getStartAfterAllSkillsSelectedDelay());
-
-        setPhase(RoundManager.GamePhase.RoundPlaying);
-        startRoundCoroutine = null;
-
-        healthItemController.SetupHealthItemsForCurrentPlayers();
-
-        Debug.Log($"Round {getCurrentRound()} Start");
-    }
-
-    private void ApplySelectedSkillsForCurrentRound()
-    {
-        List<PlayerHealth> validPlayers = getValidPlayers();
-
-        foreach (PlayerHealth player in validPlayers)
-        {
-            PlayerSkillType selectedFirstSkill = GetFirstSelectedSkill(player);
-            PlayerSkillType selectedSecondSkill = GetSecondSelectedSkill(player);
-
-            PlayerSkillController skillController = player.GetComponent<PlayerSkillController>();
-
-            if (skillController == null)
-            {
-                Debug.LogWarning($"[RoundManager] PlayerSkillController was not found: {player.gameObject.name}");
-                continue;
-            }
-
-            skillController.PrepareForRound(selectedFirstSkill, selectedSecondSkill);
-        }
     }
 
     private void LogSkillSelectionStates()

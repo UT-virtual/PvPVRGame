@@ -191,16 +191,16 @@ public class RoundEndUI : MonoBehaviour
 
         switch (player.Team)
         {
-            case RoundManager.TeamColor.Red:
+            case TeamColor.Red:
                 return 0;
 
-            case RoundManager.TeamColor.Blue:
+            case TeamColor.Blue:
                 return 1;
 
-            case RoundManager.TeamColor.Green:
+            case TeamColor.Green:
                 return 2;
 
-            case RoundManager.TeamColor.Yellow:
+            case TeamColor.Yellow:
                 return 3;
 
             default:
@@ -225,7 +225,7 @@ public class RoundEndUI : MonoBehaviour
             return;
         }
 
-        RoundManager.TeamColor winnerTeam = (RoundManager.TeamColor)winnerTeamIndex;
+        TeamColor winnerTeam = (TeamColor)winnerTeamIndex;
 
         if (winnerColorIcon != null)
         {
@@ -260,15 +260,15 @@ public class RoundEndUI : MonoBehaviour
             return;
         }
 
-        CreateScoreEntryIfTeamExists(teamMask, RoundManager.TeamColor.Red, redWins);
-        CreateScoreEntryIfTeamExists(teamMask, RoundManager.TeamColor.Blue, blueWins);
-        CreateScoreEntryIfTeamExists(teamMask, RoundManager.TeamColor.Green, greenWins);
-        CreateScoreEntryIfTeamExists(teamMask, RoundManager.TeamColor.Yellow, yellowWins);
+        CreateScoreEntryIfTeamExists(teamMask, TeamColor.Red, redWins);
+        CreateScoreEntryIfTeamExists(teamMask, TeamColor.Blue, blueWins);
+        CreateScoreEntryIfTeamExists(teamMask, TeamColor.Green, greenWins);
+        CreateScoreEntryIfTeamExists(teamMask, TeamColor.Yellow, yellowWins);
     }
 
     private void CreateScoreEntryIfTeamExists(
         int teamMask,
-        RoundManager.TeamColor team,
+        TeamColor team,
         int winCount
     )
     {
@@ -304,20 +304,20 @@ public class RoundEndUI : MonoBehaviour
         return GetTeamColor(player.Team);
     }
 
-    private Color GetTeamColor(RoundManager.TeamColor team)
+    private Color GetTeamColor(TeamColor team)
     {
         switch (team)
         {
-            case RoundManager.TeamColor.Red:
+            case TeamColor.Red:
                 return new Color32(255, 77, 109, 255);
 
-            case RoundManager.TeamColor.Blue:
+            case TeamColor.Blue:
                 return new Color32(77, 171, 247, 255);
 
-            case RoundManager.TeamColor.Green:
+            case TeamColor.Green:
                 return new Color32(64, 192, 87, 255);
 
-            case RoundManager.TeamColor.Yellow:
+            case TeamColor.Yellow:
                 return new Color32(255, 212, 59, 255);
 
             default:

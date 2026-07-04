@@ -6,11 +6,11 @@ using UnityEngine;
 public sealed class RoundPlayerRegistry
 {
     private readonly List<PlayerHealth> players = new();
-    private readonly RoundManager.TeamColor[] teamOrder;
+    private readonly TeamColor[] teamOrder;
     private readonly Action<PlayerHealth> onPlayerDied;
 
     public RoundPlayerRegistry(
-        RoundManager.TeamColor[] teamOrder,
+        TeamColor[] teamOrder,
         Action<PlayerHealth> onPlayerDied
     )
     {
@@ -95,17 +95,9 @@ public sealed class RoundPlayerRegistry
             return;
         }
 
-        RoundManager.PlayerTeam playerTeam = player.GetComponent<RoundManager.PlayerTeam>();
-
-        if (playerTeam == null)
-        {
-            playerTeam = player.gameObject.AddComponent<RoundManager.PlayerTeam>();
-        }
-
         int index = players.Count - 1;
-        RoundManager.TeamColor assignedColor = teamOrder[index % teamOrder.Length];
+        TeamColor assignedColor = teamOrder[index % teamOrder.Length];
 
-        playerTeam.SetTeam(assignedColor);
         player.SetTeam(assignedColor);
 
         Debug.Log($"{player.gameObject.name} joined as {assignedColor}");

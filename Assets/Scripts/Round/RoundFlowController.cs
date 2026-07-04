@@ -47,6 +47,8 @@ public sealed class RoundFlowController
     private readonly Action showWaitingRoomUI;
     private readonly Action logReadyStates;
 
+    private bool isRoundEnding;
+
     public RoundFlowController(
         MonoBehaviour coroutineRunner,
         Func<RoundManager.GamePhase> getPhase,
@@ -113,16 +115,24 @@ public sealed class RoundFlowController
             return;
         }
 
-        Debug.Log($"[RoundManager] HandlePlayerDied: {deadPlayer.gameObject.name}");
+        Debug.Log($"[RoundFlowController] HandlePlayerDied: {deadPlayer.gameObject.name}");
 
-        if (getPhase() != RoundManager.GamePhase.RoundPlaying)
+        RoundManager.GamePhase currentPhase = getPhase();
+
+        if (currentPhase != RoundManager.GamePhase.RoundPlaying)
         {
-            Debug.Log($"[RoundManager] Death ignored. Current phase={getPhase()}");
+            Debug.Log($"[RoundFlowController] Death ignored. Current phase={currentPhase}");
+            return;
+        }
+
+        if (isRoundEnding)
+        {
+            Debug.Log("[RoundFlowController] Death ignored. Round is already ending.");
             return;
         }
 
         List<PlayerHealth> alivePlayers = getValidPlayers()
-            .Where(player => !player.IsDead)
+            .Where(player => player != null && !player.IsDead)
             .ToList();
 
         int debugAliveDummyCount = countDebugSpectatorDummiesAsAlive()
@@ -132,14 +142,14 @@ public sealed class RoundFlowController
         int aliveCountForRoundEnd = alivePlayers.Count + debugAliveDummyCount;
 
         Debug.Log(
-            $"[RoundManager] Alive Count: {alivePlayers.Count} / Registered Count: {getRegisteredPlayerCount()}, " +
+            $"[RoundFlowController] Alive Count: {alivePlayers.Count} / Registered Count: {getRegisteredPlayerCount()}, " +
             $"DebugAliveDummyCount={debugAliveDummyCount}, " +
             $"AliveCountForRoundEnd={aliveCountForRoundEnd}"
         );
 
         foreach (PlayerHealth player in alivePlayers)
         {
-            Debug.Log($"[RoundManager] Alive: {player.gameObject.name}");
+            Debug.Log($"[RoundFlowController] Alive: {player.gameObject.name}");
         }
 
         if (aliveCountForRoundEnd > 1)
@@ -149,43 +159,44 @@ public sealed class RoundFlowController
 
         PlayerHealth roundWinner = alivePlayers.Count == 1 ? alivePlayers[0] : null;
 
+        isRoundEnding = true;
+        setPhase(RoundManager.GamePhase.RoundEnding);
+
         coroutineRunner.StartCoroutine(EndRoundCoroutine(roundWinner));
     }
 
     private IEnumerator EndRoundCoroutine(PlayerHealth roundWinner)
     {
-        Debug.Log("[RoundManager] EndRoundCoroutine started");
-
-        setPhase(RoundManager.GamePhase.RoundEnding);
+        Debug.Log("[RoundFlowController] EndRoundCoroutine started");
 
         healthItemController.ClearHealthItems();
 
-        int currentRound = getCurrentRound();
+        int completedRound = getCurrentRound();
 
         if (roundWinner != null)
         {
             scoreCalculator.AddPoint(roundWinner);
 
             Debug.Log(
-                $"{roundWinner.gameObject.name} wins Round {currentRound}. " +
+                $"{roundWinner.gameObject.name} wins Round {completedRound}. " +
                 $"Point: {scoreCalculator.GetPoint(roundWinner)}"
             );
         }
         else
         {
-            Debug.Log($"Round {currentRound} ended with no winner.");
+            Debug.Log($"Round {completedRound} ended with no winner.");
         }
 
         List<PlayerHealth> validPlayers = getValidPlayers();
 
         showRoundEndUIRpc(
-            currentRound,
+            completedRound,
             scoreCalculator.GetWinnerTeamIndex(roundWinner),
             scoreCalculator.CreateRoundEndTeamMask(validPlayers),
-            scoreCalculator.GetPointForTeam(validPlayers, RoundManager.TeamColor.Red),
-            scoreCalculator.GetPointForTeam(validPlayers, RoundManager.TeamColor.Blue),
-            scoreCalculator.GetPointForTeam(validPlayers, RoundManager.TeamColor.Green),
-            scoreCalculator.GetPointForTeam(validPlayers, RoundManager.TeamColor.Yellow)
+            scoreCalculator.GetPointForTeam(validPlayers, TeamColor.Red),
+            scoreCalculator.GetPointForTeam(validPlayers, TeamColor.Blue),
+            scoreCalculator.GetPointForTeam(validPlayers, TeamColor.Green),
+            scoreCalculator.GetPointForTeam(validPlayers, TeamColor.Yellow)
         );
 
         yield return new WaitForSeconds(getNextRoundDelay());
@@ -194,15 +205,17 @@ public sealed class RoundFlowController
 
         projectileCleaner.DespawnProjectiles();
 
-        if (currentRound >= getMaxRoundCount())
+        if (completedRound >= getMaxRoundCount())
         {
             yield return coroutineRunner.StartCoroutine(FinishMatchAndReturnToWaitingCoroutine());
             yield break;
         }
 
-        setCurrentRound(currentRound + 1);
+        setCurrentRound(completedRound + 1);
 
         skillSelectionController.BeginSkillSelectionForRound(getCurrentRound());
+
+        isRoundEnding = false;
     }
 
     private IEnumerator FinishMatchAndReturnToWaitingCoroutine()
@@ -220,12 +233,10 @@ public sealed class RoundFlowController
         );
 
         Debug.Log(
-            $"[RoundManager] Match finished. Returning to waiting state in {getReturnToWaitingDelay()} seconds."
+            $"[RoundFlowController] Match finished. Returning to waiting state in {getReturnToWaitingDelay()} seconds."
         );
 
         yield return new WaitForSeconds(getReturnToWaitingDelay());
-
-        hideFinalResultUIRpc();
 
         ResetMatchStateToWaiting();
     }
@@ -248,6 +259,11 @@ public sealed class RoundFlowController
 
         foreach (PlayerHealth player in validPlayers)
         {
+            if (player == null)
+            {
+                continue;
+            }
+
             PlayerSkillController skillController = player.GetComponent<PlayerSkillController>();
 
             if (skillController != null)
@@ -262,8 +278,10 @@ public sealed class RoundFlowController
 
         showWaitingRoomUI();
 
-        Debug.Log("[RoundManager] Returned to waiting state.");
-        Debug.Log("[RoundManager] Press Enter or ZL to ready.");
+        isRoundEnding = false;
+
+        Debug.Log("[RoundFlowController] Returned to waiting state.");
+        Debug.Log("[RoundFlowController] Press Enter or ZL to ready.");
 
         logReadyStates();
     }
@@ -275,7 +293,7 @@ public sealed class RoundFlowController
         );
 
         int count = 0;
-        List<PlayerHealth> registeredPlayers = getValidPlayers();
+        HashSet<PlayerHealth> registeredPlayers = new(getValidPlayers());
 
         foreach (PlayerHealth player in allPlayers)
         {
