@@ -994,6 +994,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::PlayerSound
   jumpSE: {fileID: 8300000, guid: efbe2a8c6596d44ffba7fef0c241d531, type: 3}
   fireSE: {fileID: 8300000, guid: 975618663bd2e405981ad5be9e97e4e8, type: 3}
+  reloadingSE: {fileID: 0}
   reloadSE: {fileID: 8300000, guid: b596c93e4fec841f1aa31233f36f77d2, type: 3}
   tookDamageSE: {fileID: 8300000, guid: 7c6b927b9997141a994e647700a57cc0, type: 3}
   diedSE: {fileID: 8300000, guid: cf3e9623b169e4445a33e67ff7a9dbc7, type: 3}
