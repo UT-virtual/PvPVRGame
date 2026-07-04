@@ -66,11 +66,16 @@ public class PlayerSkillController : NetworkBehaviour
     private PlayerWeapon playerWeapon;
     private PlayerHealth playerHealth;
 
+    private PlayerSkillSettings skillSettings;
+    private PlayerSkillEffectApplier effectApplier;
+    private PlayerSkillActivator skillActivator;
+
     [Networked] public PlayerSkillType CurrentRoundSkill { get; private set; }
     [Networked] public PlayerSkillType CurrentRoundSecondSkill { get; private set; }
 
     [Networked] public PlayerSkillType LastRoundSkill { get; private set; }
     [Networked] public PlayerSkillType LastRoundSecondSkill { get; private set; }
+
     [Networked] public PlayerSkillType ActiveSkill { get; private set; }
     [Networked] private TickTimer SkillActiveTimer { get; set; }
     [Networked] private TickTimer CooldownTimer { get; set; }
@@ -113,6 +118,8 @@ public class PlayerSkillController : NetworkBehaviour
         playerMove = GetComponent<PlayerMove>();
         playerWeapon = GetComponent<PlayerWeapon>();
         playerHealth = GetComponent<PlayerHealth>();
+
+        InitializeSkillHelpers();
     }
 
     public override void Render()
@@ -135,25 +142,10 @@ public class PlayerSkillController : NetworkBehaviour
         UpdateSkillState();
     }
 
-    // public bool CanSelectSkill(PlayerSkillType skill)
-    // {
-    //     if (skill == PlayerSkillType.None)
-    //     {
-    //         return true;
-    //     }
-
-    //     if (allowSameSkillConsecutiveForDebug)
-    //     {
-    //         return true;
-    //     }
-
-    //     return
-    //         skill != LastRoundSkill &&
-    //         skill != LastRoundSecondSkill;
-    // }
-
     public bool CanSelectSkill(PlayerSkillType skill)
     {
+        // 現状の挙動維持: 連続使用制限は無効。
+        // 連続使用禁止を戻す場合は allowSameSkillConsecutiveForDebug を使ってここを切り替える。
         return true;
     }
 
@@ -169,14 +161,7 @@ public class PlayerSkillController : NetworkBehaviour
             return;
         }
 
-        ActiveSkill = PlayerSkillType.None;
-        ActiveSecondSkill = PlayerSkillType.None;
-
-        SkillActiveTimer = TickTimer.None;
-        SecondSkillActiveTimer = TickTimer.None;
-
-        CooldownTimer = TickTimer.None;
-        SecondCooldownTimer = TickTimer.None;
+        ResetActiveAndCooldownState();
 
         PlayerSkillType selectedFirstSkill = requestedFirstSkill;
         PlayerSkillType selectedSecondSkill = requestedSecondSkill;
@@ -210,19 +195,7 @@ public class PlayerSkillController : NetworkBehaviour
 
         CurrentRoundSkill = selectedFirstSkill;
         CurrentRoundSecondSkill = selectedSecondSkill;
-
-        if (CurrentRoundSkill != PlayerSkillType.None)
-        {
-            CurrentSelectedSkillIndex = 0;
-        }
-        else if (CurrentRoundSecondSkill != PlayerSkillType.None)
-        {
-            CurrentSelectedSkillIndex = 1;
-        }
-        else
-        {
-            CurrentSelectedSkillIndex = 0;
-        }
+        CurrentSelectedSkillIndex = GetInitialSelectedSkillIndex();
 
         LastRoundSkill = selectedFirstSkill;
         LastRoundSecondSkill = selectedSecondSkill;
@@ -248,14 +221,7 @@ public class PlayerSkillController : NetworkBehaviour
         CurrentRoundSecondSkill = PlayerSkillType.None;
         CurrentSelectedSkillIndex = 0;
 
-        ActiveSkill = PlayerSkillType.None;
-        ActiveSecondSkill = PlayerSkillType.None;
-
-        SkillActiveTimer = TickTimer.None;
-        SecondSkillActiveTimer = TickTimer.None;
-
-        CooldownTimer = TickTimer.None;
-        SecondCooldownTimer = TickTimer.None;
+        ResetActiveAndCooldownState();
 
         ApplySkillEffects();
     }
@@ -344,64 +310,64 @@ public class PlayerSkillController : NetworkBehaviour
             return;
         }
 
-        switch (selectedSkill)
-        {
-            case PlayerSkillType.DoubleJump:
-                ActivateDoubleJump();
-                break;
+        skillActivator.Activate(selectedSkill);
+    }
 
-            case PlayerSkillType.RapidFire:
-                ActivateRapidFire();
-                break;
+    public bool IsXRayVisionActive()
+    {
+        return IsSkillCurrentlyActive(PlayerSkillType.XRayVision);
+    }
 
-            case PlayerSkillType.BulletSpeedUp:
-                ActivateBulletSpeedUp();
-                break;
+    private void InitializeSkillHelpers()
+    {
+        skillSettings = BuildSkillSettings();
 
-            case PlayerSkillType.DamageReduction:
-                ActivateDamageReduction();
-                break;
+        effectApplier = new PlayerSkillEffectApplier(
+            playerMove,
+            playerWeapon,
+            playerHealth,
+            skillSettings,
+            IsSkillCurrentlyActive
+        );
 
-            case PlayerSkillType.XRayVision:
-                ActivateXRayVision();
-                break;
+        skillActivator = new PlayerSkillActivator(
+            playerWeapon,
+            skillSettings,
+            () => gameObject != null ? gameObject.name : "Unknown",
+            BeginActiveSkill,
+            ApplySkillEffects
+        );
+    }
 
-            case PlayerSkillType.MoveSpeedUp:
-                ActivateMoveSpeedUp();
-                break;
-
-            case PlayerSkillType.SlowFall:
-                ActivateSlowFall();
-                break;
-
-            case PlayerSkillType.Shrink:
-                ActivateShrink();
-                break;
-
-            case PlayerSkillType.DelayedDamageInvincible:
-                ActivateDelayedDamageInvincible();
-                break;
-
-            case PlayerSkillType.InstantReload:
-                ActivateInstantReload();
-                break;
-
-            case PlayerSkillType.GravityBurstReload:
-                ActivateGravityBurstReload();
-                break;
-
-            case PlayerSkillType.HeavyBulletReload:
-                ActivateHeavyBulletReload();
-                break;
-
-            case PlayerSkillType.NextShotDamageBoost:
-                ActivateNextShotDamageBoost();
-                break;
-
-            default:
-                Debug.LogWarning($"[Skill] Unsupported skill: {selectedSkill}");
-                break;
-        }
+    private PlayerSkillSettings BuildSkillSettings()
+    {
+        return new PlayerSkillSettings(
+            cooldownAfterSkillEnd,
+            doubleJumpDuration,
+            doubleJumpExtraAirJumpCount,
+            rapidFireDuration,
+            rapidFireIntervalMultiplier,
+            bulletSpeedUpDuration,
+            bulletSpeedMultiplier,
+            damageReductionDuration,
+            damageTakenMultiplier,
+            xRayVisionDuration,
+            moveSpeedUpDuration,
+            moveSpeedMultiplier,
+            slowFallDuration,
+            slowFallGravityMultiplier,
+            shrinkDuration,
+            shrinkSizeMultiplier,
+            shrinkDamageDealtMultiplier,
+            delayedDamageInvincibleDuration,
+            instantReloadDuration,
+            gravityBurstReloadDuration,
+            gravityBurstReloadAmmoCount,
+            heavyBulletReloadDuration,
+            heavyBulletReloadAmmoCount,
+            nextShotDamageBoostDuration,
+            nextShotDamageBoostMultiplier
+        );
     }
 
     private void BeginActiveSkill(PlayerSkillType skill, float duration)
@@ -427,170 +393,6 @@ public class PlayerSkillController : NetworkBehaviour
         );
     }
 
-    private void ActivateDoubleJump()
-    {
-        BeginActiveSkill(PlayerSkillType.DoubleJump, doubleJumpDuration);
-
-        ApplySkillEffects();
-
-        Debug.Log($"[Skill] {gameObject.name}: DoubleJump activated for {doubleJumpDuration} seconds.");
-    }
-
-    private void ActivateRapidFire()
-    {
-        BeginActiveSkill(PlayerSkillType.RapidFire, rapidFireDuration);
-
-        ApplySkillEffects();
-
-        Debug.Log(
-            $"[Skill] {gameObject.name}: RapidFire activated for {rapidFireDuration} seconds. " +
-            $"IntervalMultiplier={rapidFireIntervalMultiplier}"
-        );
-    }
-
-    private void ActivateBulletSpeedUp()
-    {
-        BeginActiveSkill(PlayerSkillType.BulletSpeedUp, bulletSpeedUpDuration);
-
-        ApplySkillEffects();
-
-        Debug.Log(
-            $"[Skill] {gameObject.name}: BulletSpeedUp activated for {bulletSpeedUpDuration} seconds. " +
-            $"BulletSpeedMultiplier={bulletSpeedMultiplier}"
-        );
-    }
-
-    private void ActivateDamageReduction()
-    {
-        BeginActiveSkill(PlayerSkillType.DamageReduction, damageReductionDuration);
-
-        ApplySkillEffects();
-
-        Debug.Log(
-            $"[Skill] {gameObject.name}: DamageReduction activated for {damageReductionDuration} seconds. " +
-            $"DamageTakenMultiplier={damageTakenMultiplier}"
-        );
-    }
-
-    private void ActivateSlowFall()
-    {
-        BeginActiveSkill(PlayerSkillType.SlowFall, slowFallDuration);
-
-        ApplySkillEffects();
-
-        Debug.Log(
-            $"[Skill] {gameObject.name}: SlowFall activated for {slowFallDuration} seconds. " +
-            $"GravityMultiplier={slowFallGravityMultiplier}"
-        );
-    }
-
-    private void ActivateShrink()
-    {
-        BeginActiveSkill(PlayerSkillType.Shrink, shrinkDuration);
-
-        ApplySkillEffects();
-
-        Debug.Log(
-            $"[Skill] {gameObject.name}: Shrink activated for {shrinkDuration} seconds. " +
-            $"SizeMultiplier={shrinkSizeMultiplier}, " +
-            $"DamageDealtMultiplier={shrinkDamageDealtMultiplier}"
-        );
-    }
-
-    private void ActivateDelayedDamageInvincible()
-    {
-        BeginActiveSkill(PlayerSkillType.DelayedDamageInvincible, delayedDamageInvincibleDuration);
-
-        ApplySkillEffects();
-
-        Debug.Log(
-            $"[Skill] {gameObject.name}: DelayedDamageInvincible activated for {delayedDamageInvincibleDuration} seconds."
-        );
-    }
-
-    private void ActivateInstantReload()
-    {
-        BeginActiveSkill(PlayerSkillType.InstantReload, instantReloadDuration);
-
-        ApplySkillEffects();
-
-        Debug.Log(
-            $"[Skill] {gameObject.name}: InstantReload activated for {instantReloadDuration} seconds."
-        );
-    }
-
-    private void ActivateGravityBurstReload()
-    {
-        BeginActiveSkill(PlayerSkillType.GravityBurstReload, gravityBurstReloadDuration);
-
-        if (playerWeapon != null)
-        {
-            playerWeapon.LoadGravityBurstAmmo(gravityBurstReloadAmmoCount);
-        }
-
-        ApplySkillEffects();
-
-        Debug.Log(
-            $"[Skill] {gameObject.name}: GravityBurstReload activated. " +
-            $"Ammo={gravityBurstReloadAmmoCount}"
-        );
-    }
-
-    private void ActivateHeavyBulletReload()
-    {
-        BeginActiveSkill(PlayerSkillType.HeavyBulletReload, heavyBulletReloadDuration);
-
-        if (playerWeapon != null)
-        {
-            playerWeapon.LoadHeavyBulletAmmo(heavyBulletReloadAmmoCount);
-        }
-
-        ApplySkillEffects();
-
-        Debug.Log(
-            $"[Skill] {gameObject.name}: HeavyBulletReload activated. " +
-            $"Ammo={heavyBulletReloadAmmoCount}"
-        );
-    }
-
-    private void ActivateNextShotDamageBoost()
-    {
-        BeginActiveSkill(PlayerSkillType.NextShotDamageBoost, nextShotDamageBoostDuration);
-
-        if (playerWeapon != null)
-        {
-            playerWeapon.SetNextShotDamageMultiplier(nextShotDamageBoostMultiplier);
-        }
-
-        ApplySkillEffects();
-
-        Debug.Log(
-            $"[Skill] {gameObject.name}: NextShotDamageBoost activated. " +
-            $"Multiplier={nextShotDamageBoostMultiplier}"
-        );
-    }
-
-    private void ActivateXRayVision()
-    {
-        BeginActiveSkill(PlayerSkillType.XRayVision, xRayVisionDuration);
-
-        ApplySkillEffects();
-
-        Debug.Log($"[Skill] {gameObject.name}: XRayVision activated for {xRayVisionDuration} seconds.");
-    }
-
-    private void ActivateMoveSpeedUp()
-    {
-        BeginActiveSkill(PlayerSkillType.MoveSpeedUp, moveSpeedUpDuration);
-
-        ApplySkillEffects();
-
-        Debug.Log(
-            $"[Skill] {gameObject.name}: MoveSpeedUp activated for {moveSpeedUpDuration} seconds. " +
-            $"MoveSpeedMultiplier={moveSpeedMultiplier}"
-        );
-    }
-
     private void UpdateSkillState()
     {
         if (Runner == null)
@@ -606,7 +408,7 @@ public class PlayerSkillController : NetworkBehaviour
 
             ActiveSkill = PlayerSkillType.None;
             SkillActiveTimer = TickTimer.None;
-            CooldownTimer = TickTimer.CreateFromSeconds(Runner, cooldownAfterSkillEnd);
+            CooldownTimer = TickTimer.CreateFromSeconds(Runner, skillSettings.CooldownAfterSkillEnd);
         }
 
         if (ActiveSecondSkill != PlayerSkillType.None &&
@@ -617,7 +419,7 @@ public class PlayerSkillController : NetworkBehaviour
 
             ActiveSecondSkill = PlayerSkillType.None;
             SecondSkillActiveTimer = TickTimer.None;
-            SecondCooldownTimer = TickTimer.CreateFromSeconds(Runner, cooldownAfterSkillEnd);
+            SecondCooldownTimer = TickTimer.CreateFromSeconds(Runner, skillSettings.CooldownAfterSkillEnd);
         }
 
         if (CooldownTimer.IsRunning && CooldownTimer.Expired(Runner))
@@ -637,214 +439,34 @@ public class PlayerSkillController : NetworkBehaviour
 
     private void ApplySkillEffects()
     {
-        ApplyDoubleJumpEffect();
-        ApplyRapidFireEffect();
-        ApplyBulletSpeedUpEffect();
-        ApplyDamageReductionEffect();
-        ApplyMoveSpeedUpEffect();
-        ApplySlowFallEffect();
-        ApplyShrinkEffect();
-        ApplyDelayedDamageInvincibleEffect();
-        ApplyInstantReloadEffect();
+        effectApplier.ApplySkillEffects();
     }
 
-    private void ApplyDoubleJumpEffect()
+    private void ResetActiveAndCooldownState()
     {
-        if (playerMove == null)
-        {
-            return;
-        }
+        ActiveSkill = PlayerSkillType.None;
+        ActiveSecondSkill = PlayerSkillType.None;
 
-        if (IsDoubleJumpActive())
-        {
-            playerMove.SetExtraAirJumpCount(doubleJumpExtraAirJumpCount);
-        }
-        else
-        {
-            playerMove.SetExtraAirJumpCount(0);
-        }
+        SkillActiveTimer = TickTimer.None;
+        SecondSkillActiveTimer = TickTimer.None;
+
+        CooldownTimer = TickTimer.None;
+        SecondCooldownTimer = TickTimer.None;
     }
 
-    private void ApplyRapidFireEffect()
+    private int GetInitialSelectedSkillIndex()
     {
-        if (playerWeapon == null)
+        if (CurrentRoundSkill != PlayerSkillType.None)
         {
-            return;
+            return 0;
         }
 
-        if (IsRapidFireActive())
+        if (CurrentRoundSecondSkill != PlayerSkillType.None)
         {
-            playerWeapon.SetFireIntervalMultiplier(rapidFireIntervalMultiplier);
-        }
-        else
-        {
-            playerWeapon.SetFireIntervalMultiplier(1.0f);
-        }
-    }
-
-    private void ApplyBulletSpeedUpEffect()
-    {
-        if (playerWeapon == null)
-        {
-            return;
+            return 1;
         }
 
-        if (IsBulletSpeedUpActive())
-        {
-            playerWeapon.SetProjectileSpeedMultiplier(bulletSpeedMultiplier);
-        }
-        else
-        {
-            playerWeapon.SetProjectileSpeedMultiplier(1.0f);
-        }
-    }
-
-    private void ApplyDamageReductionEffect()
-    {
-        if (playerHealth == null)
-        {
-            return;
-        }
-
-        if (IsDamageReductionActive())
-        {
-            playerHealth.SetDamageTakenMultiplier(damageTakenMultiplier);
-        }
-        else
-        {
-            playerHealth.SetDamageTakenMultiplier(1.0f);
-        }
-    }
-
-    private void ApplySlowFallEffect()
-    {
-        if (playerMove == null)
-        {
-            return;
-        }
-
-        if (IsSlowFallActive())
-        {
-            playerMove.SetFallGravityMultiplier(slowFallGravityMultiplier);
-        }
-        else
-        {
-            playerMove.SetFallGravityMultiplier(1.0f);
-        }
-    }
-
-    private void ApplyShrinkEffect()
-    {
-        if (playerHealth != null)
-        {
-            if (IsShrinkActive())
-            {
-                playerHealth.SetBodySizeMultiplier(shrinkSizeMultiplier);
-            }
-            else
-            {
-                playerHealth.SetBodySizeMultiplier(1.0f);
-            }
-        }
-
-        if (playerWeapon != null)
-        {
-            if (IsShrinkActive())
-            {
-                playerWeapon.SetDamageDealtMultiplier(shrinkDamageDealtMultiplier);
-            }
-            else
-            {
-                playerWeapon.SetDamageDealtMultiplier(1.0f);
-            }
-        }
-    }
-
-    private void ApplyDelayedDamageInvincibleEffect()
-    {
-        if (playerHealth == null)
-        {
-            return;
-        }
-
-        playerHealth.SetDelayedDamageMode(IsDelayedDamageInvincibleActive());
-    }
-
-    private void ApplyMoveSpeedUpEffect()
-    {
-        if (playerMove == null)
-        {
-            return;
-        }
-
-        if (IsMoveSpeedUpActive())
-        {
-            playerMove.SetMoveSpeedMultiplier(moveSpeedMultiplier);
-        }
-        else
-        {
-            playerMove.SetMoveSpeedMultiplier(1.0f);
-        }
-    }
-
-    private void ApplyInstantReloadEffect()
-    {
-        if (playerWeapon == null)
-        {
-            return;
-        }
-
-        playerWeapon.SetInstantReloadEnabled(IsInstantReloadActive());
-    }
-
-    private bool IsInstantReloadActive()
-    {
-        return IsSkillCurrentlyActive(PlayerSkillType.InstantReload);
-    }
-
-    private bool IsMoveSpeedUpActive()
-    {
-        return IsSkillCurrentlyActive(PlayerSkillType.MoveSpeedUp);
-    }
-
-    private bool IsDoubleJumpActive()
-    {
-        return IsSkillCurrentlyActive(PlayerSkillType.DoubleJump);
-    }
-
-    private bool IsRapidFireActive()
-    {
-        return IsSkillCurrentlyActive(PlayerSkillType.RapidFire);
-    }
-
-    private bool IsBulletSpeedUpActive()
-    {
-        return IsSkillCurrentlyActive(PlayerSkillType.BulletSpeedUp);
-    }
-
-    private bool IsDamageReductionActive()
-    {
-        return IsSkillCurrentlyActive(PlayerSkillType.DamageReduction);
-    }
-
-    private bool IsSlowFallActive()
-    {
-        return IsSkillCurrentlyActive(PlayerSkillType.SlowFall);
-    }
-
-    private bool IsShrinkActive()
-    {
-        return IsSkillCurrentlyActive(PlayerSkillType.Shrink);
-    }
-
-    private bool IsDelayedDamageInvincibleActive()
-    {
-        return IsSkillCurrentlyActive(PlayerSkillType.DelayedDamageInvincible);
-    }
-
-    public bool IsXRayVisionActive()
-    {
-        return IsSkillCurrentlyActive(PlayerSkillType.XRayVision);
+        return 0;
     }
 
     private bool IsSkillCurrentlyActive(PlayerSkillType skill)
@@ -865,16 +487,6 @@ public class PlayerSkillController : NetworkBehaviour
             !SecondSkillActiveTimer.Expired(Runner);
 
         return firstSlotActive || secondSlotActive;
-    }
-
-    private bool IsSkillActive()
-    {
-        return IsSkillSlotActive(0) || IsSkillSlotActive(1);
-    }
-
-    private bool IsCooldownActive()
-    {
-        return IsSkillSlotCoolingDown(GetNormalizedCurrentSelectedSkillIndex());
     }
 
     private bool IsSkillSlotActive(int slotIndex)

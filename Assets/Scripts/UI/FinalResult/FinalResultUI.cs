@@ -37,10 +37,10 @@ public class FinalResultUI : MonoBehaviour
             return;
         }
 
-        CreateWinnerEntryIfTeamExists(winnerTeamMask, RoundManager.TeamColor.Red);
-        CreateWinnerEntryIfTeamExists(winnerTeamMask, RoundManager.TeamColor.Blue);
-        CreateWinnerEntryIfTeamExists(winnerTeamMask, RoundManager.TeamColor.Green);
-        CreateWinnerEntryIfTeamExists(winnerTeamMask, RoundManager.TeamColor.Yellow);
+        CreateWinnerEntryIfTeamExists(winnerTeamMask, TeamColor.Red);
+        CreateWinnerEntryIfTeamExists(winnerTeamMask, TeamColor.Blue);
+        CreateWinnerEntryIfTeamExists(winnerTeamMask, TeamColor.Green);
+        CreateWinnerEntryIfTeamExists(winnerTeamMask, TeamColor.Yellow);
     }
 
     public void Hide()
@@ -51,7 +51,7 @@ public class FinalResultUI : MonoBehaviour
 
     private void CreateWinnerEntryIfTeamExists(
         int winnerTeamMask,
-        RoundManager.TeamColor team
+        TeamColor team
     )
     {
         int bit = 1 << (int)team;
@@ -100,20 +100,20 @@ public class FinalResultUI : MonoBehaviour
         }
     }
 
-    private Color GetTeamColor(RoundManager.TeamColor team)
+    private Color GetTeamColor(TeamColor team)
     {
         switch (team)
         {
-            case RoundManager.TeamColor.Red:
+            case TeamColor.Red:
                 return new Color32(255, 77, 109, 255);
 
-            case RoundManager.TeamColor.Blue:
+            case TeamColor.Blue:
                 return new Color32(77, 171, 247, 255);
 
-            case RoundManager.TeamColor.Green:
+            case TeamColor.Green:
                 return new Color32(64, 192, 87, 255);
 
-            case RoundManager.TeamColor.Yellow:
+            case TeamColor.Yellow:
                 return new Color32(255, 212, 59, 255);
 
             default:

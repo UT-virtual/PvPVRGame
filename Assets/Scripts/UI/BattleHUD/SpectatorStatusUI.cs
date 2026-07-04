@@ -78,19 +78,19 @@ public class SpectatorStatusUI : MonoBehaviour
 
         switch (target.Team)
         {
-            case RoundManager.TeamColor.Red:
+            case TeamColor.Red:
                 targetColorIcon.color = new Color32(255, 77, 109, 255);
                 break;
 
-            case RoundManager.TeamColor.Blue:
+            case TeamColor.Blue:
                 targetColorIcon.color = new Color32(77, 171, 247, 255);
                 break;
 
-            case RoundManager.TeamColor.Green:
+            case TeamColor.Green:
                 targetColorIcon.color = new Color32(64, 192, 87, 255);
                 break;
 
-            case RoundManager.TeamColor.Yellow:
+            case TeamColor.Yellow:
                 targetColorIcon.color = new Color32(255, 212, 59, 255);
                 break;
 
