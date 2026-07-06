@@ -104,19 +104,19 @@ public class PlayerLook : MonoBehaviour
     }
 
     public void SetPitchFromViewForward(Vector3 viewForward)
-{
-    if (viewForward.sqrMagnitude < 0.001f)
     {
-        return;
+        if (viewForward.sqrMagnitude < 0.001f)
+        {
+            return;
+        }
+
+        Vector3 normalizedViewForward = viewForward.normalized;
+        float newPitch = Vector3.SignedAngle(
+            playerMove.AimForward,
+            normalizedViewForward,
+            playerMove.AimRight
+        );
+
+        pitch = Mathf.Clamp(newPitch, minPitch, maxPitch);
     }
-
-    Vector3 normalizedViewForward = viewForward.normalized;
-    float newPitch = Vector3.SignedAngle(
-        playerMove.AimForward,
-        normalizedViewForward,
-        playerMove.AimRight
-    );
-
-    pitch = Mathf.Clamp(newPitch, minPitch, maxPitch);
-}
 }
