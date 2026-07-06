@@ -95,103 +95,171 @@ public class PlayerController : NetworkBehaviour
 
     public override void FixedUpdateNetwork()
     {
-        if (playerHealth != null && playerHealth.IsDead)
-        {
-            if (Object.HasStateAuthority)
-            {
-                NetworkedIsRunning = false;
-                NetworkedMoveX = 0.0f;
-                NetworkedMoveY = 0.0f;
-            }
-
-            return;
-        }
-
-        if (!GetInput(out PlayerNetworkInput input))
+        if (TryHandleDeadState())
         {
             return;
         }
 
-        float deltaTime = Runner.DeltaTime;
-
-        if (!Object.HasStateAuthority)
+        if (!TryReadAuthoritativeInput(
+                out PlayerNetworkInput input,
+                out NetworkButtons pressedButtons,
+                out float deltaTime
+            ))
         {
             return;
         }
 
-        NetworkButtons pressedButtons = input.Buttons.GetPressed(PreviousButtons);
-        PreviousButtons = input.Buttons;
+        HandleReadyInput(pressedButtons);
 
-        bool jumpPressed = pressedButtons.IsSet((int)PlayerInputButton.Jump);
-        bool reloadPressed = pressedButtons.IsSet((int)PlayerInputButton.Reload);
-        bool readyPressed = pressedButtons.IsSet((int)PlayerInputButton.Ready);
-        bool skillPressed = pressedButtons.IsSet((int)PlayerInputButton.Skill);
-        bool switchSkillPressed = pressedButtons.IsSet((int)PlayerInputButton.SwitchSkill);
-        bool fireHeld = input.Buttons.IsSet((int)PlayerInputButton.Fire);
-
-        if (readyPressed && RoundManager.Instance != null)
+        if (TryHandleSkillSelectionPhase(pressedButtons))
         {
-            RoundManager.Instance.SetPlayerReady(playerHealth);
-        }
-
-        if (RoundManager.Instance != null && RoundManager.Instance.IsSkillSelecting)
-        {
-            HandleSkillSelectionInput(pressedButtons);
-
-            NetworkedMoveX = 0.0f;
-            NetworkedMoveY = 0.0f;
-            NetworkedIsRunning = false;
-
             return;
         }
 
-        bool canControlPlayer = RoundManager.Instance == null || RoundManager.Instance.CanControlPlayers;
-
-        if (!canControlPlayer)
+        if (!CanControlPlayer())
         {
-            NetworkedMoveX = 0.0f;
-            NetworkedMoveY = 0.0f;
-            NetworkedIsRunning = false;
-
+            StopNetworkedMovement();
             playerWeapon.Tick(deltaTime);
             return;
         }
 
-        Vector2 moveInput = input.MoveInput;
+        Vector2 moveInput = NormalizeMoveInput(input.MoveInput);
 
+        UpdateNetworkedMovementState(moveInput);
+
+        playerWeapon.Tick(deltaTime);
+
+        UpdateMovementAndLook(
+            input,
+            moveInput,
+            pressedButtons.IsSet((int)PlayerInputButton.Jump),
+            deltaTime
+        );
+
+        UpdateNetworkedSpectatorView();
+
+        HandleWeaponAndSkillInput(
+            pressedButtons,
+            input.Buttons.IsSet((int)PlayerInputButton.Fire)
+        );
+    }
+
+    private bool TryHandleDeadState()
+    {
+        if (playerHealth == null || !playerHealth.IsDead)
+        {
+            return false;
+        }
+
+        if (Object.HasStateAuthority)
+        {
+            StopNetworkedMovement();
+        }
+
+        return true;
+    }
+
+    private bool TryReadAuthoritativeInput(
+        out PlayerNetworkInput input,
+        out NetworkButtons pressedButtons,
+        out float deltaTime
+    )
+    {
+        input = default;
+        pressedButtons = default;
+        deltaTime = 0.0f;
+
+        if (!GetInput(out input))
+        {
+            return false;
+        }
+
+        deltaTime = Runner.DeltaTime;
+
+        if (!Object.HasStateAuthority)
+        {
+            return false;
+        }
+
+        pressedButtons = input.Buttons.GetPressed(PreviousButtons);
+        PreviousButtons = input.Buttons;
+
+        return true;
+    }
+
+    private void HandleReadyInput(NetworkButtons pressedButtons)
+    {
+        if (!pressedButtons.IsSet((int)PlayerInputButton.Ready))
+        {
+            return;
+        }
+
+        if (RoundManager.Instance == null)
+        {
+            return;
+        }
+
+        RoundManager.Instance.SetPlayerReady(playerHealth);
+    }
+
+    private bool TryHandleSkillSelectionPhase(NetworkButtons pressedButtons)
+    {
+        if (RoundManager.Instance == null || !RoundManager.Instance.IsSkillSelecting)
+        {
+            return false;
+        }
+
+        HandleSkillSelectionInput(pressedButtons);
+        StopNetworkedMovement();
+
+        return true;
+    }
+
+    private bool CanControlPlayer()
+    {
+        return RoundManager.Instance == null || RoundManager.Instance.CanControlPlayers;
+    }
+
+    private bool CanUseWeapon()
+    {
+        return RoundManager.Instance == null || RoundManager.Instance.CanUseWeapons;
+    }
+
+    private void StopNetworkedMovement()
+    {
+        NetworkedMoveX = 0.0f;
+        NetworkedMoveY = 0.0f;
+        NetworkedIsRunning = false;
+    }
+
+    private Vector2 NormalizeMoveInput(Vector2 moveInput)
+    {
         if (moveInput.sqrMagnitude > 1.0f)
         {
             moveInput.Normalize();
         }
 
+        return moveInput;
+    }
+
+    private void UpdateNetworkedMovementState(Vector2 moveInput)
+    {
         NetworkedMoveX = moveInput.x;
         NetworkedMoveY = moveInput.y;
         NetworkedIsRunning = moveInput.sqrMagnitude > 0.01f;
+    }
 
-        playerWeapon.Tick(deltaTime);
-
+    private void UpdateMovementAndLook(
+        PlayerNetworkInput input,
+        Vector2 moveInput,
+        bool jumpPressed,
+        float deltaTime
+    )
+    {
         playerMove.ProbeGround();
         playerMove.UpdateAimBasis();
 
-        if (!Object.HasInputAuthority)
-        {
-            if (input.IsVR)
-            {
-                playerLook.ApplyLook(input.LookInput, true, input.HMDRotation);
-            }
-            else
-            {
-                if (input.HasLookDirection != 0)
-                {
-                    playerMove.SetAimForward(input.AimForward);
-                    playerLook.SetPitchFromViewForward(input.ViewForward);
-                }
-                else
-                {
-                    playerLook.ApplyLook(input.LookInput, false, Quaternion.identity);
-                }
-            }
-        }
+        ApplyRemoteLookIfNeeded(input);
 
         playerMove.MoveOnSurface(moveInput, deltaTime);
 
@@ -200,27 +268,54 @@ public class PlayerController : NetworkBehaviour
 
         playerMove.AlignToSurface(deltaTime);
         playerMove.ApplyGravityAndJump(jumpPressed, deltaTime);
+    }
 
-        UpdateNetworkedSpectatorView();
-
-        bool canUseWeapon = RoundManager.Instance == null || RoundManager.Instance.CanUseWeapons;
-
-        if (!canUseWeapon)
+    private void ApplyRemoteLookIfNeeded(PlayerNetworkInput input)
+    {
+        if (Object.HasInputAuthority)
         {
             return;
         }
 
-        if (switchSkillPressed && playerSkillController != null)
+        if (input.IsVR)
+        {
+            playerLook.ApplyLook(input.LookInput, true, input.HMDRotation);
+            return;
+        }
+
+        if (input.HasLookDirection != 0)
+        {
+            playerMove.SetAimForward(input.AimForward);
+            playerLook.SetPitchFromViewForward(input.ViewForward);
+            return;
+        }
+
+        playerLook.ApplyLook(input.LookInput, false, Quaternion.identity);
+    }
+
+    private void HandleWeaponAndSkillInput(
+        NetworkButtons pressedButtons,
+        bool fireHeld
+    )
+    {
+        if (!CanUseWeapon())
+        {
+            return;
+        }
+
+        if (pressedButtons.IsSet((int)PlayerInputButton.SwitchSkill) &&
+            playerSkillController != null)
         {
             playerSkillController.SwitchCurrentSkill();
         }
 
-        if (skillPressed && playerSkillController != null)
+        if (pressedButtons.IsSet((int)PlayerInputButton.Skill) &&
+            playerSkillController != null)
         {
             playerSkillController.TryActivateSkill();
         }
 
-        if (reloadPressed)
+        if (pressedButtons.IsSet((int)PlayerInputButton.Reload))
         {
             playerWeapon.ReloadAmmo();
         }
