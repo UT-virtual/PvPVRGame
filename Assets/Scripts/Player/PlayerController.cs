@@ -129,6 +129,10 @@ public class PlayerController : NetworkBehaviour
         bool switchSkillPressed = pressedButtons.IsSet((int)PlayerInputButton.SwitchSkill);
         bool fireHeld = input.Buttons.IsSet((int)PlayerInputButton.Fire);
 
+        //wayo’Ç‹L
+        bool activateSkill1Pressed = pressedButtons.IsSet((int)PlayerInputButton.ActivateSkill1);
+        bool activateSkill2Pressed = pressedButtons.IsSet((int)PlayerInputButton.ActivateSkill2);
+
         if (readyPressed && RoundManager.Instance != null)
         {
             RoundManager.Instance.SetPlayerReady(playerHealth);
@@ -221,6 +225,16 @@ public class PlayerController : NetworkBehaviour
         if (switchSkillPressed && playerSkillController != null)
         {
             playerSkillController.SwitchCurrentSkill();
+        }
+
+        //wayo’Ç‹L
+        if (activateSkill1Pressed && playerSkillController != null)
+        {
+            playerSkillController.TryActivateSkillBySlot(0);
+        }
+        if (activateSkill2Pressed && playerSkillController != null)
+        {
+            playerSkillController.TryActivateSkillBySlot(1);
         }
 
         if (skillPressed && playerSkillController != null)

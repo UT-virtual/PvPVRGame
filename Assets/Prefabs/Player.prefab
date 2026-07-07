@@ -429,14 +429,14 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 2209430232442334037}
   serializedVersion: 2
-  m_LocalRotation: {x: -0.5007175, y: 0.48348895, z: 0.5045437, w: 0.5108387}
-  m_LocalPosition: {x: -0.0403, y: -0.019, z: -0.0264}
+  m_LocalRotation: {x: 0.29584903, y: 0.32010725, z: 0.6309949, w: -0.6417555}
+  m_LocalPosition: {x: 0.0287, y: 0.0609, z: -0.2077}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 1803891075514819316}
   m_Father: {fileID: 3827414043178423831}
-  m_LocalEulerAnglesHint: {x: -88.107, y: -20, z: 108.652}
+  m_LocalEulerAnglesHint: {x: -51.6, y: -363.461, z: -87.357}
 --- !u!33 &7603310033880407319
 MeshFilter:
   m_ObjectHideFlags: 0
@@ -2232,6 +2232,10 @@ PrefabInstance:
     - target: {fileID: 1112338128624330, guid: e7965cb5f3b6b49439772edd4131b2b0, type: 3}
       propertyPath: m_Name
       value: space_man_model
+      objectReference: {fileID: 0}
+    - target: {fileID: 1948720130663944, guid: e7965cb5f3b6b49439772edd4131b2b0, type: 3}
+      propertyPath: m_IsActive
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 4427613559659150, guid: e7965cb5f3b6b49439772edd4131b2b0, type: 3}
       propertyPath: m_LocalScale.x

@@ -2,6 +2,8 @@ using Fusion;
 using System;
 using UnityEngine;
 using UnityEngine.InputSystem;
+//wayo追記
+using UnityEngine.InputSystem.Controls;
 
 public sealed class LocalSkillSelectionInputController
 {
@@ -18,6 +20,9 @@ public sealed class LocalSkillSelectionInputController
     private bool wasSkillSelecting;
     private bool skillSelectionMoveHeld;
     private bool localSkillSelectionConfirmed;
+    //wayo追記
+    private bool wasLeftVrTriggerPressed;
+    private bool wasRightVrTriggerPressed;
 
     public int CurrentSkillSelectionSlot => currentSkillSelectionSlot;
     public int LocalSkillSelectionStep => localSkillSelectionStep;
@@ -91,6 +96,10 @@ public sealed class LocalSkillSelectionInputController
 
             skillSelectionMoveHeld = IsSkillSelectionNavigateActive(navigateInput);
             wasSkillSelecting = true;
+
+            //wayo追記
+            wasLeftVrTriggerPressed = IsXrTriggerHeld("<XRController>{LeftHand}");
+            wasRightVrTriggerPressed = IsXrTriggerHeld("<XRController>{RightHand}");
             return;
         }
 
@@ -122,6 +131,8 @@ public sealed class LocalSkillSelectionInputController
         localSkillSelectionStep = 0;
         localFirstSelectedSkill = PlayerSkillType.None;
         localSkillSelectionConfirmed = false;
+        wasLeftVrTriggerPressed = false;
+        wasRightVrTriggerPressed = false;
     }
 
     private Vector2 ReadSkillSelectionNavigateInput()
@@ -227,7 +238,39 @@ public sealed class LocalSkillSelectionInputController
             return true;
         }
 
+        if(ReadVrTriggerConfirmPressed())
+        {
+            return true;
+        }
+
         return false;
+    }
+
+    //wayo追記
+    private bool ReadVrTriggerConfirmPressed()
+    {
+        if (!UnityEngine.XR.XRSettings.isDeviceActive)
+        {
+            return false;
+        }
+        return WasXrTriggerPressedThisFrame("<XRController>{LeftHand}", ref wasLeftVrTriggerPressed) ||
+               WasXrTriggerPressedThisFrame("<XRController>{RightHand}", ref wasRightVrTriggerPressed);
+    }
+    private static bool IsXrTriggerHeld(string handPath)
+    {
+        InputControl triggerButton = InputSystem.FindControl($"{handPath}/triggerButton");
+        if (triggerButton is ButtonControl button && button.isPressed)
+        {
+            return true;
+        }
+        return false;
+    }
+    private static bool WasXrTriggerPressedThisFrame(string handPath, ref bool wasPressedLastFrame)
+    {
+        bool isPressed = IsXrTriggerHeld(handPath);
+        bool pressedThisFrame = isPressed && !wasPressedLastFrame;
+        wasPressedLastFrame = isPressed;
+        return pressedThisFrame;
     }
 
     private void QueueSelectedSkillSlot()
@@ -261,6 +304,10 @@ public sealed class LocalSkillSelectionInputController
             currentSkillSelectionSlot = 0;
             skillSelectionMoveHeld = true;
             localSkillSelectionConfirmed = false;
+
+            //wayo追記
+            IsXrTriggerHeld("<XRController>{LeftHand}");
+            IsXrTriggerHeld("<XRController>{RightHand}");
             return;
         }
 

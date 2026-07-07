@@ -12,7 +12,11 @@ public enum PlayerInputButton
     SelectSkill1,
     SelectSkill2,
     SelectSkill3,
-    SelectSkill4
+    SelectSkill4,
+    
+    //wayo’Ç‹L
+    ActivateSkill1,
+    ActivateSkill2
 }
 
 public struct PlayerNetworkInput : INetworkInput
