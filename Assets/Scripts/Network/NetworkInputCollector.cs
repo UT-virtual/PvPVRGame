@@ -42,7 +42,12 @@ public sealed class NetworkInputCollector
     private bool selectSkill3Queued;
     private bool selectSkill4Queued;
     private bool switchSkillQueued;
+    //wayo追記
+    private bool wasBothVrTriggerPressed;
     private bool wasLeftTriggerPressed;
+    private bool activateSkill1Queued;
+    private bool activateSkill2Queued;
+    private bool wasLeftVrTriggerPressedForSkill;
 
     public PlayerController LocalPlayerController { get; private set; }
 
@@ -184,6 +189,58 @@ public sealed class NetworkInputCollector
         {
             switchSkillQueued = true;
         }
+
+        //wayo追記
+        if (ReadVrSkillActivation(out int skillSlot))
+        {
+            if (skillSlot == 0)
+            {
+                activateSkill1Queued = true;
+            }
+            else
+            {
+                activateSkill2Queued = true;
+            }
+        }
+    }
+
+    //wayo追記
+    private bool ReadVrSkillActivation(out int skillSlot)
+    {
+        skillSlot = -1;
+
+        if (!IsVRActive)
+        {
+            return false;
+        }
+
+        bool leftTriggerPressed = IsXrTriggerHeld("<XRController>{LeftHand}");
+        bool pressedThisFrame = leftTriggerPressed && !wasLeftVrTriggerPressedForSkill;
+        wasLeftVrTriggerPressedForSkill = leftTriggerPressed;
+
+        if (!pressedThisFrame)
+        {
+            return false;
+        }
+
+        Quaternion leftRotation = ReadQuaternionAction(leftHandRotationAction);
+        Vector3 aimDirection = leftRotation * Vector3.forward;
+
+        const float directionThreshold = 0.6f;
+
+        if (aimDirection.y > directionThreshold)
+        {
+            skillSlot = 0; // 上向き → スキル1
+            return true;
+        }
+
+        if (aimDirection.y < -directionThreshold)
+        {
+            skillSlot = 1; // 下向き → スキル2
+            return true;
+        }
+
+        return false; // 横を向いているなど → 発動しない
     }
 
     public void CollectInput(NetworkInput input)
@@ -230,6 +287,10 @@ public sealed class NetworkInputCollector
         buttons.Set((int)PlayerInputButton.SelectSkill2, selectSkill2Queued);
         buttons.Set((int)PlayerInputButton.SelectSkill3, selectSkill3Queued);
         buttons.Set((int)PlayerInputButton.SelectSkill4, selectSkill4Queued);
+
+        //wayo追記
+        buttons.Set((int)PlayerInputButton.ActivateSkill1, activateSkill1Queued);
+        buttons.Set((int)PlayerInputButton.ActivateSkill2, activateSkill2Queued);
 
         data.Buttons = buttons;
 
@@ -287,6 +348,10 @@ public sealed class NetworkInputCollector
         selectSkill2Queued = false;
         selectSkill3Queued = false;
         selectSkill4Queued = false;
+
+        //wayo追記
+        activateSkill1Queued = false;
+        activateSkill2Queued = false;
     }
 
     private void EnableAction(InputActionReference actionReference)
@@ -522,6 +587,16 @@ public sealed class NetworkInputCollector
     {
         bool readyPressed = false;
 
+        //wayo追記
+        if (IsVRActive)
+        {
+            bool bothPressed = AreBothVrTriggersPressed();
+            readyPressed = bothPressed && !wasBothVrTriggerPressed;
+
+            wasBothVrTriggerPressed = bothPressed;
+            return readyPressed;
+        }
+
         if (Keyboard.current != null)
         {
             if (Keyboard.current.enterKey.wasPressedThisFrame)
@@ -554,6 +629,23 @@ public sealed class NetworkInputCollector
         }
 
         return readyPressed;
+    }
+
+    //wayo追記
+    private static bool IsXrTriggerHeld(string handPath)
+    {
+        InputControl triggerButton = InputSystem.FindControl($"{handPath}/triggerButton");
+        if(triggerButton is ButtonControl button && button.isPressed)
+        {
+            return true;
+        }
+        return false;
+    }
+
+    private bool AreBothVrTriggersPressed()
+    {
+        return IsXrTriggerHeld("<XRController>{leftHand}") &&
+            IsXrTriggerHeld("<XRController>{RightHand}");
     }
 
     private bool ReadSkillPressed()

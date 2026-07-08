@@ -129,6 +129,10 @@ public class PlayerController : NetworkBehaviour
         bool switchSkillPressed = pressedButtons.IsSet((int)PlayerInputButton.SwitchSkill);
         bool fireHeld = input.Buttons.IsSet((int)PlayerInputButton.Fire);
 
+        //wayoí«ãL
+        bool activateSkill1Pressed = pressedButtons.IsSet((int)PlayerInputButton.ActivateSkill1);
+        bool activateSkill2Pressed = pressedButtons.IsSet((int)PlayerInputButton.ActivateSkill2);
+
         if (readyPressed && RoundManager.Instance != null)
         {
             RoundManager.Instance.SetPlayerReady(playerHealth);
@@ -193,7 +197,15 @@ public class PlayerController : NetworkBehaviour
             }
         }
 
-        playerMove.MoveOnSurface(moveInput, deltaTime);
+        //VRÇ≈ÇÕHMDÇÃå¸Ç´ÇéQè∆Ç∑ÇÈ
+        if (input.IsVR)
+        {
+            playerMove.MoveOnSurfaceVR(moveInput, deltaTime, playerLook.ViewForward, playerMove.AimRight);
+        }
+        else
+        {
+            playerMove.MoveOnSurface(moveInput, deltaTime);
+        }
 
         playerMove.ProbeGround();
         playerMove.UpdateAimBasis();
@@ -213,6 +225,16 @@ public class PlayerController : NetworkBehaviour
         if (switchSkillPressed && playerSkillController != null)
         {
             playerSkillController.SwitchCurrentSkill();
+        }
+
+        //wayoí«ãL
+        if (activateSkill1Pressed && playerSkillController != null)
+        {
+            playerSkillController.TryActivateSkillBySlot(0);
+        }
+        if (activateSkill2Pressed && playerSkillController != null)
+        {
+            playerSkillController.TryActivateSkillBySlot(1);
         }
 
         if (skillPressed && playerSkillController != null)

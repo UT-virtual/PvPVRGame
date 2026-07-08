@@ -313,6 +313,26 @@ public class PlayerSkillController : NetworkBehaviour
         skillActivator.Activate(selectedSkill);
     }
 
+    //wayo追記
+    public void TryActivateSkillBySlot(int slotIndex)
+    {
+        if (Object == null || !Object.HasStateAuthority)
+        {
+            return;
+        }
+        slotIndex = slotIndex <= 0 ? 0 : 1;
+        PlayerSkillType selectedSkill = GetRoundSkillBySlot(slotIndex);
+        if (selectedSkill == PlayerSkillType.None)
+        {
+            return;
+        }
+        if (IsSkillSlotActive(slotIndex) || IsSkillSlotCoolingDown(slotIndex))
+        {
+            return;
+        }
+        skillActivator.Activate(selectedSkill);
+    }
+
     public bool IsXRayVisionActive()
     {
         return IsSkillCurrentlyActive(PlayerSkillType.XRayVision);

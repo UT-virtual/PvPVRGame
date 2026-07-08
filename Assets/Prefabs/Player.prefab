@@ -326,11 +326,11 @@ GameObject:
   - component: {fileID: 7632850862143163386}
   m_Layer: 0
   m_Name: Long_Rifle_03
-  m_TagString: Untagged
+  m_TagString: EditorOnly
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!4 &7223188121678694669
 Transform:
   m_ObjectHideFlags: 0
@@ -429,14 +429,14 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 2209430232442334037}
   serializedVersion: 2
-  m_LocalRotation: {x: -0.1988162, y: 0.8834081, z: 0.42051616, w: -0.05681905}
-  m_LocalPosition: {x: -0.026500063, y: -0.009899943, z: -0.0005999981}
+  m_LocalRotation: {x: 0.29584903, y: 0.32010725, z: 0.6309949, w: -0.6417555}
+  m_LocalPosition: {x: 0.0287, y: 0.0609, z: -0.2077}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 1803891075514819316}
   m_Father: {fileID: 3827414043178423831}
-  m_LocalEulerAnglesHint: {x: -133.914, y: 22.695, z: 144.875}
+  m_LocalEulerAnglesHint: {x: -51.6, y: -363.461, z: -87.357}
 --- !u!33 &7603310033880407319
 MeshFilter:
   m_ObjectHideFlags: 0
@@ -1570,7 +1570,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::PlayerHealth
   maxHealth: 20
   visualRoot: {fileID: 4762586069857500457}
-  weaponVisualRoot: {fileID: 3831090507889256747}
+  weaponVisualRoot: {fileID: 2209430232442334037}
   overheadIconRoot: {fileID: 4915071045229155744}
   _NetworkedCurrentHealth: 0
   _NetworkedIsDead:
@@ -1744,7 +1744,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::NetworkPlayer
   playerCamera: {fileID: 1904617270884353107}
   visualRoot: {fileID: 4762586069857500457}
-  hideLocalVisual: 1
+  hideLocalVisual: 0
   localOnlyObjects: []
 --- !u!82 &-7183140537700069115
 AudioSource:
@@ -2233,6 +2233,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: space_man_model
       objectReference: {fileID: 0}
+    - target: {fileID: 1948720130663944, guid: e7965cb5f3b6b49439772edd4131b2b0, type: 3}
+      propertyPath: m_IsActive
+      value: 1
+      objectReference: {fileID: 0}
     - target: {fileID: 4427613559659150, guid: e7965cb5f3b6b49439772edd4131b2b0, type: 3}
       propertyPath: m_LocalScale.x
       value: 6
@@ -2427,7 +2431,7 @@ MonoBehaviour:
       target: {fileID: 2450436882394348749}
       bendGoal: {fileID: 0}
       positionWeight: 1
-      rotationWeight: 0
+      rotationWeight: 1
       shoulderRotationMode: 0
       shoulderRotationWeight: 1
       bendGoalWeight: 0
@@ -2446,7 +2450,7 @@ MonoBehaviour:
       target: {fileID: 7065976539238515889}
       bendGoal: {fileID: 0}
       positionWeight: 1
-      rotationWeight: 0
+      rotationWeight: 1
       shoulderRotationMode: 0
       shoulderRotationWeight: 1
       bendGoalWeight: 0
