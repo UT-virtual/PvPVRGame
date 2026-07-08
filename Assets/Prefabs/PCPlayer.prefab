@@ -706,7 +706,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 315b6328bde944c308c7c13ecf849319, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerHealth
-  maxHealth: 20
+  maxHealth: 10
   visualRoot: {fileID: 4762586069857500457}
   weaponVisualRoot: {fileID: 0}
   overheadIconRoot: {fileID: 4915071045229155744}
@@ -743,7 +743,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d29aa7d5ed7124b52812c2e12576fece, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerMove
-  moveSpeed: 20
+  moveSpeed: 10
   gravity: 6
   jumpSpeed: 12
   planetCenter: {fileID: 5110394550287685901, guid: 6efab54670793466cb5125952d5cd355, type: 3}
