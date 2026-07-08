@@ -2095,8 +2095,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::HealthItemSpawner
   healthItemPrefab:
     RawGuidValue: b5a26f89cc7544331ba5909bd6973c24
-  healAmount: 20
-  respawnDelay: 10
+  healAmount: 5
+  respawnDelay: 60
   spawnPointsRoot: {fileID: 1968169495}
   spawnPoints: []
   shuffleSpawnPointsOnRoundStart: 1
@@ -8158,7 +8158,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 1}
   m_AnchorMax: {x: 1, y: 1}
-  m_AnchoredPosition: {x: -0.014230411, y: -0.002946376}
+  m_AnchoredPosition: {x: -0.014243502, y: -0.0030303588}
   m_SizeDelta: {x: -183, y: 0}
   m_Pivot: {x: 0, y: 1}
 --- !u!114 &2107111657
@@ -8283,7 +8283,7 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 587169065}
   m_HandleRect: {fileID: 587169064}
   m_Direction: 2
-  m_Value: 0
+  m_Value: 1
   m_Size: 0.9999933
   m_NumberOfSteps: 0
   m_OnValueChanged:
