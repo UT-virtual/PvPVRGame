@@ -129,7 +129,7 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: 847176050165502015, guid: b5a26f89cc7544331ba5909bd6973c24, type: 3}
       propertyPath: SortKey
-      value: 0
+      value: 2988613837
       objectReference: {fileID: 0}
     - target: {fileID: 1461872884026709090, guid: b5a26f89cc7544331ba5909bd6973c24, type: 3}
       propertyPath: m_Name
@@ -1057,8 +1057,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::BgmManager
   audioSource: {fileID: 409163069}
-  waitingBgm: {fileID: 0}
-  battleBgm: {fileID: 0}
+  waitingBgm: {fileID: 8300000, guid: accd4c490ac46475d875b6a6737c3050, type: 3}
+  battleBgm: {fileID: 8300000, guid: 2d7e1b2e12b8a4cc1968cb60fd6ce8ac, type: 3}
 --- !u!82 &409163069
 AudioSource:
   m_ObjectHideFlags: 0
@@ -2484,7 +2484,7 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: 847176050165502015, guid: b5a26f89cc7544331ba5909bd6973c24, type: 3}
       propertyPath: SortKey
-      value: 0
+      value: 1760511864
       objectReference: {fileID: 0}
     - target: {fileID: 1461872884026709090, guid: b5a26f89cc7544331ba5909bd6973c24, type: 3}
       propertyPath: m_Name
@@ -3085,7 +3085,7 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: 847176050165502015, guid: b5a26f89cc7544331ba5909bd6973c24, type: 3}
       propertyPath: SortKey
-      value: 0
+      value: 174918463
       objectReference: {fileID: 0}
     - target: {fileID: 1461872884026709090, guid: b5a26f89cc7544331ba5909bd6973c24, type: 3}
       propertyPath: m_Name
@@ -3933,7 +3933,7 @@ MonoBehaviour:
   minPlayersToStart: 1
   skillSelectionDuration: 30
   startAfterAllSkillsSelectedDelay: 3
-  availableRoundSkills: 0100000002000000030000000400000005000000060000000700000008000000090000000a0000000b0000000c0000000d000000
+  selectableRoundSkills: 0100000002000000030000000400000005000000060000000700000008000000090000000a0000000c0000000d000000
   maxRoundCount: 5
   nextRoundDelay: 5
   returnToWaitingDelay: 5
@@ -3945,9 +3945,7 @@ MonoBehaviour:
   battleStartUI: {fileID: 2051288792}
   roundEndUI: {fileID: 1779750608}
   finalResultUI: {fileID: 2030716861}
-  skillOptionSlotCount: 4
   countDebugSpectatorDummiesAsAlive: 0
-  currentRound: 1
 --- !u!114 &1056434496
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3960,7 +3958,7 @@ MonoBehaviour:
   m_Script: {fileID: -1552182283, guid: e725a070cec140c4caffb81624c8c787, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Fusion.Runtime.dll::Fusion.NetworkObject
-  SortKey: 0
+  SortKey: 2332248817
   ObjectInterest: 1
   Flags: 262145
   NestedObjects: []
@@ -6716,8 +6714,8 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 306900148}
   m_HandleRect: {fileID: 306900147}
   m_Direction: 0
-  m_Value: 0
-  m_Size: 0.9999764
+  m_Value: 1
+  m_Size: 0.999971
   m_NumberOfSteps: 0
   m_OnValueChanged:
     m_PersistentCalls:
@@ -6953,31 +6951,31 @@ MonoBehaviour:
   cooldownText: {fileID: 1927651955}
   skillIcons:
   - skill: 1
-    icon: {fileID: 21300000, guid: f997d60d79a4e45cab6b1814e377a1b3, type: 3}
+    icon: {fileID: 21300000, guid: 34d417ba6f9984cd78faf4fd5e1fdad8, type: 3}
   - skill: 2
-    icon: {fileID: 21300000, guid: 013811fdd48c040339e9adc40e692381, type: 3}
+    icon: {fileID: 21300000, guid: f7dc3703762cb4446b4b850862eacc69, type: 3}
   - skill: 3
-    icon: {fileID: 21300000, guid: 0265e2b6afccd49de9c1f0b3a1fb4285, type: 3}
+    icon: {fileID: 21300000, guid: 7e9717c37a23f452eb64980d0449d66a, type: 3}
   - skill: 4
-    icon: {fileID: 21300000, guid: 7d7a2f6c5e996e24388af5a8227afdcf, type: 3}
+    icon: {fileID: 21300000, guid: 329b758c0e2f5443891a8865febf1be8, type: 3}
   - skill: 5
-    icon: {fileID: 21300000, guid: 08548d5ac6b7bc64da0b332636c5cc91, type: 3}
+    icon: {fileID: 21300000, guid: d666056b4c64a48a79b09de93b63afc0, type: 3}
   - skill: 6
-    icon: {fileID: 21300000, guid: f01f3bb228b3b4251a04e2036212d115, type: 3}
+    icon: {fileID: 21300000, guid: 4ace7dc3ed3a84b3d82c8c98355d1fe2, type: 3}
   - skill: 7
-    icon: {fileID: 21300000, guid: 139237a044d8e4255b40bb472c842087, type: 3}
+    icon: {fileID: 21300000, guid: 617fcc0df2fdb4fb48a06c5bbfed6679, type: 3}
   - skill: 8
-    icon: {fileID: 21300000, guid: 1d56a2d39cfbb49149abbf0076259327, type: 3}
+    icon: {fileID: 21300000, guid: e537a0fad0e39412bb2ec040b94d06e9, type: 3}
   - skill: 9
-    icon: {fileID: 21300000, guid: 308cc8b73722e43eab64c228a76560a6, type: 3}
+    icon: {fileID: 21300000, guid: ab89a1d03cc7745cc8e8f93cb8e48ade, type: 3}
   - skill: 10
-    icon: {fileID: 21300000, guid: 14e910c1fb9c7514a8106ffd25f1d892, type: 3}
+    icon: {fileID: 21300000, guid: 045d135803c52408990ac5c5daa92250, type: 3}
   - skill: 11
     icon: {fileID: 21300000, guid: 013811fdd48c040339e9adc40e692381, type: 3}
   - skill: 12
-    icon: {fileID: 21300000, guid: 5410adf0b914f49438506b7dd0022773, type: 3}
+    icon: {fileID: 21300000, guid: 32a52273fc95b4b1bb242948d87e1735, type: 3}
   - skill: 13
-    icon: {fileID: 21300000, guid: 3aad042fcb57b4bed9d9a46b932df060, type: 3}
+    icon: {fileID: 21300000, guid: 410d8eb2b8bc840709c7d6075f9df6e4, type: 3}
 --- !u!1 &1874111272
 GameObject:
   m_ObjectHideFlags: 0
@@ -7844,7 +7842,7 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: 847176050165502015, guid: b5a26f89cc7544331ba5909bd6973c24, type: 3}
       propertyPath: SortKey
-      value: 0
+      value: 1614069004
       objectReference: {fileID: 0}
     - target: {fileID: 1461872884026709090, guid: b5a26f89cc7544331ba5909bd6973c24, type: 3}
       propertyPath: m_Name
@@ -8160,7 +8158,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 1}
   m_AnchorMax: {x: 1, y: 1}
-  m_AnchoredPosition: {x: -0.014104072, y: -0.0029940482}
+  m_AnchoredPosition: {x: -0.014162791, y: -0.0029817638}
   m_SizeDelta: {x: -183, y: 0}
   m_Pivot: {x: 0, y: 1}
 --- !u!114 &2107111657
