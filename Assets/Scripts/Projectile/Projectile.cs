@@ -161,12 +161,10 @@ public class Projectile : NetworkBehaviour
             return;
         }
 
-        if (targetHealth == null)
+        if (targetHealth != null)
         {
-            return;
+            targetHealth.TakeDamage(damage);
         }
-
-        targetHealth.TakeDamage(damage);
 
         Runner.Despawn(Object);
     }
