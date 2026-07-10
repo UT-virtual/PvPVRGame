@@ -14,7 +14,7 @@ VR対応、サウンド実装、UI実装は、それぞれチームメンバー�
 
 ## デモ・資料
 
-* プレイ映像: TODO: 動画URLがある場合はここに記載
+* プレイ映像: [https://youtu.be/cO3BRzCSSEk](https://youtu.be/cO3BRzCSSEk)
 * リポジトリ: [https://github.com/UT-virtual/PvPVRGame/tree/feature/kusaka0914](https://github.com/UT-virtual/PvPVRGame/tree/feature/kusaka0914)
 
 ## 実行方法
