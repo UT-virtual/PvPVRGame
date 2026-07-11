@@ -55,18 +55,6 @@ public class PlayerController : NetworkBehaviour
         {
             Cursor.lockState = CursorLockMode.Locked;
             Cursor.visible = false;
-
-            NetworkLauncher launcher = FindFirstObjectByType<NetworkLauncher>();
-
-            if (launcher != null)
-            {
-                launcher.RegisterLocalPlayer(this);
-                launcher.NotifyLocalPlayerSpawnedOnWaitingPlanet();
-            }
-            else
-            {
-                Debug.LogWarning("[PlayerController] NetworkLauncher was not found.");
-            }
         }
 
         Debug.Log(
@@ -76,21 +64,6 @@ public class PlayerController : NetworkBehaviour
             $"HasInputAuthority={Object.HasInputAuthority}, " +
             $"HasStateAuthority={Object.HasStateAuthority}"
         );
-    }
-
-    public override void Despawned(NetworkRunner runner, bool hasState)
-    {
-        if (!Object.HasInputAuthority)
-        {
-            return;
-        }
-
-        NetworkLauncher launcher = FindFirstObjectByType<NetworkLauncher>();
-
-        if (launcher != null)
-        {
-            launcher.UnregisterLocalPlayer(this);
-        }
     }
 
     public override void FixedUpdateNetwork()
@@ -129,7 +102,7 @@ public class PlayerController : NetworkBehaviour
         bool switchSkillPressed = pressedButtons.IsSet((int)PlayerInputButton.SwitchSkill);
         bool fireHeld = input.Buttons.IsSet((int)PlayerInputButton.Fire);
 
-        //wayoí«ãL
+        //wayo??L
         bool activateSkill1Pressed = pressedButtons.IsSet((int)PlayerInputButton.ActivateSkill1);
         bool activateSkill2Pressed = pressedButtons.IsSet((int)PlayerInputButton.ActivateSkill2);
 
@@ -197,7 +170,7 @@ public class PlayerController : NetworkBehaviour
             }
         }
 
-        //VRÇ≈ÇÕHMDÇÃå¸Ç´ÇéQè∆Ç∑ÇÈ
+        // VR locomotion
         if (input.IsVR)
         {
             playerMove.MoveOnSurfaceVR(moveInput, deltaTime, playerLook.ViewForward, playerMove.AimRight);
@@ -227,7 +200,7 @@ public class PlayerController : NetworkBehaviour
             playerSkillController.SwitchCurrentSkill();
         }
 
-        //wayoí«ãL
+        //wayo??L
         if (activateSkill1Pressed && playerSkillController != null)
         {
             playerSkillController.TryActivateSkillBySlot(0);

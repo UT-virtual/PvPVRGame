@@ -2,6 +2,8 @@ using Fusion;
 using Fusion.Sockets;
 using System;
 using System.Collections.Generic;
+using Unity.Cinemachine;
+using Unity.XR.CoreUtils;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using TMPro;
@@ -50,6 +52,16 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
     [Header("Auto Start")]
     [SerializeField] private bool autoStartOnLaunch = true;
 
+    [Header("XR Rig (Scene)")]
+    [SerializeField] private Transform xrOriginRoot;
+    [SerializeField] private Transform xrHmd;
+    [SerializeField] private Transform xrLeftController;
+    [SerializeField] private Transform xrRightController;
+
+    [Header("PC Camera (Scene)")]
+    [SerializeField] private Camera sceneFollowCamera;
+    [SerializeField] private CinemachineCamera cinemachineCamera;
+
     [Header("Debug Spectator Dummy")]
     [SerializeField] private bool spawnDebugSpectatorDummies = false;
     [SerializeField] private int debugSpectatorDummyCount = 1;
@@ -67,6 +79,7 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
     private NetworkPlayerSpawner playerSpawner;
     private NetworkInputCollector inputCollector;
     private LocalSkillSelectionInputController skillSelectionInputController;
+    private Transform attachedXrOriginRoot;
 
     public int CurrentSkillSelectionSlot =>
         skillSelectionInputController != null
@@ -244,10 +257,198 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
             return;
         }
 
+        DetachXrOriginFromPlayer();
+
         if (waitingRoomUI != null)
         {
             waitingRoomUI.SetLocalPlayerSpawned(false);
             waitingRoomUI.HideRoomUI();
+        }
+    }
+
+    public void AttachXrOriginToPlayer(Transform playerTransform)
+    {
+        if (!IsVrSessionActive() || playerTransform == null)
+        {
+            return;
+        }
+
+        ResolveXrReferencesIfNeeded();
+
+        if (xrOriginRoot == null)
+        {
+            Debug.LogWarning("[NetworkLauncher] XR Origin Root was not found.");
+            return;
+        }
+
+        CharacterController xrCharacterController = xrOriginRoot.GetComponent<CharacterController>();
+        if (xrCharacterController != null)
+        {
+            xrCharacterController.enabled = false;
+        }
+
+        SetXrControllerVisualsActive(false);
+
+        xrOriginRoot.SetParent(playerTransform, false);
+        xrOriginRoot.localPosition = Vector3.zero;
+        xrOriginRoot.localRotation = Quaternion.identity;
+        attachedXrOriginRoot = xrOriginRoot;
+    }
+
+    public void DetachXrOriginFromPlayer()
+    {
+        if (attachedXrOriginRoot == null)
+        {
+            return;
+        }
+
+        SetXrControllerVisualsActive(true);
+
+        attachedXrOriginRoot.SetParent(null, true);
+        attachedXrOriginRoot = null;
+    }
+
+    private void SetXrControllerVisualsActive(bool active)
+    {
+        SetControllerVisualsActive(xrLeftController, active);
+        SetControllerVisualsActive(xrRightController, active);
+    }
+
+    private static void SetControllerVisualsActive(Transform controllerRoot, bool active)
+    {
+        if (controllerRoot == null)
+        {
+            return;
+        }
+
+        Renderer[] renderers = controllerRoot.GetComponentsInChildren<Renderer>(true);
+        foreach (Renderer renderer in renderers)
+        {
+            renderer.enabled = active;
+        }
+
+        LineRenderer[] lineRenderers = controllerRoot.GetComponentsInChildren<LineRenderer>(true);
+        foreach (LineRenderer lineRenderer in lineRenderers)
+        {
+            lineRenderer.enabled = active;
+        }
+    }
+
+    public Vector2 GetLocalMoveInput()
+    {
+        return inputCollector != null
+            ? inputCollector.LastMoveInput
+            : Vector2.zero;
+    }
+
+    public void ConfigureLocalVrBodySync(VRBodyTargetSync bodySync)
+    {
+        ResolveXrReferencesIfNeeded();
+
+        if (bodySync != null)
+        {
+            bodySync.SetXrTransforms(xrHmd, xrLeftController, xrRightController);
+        }
+
+        inputCollector.SetXrTransforms(xrHmd, xrLeftController, xrRightController);
+        ConfigureVrUiFollowers();
+    }
+
+    private void ConfigureVrUiFollowers()
+    {
+        if (xrHmd == null)
+        {
+            return;
+        }
+
+        VRWorldSpaceUIFollower[] followers =
+            FindObjectsByType<VRWorldSpaceUIFollower>(FindObjectsSortMode.None);
+
+        foreach (VRWorldSpaceUIFollower follower in followers)
+        {
+            if (follower != null)
+            {
+                follower.SetTargetCamera(xrHmd);
+            }
+        }
+    }
+
+    public void ConfigureLocalPlayerCamera(PlayerCamera playerCamera)
+    {
+        ResolvePcCameraReferencesIfNeeded();
+
+        if (playerCamera != null)
+        {
+            playerCamera.ConfigureSceneCameras(sceneFollowCamera, cinemachineCamera);
+        }
+    }
+
+    private bool IsVrSessionActive()
+    {
+#if UNITY_EDITOR
+        if (forceVrSimulationInEditor)
+        {
+            return true;
+        }
+#endif
+        return UnityEngine.XR.XRSettings.isDeviceActive;
+    }
+
+    private void ResolveXrReferencesIfNeeded()
+    {
+        if (xrOriginRoot != null &&
+            xrHmd != null &&
+            xrLeftController != null &&
+            xrRightController != null)
+        {
+            return;
+        }
+
+        XROrigin origin = FindFirstObjectByType<XROrigin>();
+        if (origin == null)
+        {
+            return;
+        }
+
+        if (xrOriginRoot == null)
+        {
+            xrOriginRoot = origin.transform;
+        }
+
+        if (xrHmd == null && origin.Camera != null)
+        {
+            xrHmd = origin.Camera.transform;
+        }
+
+        Transform[] children = origin.GetComponentsInChildren<Transform>(true);
+        foreach (Transform child in children)
+        {
+            if (xrLeftController == null && child.name == "Left Controller")
+            {
+                xrLeftController = child;
+            }
+
+            if (xrRightController == null && child.name == "Right Controller")
+            {
+                xrRightController = child;
+            }
+        }
+    }
+
+    private void ResolvePcCameraReferencesIfNeeded()
+    {
+        if (cinemachineCamera == null)
+        {
+            cinemachineCamera = FindFirstObjectByType<CinemachineCamera>();
+        }
+
+        if (sceneFollowCamera == null)
+        {
+            CinemachineBrain brain = FindFirstObjectByType<CinemachineBrain>();
+            if (brain != null)
+            {
+                sceneFollowCamera = brain.GetComponent<Camera>();
+            }
         }
     }
 

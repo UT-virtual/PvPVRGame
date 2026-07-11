@@ -1,4 +1,5 @@
 using UnityEngine;
+using Unity.XR.CoreUtils;
 
 [DefaultExecutionOrder(10000)]
 public class VRWorldSpaceUIFollower : MonoBehaviour
@@ -17,21 +18,21 @@ public class VRWorldSpaceUIFollower : MonoBehaviour
     private Vector3 smoothedForward;
     private bool initialized;
 
+    public void SetTargetCamera(Transform cameraTransform)
+    {
+        targetCamera = cameraTransform;
+        initialized = false;
+    }
+
     private void LateUpdate()
     {
-        if (targetCamera == null)
+        Transform cameraTransform = ResolveActiveCameraTransform();
+        if (cameraTransform == null)
         {
-            Camera mainCamera = Camera.main;
-
-            if (mainCamera == null)
-            {
-                return;
-            }
-
-            targetCamera = mainCamera.transform;
+            return;
         }
 
-        Vector3 targetForward = targetCamera.forward;
+        Vector3 targetForward = cameraTransform.forward;
 
         if (!followPitch)
         {
@@ -62,14 +63,14 @@ public class VRWorldSpaceUIFollower : MonoBehaviour
         smoothedForward.Normalize();
 
         Vector3 targetPosition =
-            targetCamera.position +
+            cameraTransform.position +
             smoothedForward * distance +
-            targetCamera.up * verticalOffset;
+            cameraTransform.up * verticalOffset;
 
         transform.position = targetPosition;
 
         Quaternion targetRotation =
-            Quaternion.LookRotation(smoothedForward, targetCamera.up);
+            Quaternion.LookRotation(smoothedForward, cameraTransform.up);
 
         if (rotate180Y)
         {
@@ -77,5 +78,60 @@ public class VRWorldSpaceUIFollower : MonoBehaviour
         }
 
         transform.rotation = targetRotation;
+    }
+
+    private Transform ResolveActiveCameraTransform()
+    {
+        if (IsUsableCameraTransform(targetCamera))
+        {
+            return targetCamera;
+        }
+
+        XROrigin xrOrigin = FindFirstObjectByType<XROrigin>();
+        if (xrOrigin != null &&
+            xrOrigin.Camera != null &&
+            xrOrigin.Camera.enabled &&
+            xrOrigin.Camera.gameObject.activeInHierarchy)
+        {
+            return xrOrigin.Camera.transform;
+        }
+
+        Camera mainCamera = Camera.main;
+        if (mainCamera != null &&
+            mainCamera.enabled &&
+            mainCamera.gameObject.activeInHierarchy)
+        {
+            return mainCamera.transform;
+        }
+
+        Camera[] cameras = Camera.allCameras;
+        for (int i = 0; i < cameras.Length; i++)
+        {
+            Camera camera = cameras[i];
+            if (camera != null &&
+                camera.enabled &&
+                camera.gameObject.activeInHierarchy)
+            {
+                return camera.transform;
+            }
+        }
+
+        return null;
+    }
+
+    private static bool IsUsableCameraTransform(Transform cameraTransform)
+    {
+        if (cameraTransform == null)
+        {
+            return false;
+        }
+
+        Camera camera = cameraTransform.GetComponent<Camera>();
+        if (camera == null)
+        {
+            return cameraTransform.gameObject.activeInHierarchy;
+        }
+
+        return camera.enabled && camera.gameObject.activeInHierarchy;
     }
 }

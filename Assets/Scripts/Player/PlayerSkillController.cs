@@ -310,7 +310,7 @@ public class PlayerSkillController : NetworkBehaviour
             return;
         }
 
-        skillActivator.Activate(selectedSkill);
+        skillActivator.Activate(selectedSkill, slotIndex);
     }
 
     //wayo追記
@@ -320,17 +320,20 @@ public class PlayerSkillController : NetworkBehaviour
         {
             return;
         }
+
         slotIndex = slotIndex <= 0 ? 0 : 1;
         PlayerSkillType selectedSkill = GetRoundSkillBySlot(slotIndex);
         if (selectedSkill == PlayerSkillType.None)
         {
             return;
         }
+
         if (IsSkillSlotActive(slotIndex) || IsSkillSlotCoolingDown(slotIndex))
         {
             return;
         }
-        skillActivator.Activate(selectedSkill);
+
+        skillActivator.Activate(selectedSkill, slotIndex);
     }
 
     public bool IsXRayVisionActive()
@@ -390,9 +393,9 @@ public class PlayerSkillController : NetworkBehaviour
         );
     }
 
-    private void BeginActiveSkill(PlayerSkillType skill, float duration)
+    private void BeginActiveSkill(PlayerSkillType skill, float duration, int slotIndex)
     {
-        int slotIndex = GetNormalizedCurrentSelectedSkillIndex();
+        slotIndex = slotIndex <= 0 ? 0 : 1;
 
         TickTimer activeTimer = TickTimer.CreateFromSeconds(Runner, duration);
 

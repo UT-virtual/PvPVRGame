@@ -42,14 +42,19 @@ public sealed class NetworkInputCollector
     private bool selectSkill3Queued;
     private bool selectSkill4Queued;
     private bool switchSkillQueued;
-    //wayo追記
+    //wayo??L
     private bool wasBothVrTriggerPressed;
     private bool wasLeftTriggerPressed;
     private bool activateSkill1Queued;
     private bool activateSkill2Queued;
     private bool wasLeftVrTriggerPressedForSkill;
 
+    private Transform xrHmd;
+    private Transform xrLeftController;
+    private Transform xrRightController;
+
     public PlayerController LocalPlayerController { get; private set; }
+    public Vector2 LastMoveInput { get; private set; }
 
     private bool IsVRActive
     {
@@ -111,6 +116,16 @@ public sealed class NetworkInputCollector
         this.editorHmdRotationSpeed = editorHmdRotationSpeed;
     }
 
+    public void SetXrTransforms(
+        Transform hmd,
+        Transform leftController,
+        Transform rightController)
+    {
+        xrHmd = hmd;
+        xrLeftController = leftController;
+        xrRightController = rightController;
+    }
+
     public void EnableActions()
     {
         EnableAction(moveAction);
@@ -154,6 +169,7 @@ public sealed class NetworkInputCollector
         UpdateHMD();
 
         Vector2 lookInput = ReadLookInput();
+        LastMoveInput = ReadMoveInput();
 
         queuedLookInput += lookInput;
 
@@ -190,7 +206,7 @@ public sealed class NetworkInputCollector
             switchSkillQueued = true;
         }
 
-        //wayo追記
+        //wayo??L
         if (ReadVrSkillActivation(out int skillSlot))
         {
             if (skillSlot == 0)
@@ -204,7 +220,7 @@ public sealed class NetworkInputCollector
         }
     }
 
-    //wayo追記
+    //wayo??L
     private bool ReadVrSkillActivation(out int skillSlot)
     {
         skillSlot = -1;
@@ -223,24 +239,26 @@ public sealed class NetworkInputCollector
             return false;
         }
 
-        Quaternion leftRotation = ReadQuaternionAction(leftHandRotationAction);
+        Quaternion leftRotation = xrLeftController != null
+            ? xrLeftController.rotation
+            : ReadQuaternionAction(leftHandRotationAction);
         Vector3 aimDirection = leftRotation * Vector3.forward;
 
         const float directionThreshold = 0.6f;
 
         if (aimDirection.y > directionThreshold)
         {
-            skillSlot = 0; // 上向き → スキル1
+            skillSlot = 0; // ????? ?? ?X?L??1
             return true;
         }
 
         if (aimDirection.y < -directionThreshold)
         {
-            skillSlot = 1; // 下向き → スキル2
+            skillSlot = 1; // ?????? ?? ?X?L??2
             return true;
         }
 
-        return false; // 横を向いているなど → 発動しない
+        return false; // ??????????????? ?? ?????????
     }
 
     public void CollectInput(NetworkInput input)
@@ -249,15 +267,42 @@ public sealed class NetworkInputCollector
 
         data.IsVR = IsVRActive;
         data.HMDRotation = currentHMD;
-        data.HMDPosition = ReadVector3Action(hmdPositionAction);
 
-        data.LeftHandPosition = ReadVector3Action(leftHandPositionAction);
-        data.LeftHandRotation = ReadQuaternionAction(leftHandRotationAction);
-        data.HasLeftHand = HasActionValue(leftHandPositionAction) ? (byte)1 : (byte)0;
+        if (IsVRActive && xrHmd != null)
+        {
+            data.HMDPosition = xrHmd.position;
+            data.HMDRotation = xrHmd.rotation;
+        }
+        else
+        {
+            data.HMDPosition = ReadVector3Action(hmdPositionAction);
+        }
 
-        data.RightHandPosition = ReadVector3Action(rightHandPositionAction);
-        data.RightHandRotation = ReadQuaternionAction(rightHandRotationAction);
-        data.HasRightHand = HasActionValue(rightHandPositionAction) ? (byte)1 : (byte)0;
+        if (IsVRActive && xrLeftController != null)
+        {
+            data.LeftHandPosition = xrLeftController.position;
+            data.LeftHandRotation = xrLeftController.rotation;
+            data.HasLeftHand = 1;
+        }
+        else
+        {
+            data.LeftHandPosition = ReadVector3Action(leftHandPositionAction);
+            data.LeftHandRotation = ReadQuaternionAction(leftHandRotationAction);
+            data.HasLeftHand = HasActionValue(leftHandPositionAction) ? (byte)1 : (byte)0;
+        }
+
+        if (IsVRActive && xrRightController != null)
+        {
+            data.RightHandPosition = xrRightController.position;
+            data.RightHandRotation = xrRightController.rotation;
+            data.HasRightHand = 1;
+        }
+        else
+        {
+            data.RightHandPosition = ReadVector3Action(rightHandPositionAction);
+            data.RightHandRotation = ReadQuaternionAction(rightHandRotationAction);
+            data.HasRightHand = HasActionValue(rightHandPositionAction) ? (byte)1 : (byte)0;
+        }
 
         data.MoveInput = ReadMoveInput();
         data.LookInput = queuedLookInput;
@@ -288,7 +333,7 @@ public sealed class NetworkInputCollector
         buttons.Set((int)PlayerInputButton.SelectSkill3, selectSkill3Queued);
         buttons.Set((int)PlayerInputButton.SelectSkill4, selectSkill4Queued);
 
-        //wayo追記
+        //wayo??L
         buttons.Set((int)PlayerInputButton.ActivateSkill1, activateSkill1Queued);
         buttons.Set((int)PlayerInputButton.ActivateSkill2, activateSkill2Queued);
 
@@ -349,7 +394,7 @@ public sealed class NetworkInputCollector
         selectSkill3Queued = false;
         selectSkill4Queued = false;
 
-        //wayo追記
+        //wayo??L
         activateSkill1Queued = false;
         activateSkill2Queued = false;
     }
@@ -405,8 +450,6 @@ public sealed class NetworkInputCollector
             editorHmdEuler.x = Mathf.Clamp(editorHmdEuler.x, -85.0f, 85.0f);
             currentHMD = Quaternion.Euler(editorHmdEuler.x, editorHmdEuler.y, 0.0f);
 
-            Debug.Log($"[Editor HMD] Euler={currentHMD.eulerAngles}");
-
             return;
         }
 #endif
@@ -417,6 +460,12 @@ public sealed class NetworkInputCollector
             return;
         }
 
+        if (xrHmd != null)
+        {
+            currentHMD = xrHmd.rotation;
+            return;
+        }
+
         if (hmdRotationAction == null || hmdRotationAction.action == null)
         {
             currentHMD = Quaternion.identity;
@@ -424,8 +473,6 @@ public sealed class NetworkInputCollector
         }
 
         currentHMD = hmdRotationAction.action.ReadValue<Quaternion>();
-
-        Debug.Log($"[HMD] Euler={currentHMD.eulerAngles}");
     }
 
     private Vector2 ReadMoveInput()
@@ -587,7 +634,7 @@ public sealed class NetworkInputCollector
     {
         bool readyPressed = false;
 
-        //wayo追記
+        //wayo??L
         if (IsVRActive)
         {
             bool bothPressed = AreBothVrTriggersPressed();
@@ -631,7 +678,7 @@ public sealed class NetworkInputCollector
         return readyPressed;
     }
 
-    //wayo追記
+    //wayo??L
     private static bool IsXrTriggerHeld(string handPath)
     {
         InputControl triggerButton = InputSystem.FindControl($"{handPath}/triggerButton");
@@ -644,7 +691,7 @@ public sealed class NetworkInputCollector
 
     private bool AreBothVrTriggersPressed()
     {
-        return IsXrTriggerHeld("<XRController>{leftHand}") &&
+        return IsXrTriggerHeld("<XRController>{LeftHand}") &&
             IsXrTriggerHeld("<XRController>{RightHand}");
     }
 

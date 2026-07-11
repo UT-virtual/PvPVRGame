@@ -1,8 +1,7 @@
 using Fusion;
 using UnityEngine;
 
-[RequireComponent(typeof(PlayerMove))]
-[RequireComponent(typeof(PlayerCamera))]
+[DefaultExecutionOrder(-100)]
 public class VRBodyTargetSync : NetworkBehaviour
 {
     [Header("Targets")]
@@ -10,15 +9,10 @@ public class VRBodyTargetSync : NetworkBehaviour
     [SerializeField] private Transform leftHandTarget;
     [SerializeField] private Transform rightHandTarget;
 
-    [Header("Fallback Local Offsets")]
-    [SerializeField] private Vector3 defaultLeftHandOffset = new Vector3(-0.35f, -0.35f, 0.45f);
-    [SerializeField] private Vector3 defaultRightHandOffset = new Vector3(0.35f, -0.35f, 0.45f);
-
-    [Header("Fallback")]
-    [SerializeField] private bool useInitialTargetOffsetsAsFallback = true;
-
-    private PlayerMove playerMove;
-    private PlayerCamera playerCamera;
+    private Transform xrHmd;
+    private Transform xrLeftController;
+    private Transform xrRightController;
+    private VRWeaponVisualSettings weaponVisualSettings;
 
     [Networked] private NetworkBool NetworkedTargetsInitialized { get; set; }
 
@@ -33,21 +27,22 @@ public class VRBodyTargetSync : NetworkBehaviour
 
     private void Awake()
     {
-        playerMove = GetComponent<PlayerMove>();
-        playerCamera = GetComponent<PlayerCamera>();
+        weaponVisualSettings = GetComponent<VRWeaponVisualSettings>();
+    }
 
-        // 手動で配置した HeadTarget / HandTarget の差分をフォールバック位置として使う
-        if (useInitialTargetOffsetsAsFallback &&
-            headTarget != null &&
-            leftHandTarget != null &&
-            rightHandTarget != null)
-        {
-            defaultLeftHandOffset =
-                transform.InverseTransformDirection(leftHandTarget.position - headTarget.position);
+    public void SetXrTransforms(
+        Transform hmd,
+        Transform leftController,
+        Transform rightController)
+    {
+        xrHmd = hmd;
+        xrLeftController = leftController;
+        xrRightController = rightController;
+    }
 
-            defaultRightHandOffset =
-                transform.InverseTransformDirection(rightHandTarget.position - headTarget.position);
-        }
+    public override void Spawned()
+    {
+        AttachWeaponToRightHandTarget();
     }
 
     public override void FixedUpdateNetwork()
@@ -67,84 +62,70 @@ public class VRBodyTargetSync : NetworkBehaviour
 
     private void UpdateNetworkedTargets(PlayerNetworkInput input)
     {
-        if (playerMove == null || playerCamera == null)
+        if (IsValidPosition(input.HMDPosition))
         {
-            return;
+            NetworkedHeadPosition = input.HMDPosition;
+            NetworkedHeadRotation = NormalizeQuaternion(input.HMDRotation);
         }
 
-        playerMove.ProbeGround();
-        playerMove.UpdateAimBasis();
+        if (input.HasLeftHand != 0 && IsValidPosition(input.LeftHandPosition))
+        {
+            NetworkedLeftHandPosition = input.LeftHandPosition;
+            NetworkedLeftHandRotation = NormalizeQuaternion(input.LeftHandRotation);
+        }
 
-        Quaternion bodyRotation = Quaternion.LookRotation(
-            playerMove.AimForward,
-            playerMove.SurfaceUp
-        );
-
-        Vector3 headWorldPosition = playerCamera.CameraPosition;
-        Quaternion headWorldRotation = bodyRotation * SafeRotation(input.HMDRotation);
-
-        NetworkedHeadPosition = headWorldPosition;
-        NetworkedHeadRotation = NormalizeQuaternion(headWorldRotation);
-
-        bool hasHmdPosition = IsValidPosition(input.HMDPosition);
-
-        bool hasLeftHandPosition =
-            input.HasLeftHand != 0 &&
-            IsValidPosition(input.LeftHandPosition);
-
-        bool hasRightHandPosition =
-            input.HasRightHand != 0 &&
-            IsValidPosition(input.RightHandPosition);
-
-        Vector3 hmdLocalPosition = hasHmdPosition
-            ? input.HMDPosition
-            : Vector3.zero;
-
-        Vector3 leftLocalOffset =
-            hasHmdPosition && hasLeftHandPosition
-                ? input.LeftHandPosition - hmdLocalPosition
-                : defaultLeftHandOffset;
-
-        Vector3 rightLocalOffset =
-            hasHmdPosition && hasRightHandPosition
-                ? input.RightHandPosition - hmdLocalPosition
-                : defaultRightHandOffset;
-
-        NetworkedLeftHandPosition =
-            headWorldPosition + bodyRotation * leftLocalOffset;
-
-        NetworkedRightHandPosition =
-            headWorldPosition + bodyRotation * rightLocalOffset;
-
-        Quaternion leftRotation =
-            hasLeftHandPosition && IsValidRotation(input.LeftHandRotation)
-                ? bodyRotation * input.LeftHandRotation
-                : bodyRotation;
-
-        Quaternion rightRotation =
-            hasRightHandPosition && IsValidRotation(input.RightHandRotation)
-                ? bodyRotation * input.RightHandRotation
-                : bodyRotation;
-
-        NetworkedLeftHandRotation = NormalizeQuaternion(leftRotation);
-        NetworkedRightHandRotation = NormalizeQuaternion(rightRotation);
+        if (input.HasRightHand != 0 && IsValidPosition(input.RightHandPosition))
+        {
+            NetworkedRightHandPosition = input.RightHandPosition;
+            NetworkedRightHandRotation = NormalizeQuaternion(input.RightHandRotation);
+        }
 
         NetworkedTargetsInitialized = true;
     }
 
-    public override void Render()
-    {
-        ApplyTargets();
-    }
-
     private void LateUpdate()
     {
-        ApplyTargets();
+        if (Object != null && Object.HasInputAuthority)
+        {
+            ApplyFromXrTransforms();
+        }
     }
 
-    private void ApplyTargets()
+    public override void Render()
     {
-        if (Object != null && !NetworkedTargetsInitialized)
+        if (Object != null && Object.HasInputAuthority)
+        {
+            return;
+        }
+
+        ApplyFromNetworked();
+    }
+
+    private void ApplyFromXrTransforms()
+    {
+        if (xrHmd != null && headTarget != null)
+        {
+            headTarget.SetPositionAndRotation(xrHmd.position, xrHmd.rotation);
+        }
+
+        if (xrLeftController != null && leftHandTarget != null)
+        {
+            leftHandTarget.SetPositionAndRotation(
+                xrLeftController.position,
+                xrLeftController.rotation);
+        }
+
+        if (xrRightController != null && rightHandTarget != null)
+        {
+            rightHandTarget.SetPositionAndRotation(
+                xrRightController.position,
+                xrRightController.rotation);
+        }
+    }
+
+    private void ApplyFromNetworked()
+    {
+        if (!NetworkedTargetsInitialized)
         {
             return;
         }
@@ -153,51 +134,50 @@ public class VRBodyTargetSync : NetworkBehaviour
         {
             headTarget.SetPositionAndRotation(
                 NetworkedHeadPosition,
-                SafeRotation(NetworkedHeadRotation)
-            );
+                SafeRotation(NetworkedHeadRotation));
         }
 
         if (leftHandTarget != null)
         {
             leftHandTarget.SetPositionAndRotation(
                 NetworkedLeftHandPosition,
-                SafeRotation(NetworkedLeftHandRotation)
-            );
+                SafeRotation(NetworkedLeftHandRotation));
         }
 
         if (rightHandTarget != null)
         {
             rightHandTarget.SetPositionAndRotation(
                 NetworkedRightHandPosition,
-                SafeRotation(NetworkedRightHandRotation)
-            );
+                SafeRotation(NetworkedRightHandRotation));
         }
+    }
+
+    private void AttachWeaponToRightHandTarget()
+    {
+        if (weaponVisualSettings == null || rightHandTarget == null)
+        {
+            return;
+        }
+
+        Transform weaponTransform = weaponVisualSettings.WeaponTransform;
+        if (weaponTransform == null)
+        {
+            return;
+        }
+
+        Transform gripParent = weaponVisualSettings.WeaponGripParent != null
+            ? weaponVisualSettings.WeaponGripParent
+            : rightHandTarget;
+
+        weaponTransform.SetParent(gripParent, false);
+        weaponTransform.localPosition = weaponVisualSettings.WeaponLocalPosition;
+        weaponTransform.localRotation = Quaternion.Euler(weaponVisualSettings.WeaponLocalEulerAngles);
+        weaponTransform.localScale = Vector3.one * weaponVisualSettings.WeaponScale;
     }
 
     private bool IsValidPosition(Vector3 position)
     {
         return position.sqrMagnitude > 0.000001f;
-    }
-
-    private bool IsValidRotation(Quaternion rotation)
-    {
-        if (rotation.x == 0.0f &&
-            rotation.y == 0.0f &&
-            rotation.z == 0.0f &&
-            rotation.w == 0.0f)
-        {
-            return false;
-        }
-
-        if (Mathf.Abs(rotation.x) < 0.0001f &&
-            Mathf.Abs(rotation.y) < 0.0001f &&
-            Mathf.Abs(rotation.z) < 0.0001f &&
-            Mathf.Abs(rotation.w - 1.0f) < 0.0001f)
-        {
-            return false;
-        }
-
-        return true;
     }
 
     private Quaternion SafeRotation(Quaternion rotation)
@@ -219,8 +199,7 @@ public class VRBodyTargetSync : NetworkBehaviour
             rotation.x * rotation.x +
             rotation.y * rotation.y +
             rotation.z * rotation.z +
-            rotation.w * rotation.w
-        );
+            rotation.w * rotation.w);
 
         if (magnitude <= 0.0001f)
         {
@@ -231,7 +210,6 @@ public class VRBodyTargetSync : NetworkBehaviour
             rotation.x / magnitude,
             rotation.y / magnitude,
             rotation.z / magnitude,
-            rotation.w / magnitude
-        );
+            rotation.w / magnitude);
     }
 }

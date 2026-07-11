@@ -432,7 +432,7 @@ Transform:
   m_LocalRotation: {x: 0.29584903, y: 0.32010725, z: 0.6309949, w: -0.6417555}
   m_LocalPosition: {x: 0.0287, y: 0.0609, z: -0.2077}
   m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
+  m_ConstrainProportionsScale: 1
   m_Children:
   - {fileID: 1803891075514819316}
   m_Father: {fileID: 3827414043178423831}
@@ -918,7 +918,8 @@ Transform:
   m_LocalPosition: {x: 2.34, y: 0.895, z: -1.071}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
-  m_Children: []
+  m_Children:
+  - {fileID: 5912837465019283747}
   m_Father: {fileID: 5874837870598913118}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &5161712189417023556
@@ -1133,6 +1134,37 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::AmmoSegmentBar
   weapon: {fileID: 732832035580652995}
   cellPrefab: {fileID: 3898867311569669306, guid: 742718ba9055d1b49a2cc489c9f74ed8, type: 3}
+--- !u!1 &5912837465019283746
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 5912837465019283747}
+  m_Layer: 0
+  m_Name: WeaponGrip
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &5912837465019283747
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5912837465019283746}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 7065976539238515889}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &5986642362498758006
 GameObject:
   m_ObjectHideFlags: 0
@@ -1414,6 +1446,7 @@ GameObject:
   - component: {fileID: 1354175055189871530}
   - component: {fileID: 2617299471526814650}
   - component: {fileID: 5623098404110319620}
+  - component: {fileID: 8847291536482759401}
   m_Layer: 0
   m_Name: Player
   m_TagString: Untagged
@@ -1649,7 +1682,6 @@ MonoBehaviour:
   cameraEyeHeight: 1.6
   cameraForwardOffset: 0
   cameraSideOffset: 0
-  cinemachineCamera: {fileID: 0}
 --- !u!114 &732832035580652995
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1988,9 +2020,23 @@ MonoBehaviour:
   headTarget: {fileID: 6484427649560750410}
   leftHandTarget: {fileID: 2450436882394348749}
   rightHandTarget: {fileID: 7065976539238515889}
-  defaultLeftHandOffset: {x: -0.25, y: -0.25, z: 0.45}
-  defaultRightHandOffset: {x: 0.25, y: -0.25, z: 0.45}
-  useInitialTargetOffsetsAsFallback: 1
+--- !u!114 &8847291536482759401
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8006935000496757985}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7c4a9e2b1f8034d5a9b6c2e8d4f1a903, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::VRWeaponVisualSettings
+  weaponTransform: {fileID: 1188818646864024945}
+  weaponGripParent: {fileID: 5912837465019283747}
+  weaponLocalPosition: {x: 0.05, y: -0.02, z: -0.02}
+  weaponLocalEulerAngles: {x: -40, y: -360, z: -90}
+  weaponScale: 2.5
 --- !u!1 &8114149245204947776
 GameObject:
   m_ObjectHideFlags: 0
