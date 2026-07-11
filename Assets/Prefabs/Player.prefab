@@ -1861,6 +1861,7 @@ MonoBehaviour:
   reloadSE: {fileID: 8300000, guid: cf59fa3b78a4948e5b1bab89c1838ee2, type: 3}
   tookDamageSE: {fileID: 8300000, guid: 7c6b927b9997141a994e647700a57cc0, type: 3}
   diedSE: {fileID: 8300000, guid: cf3e9623b169e4445a33e67ff7a9dbc7, type: 3}
+  hitSE: {fileID: 8300000, guid: 915fee8195f974f61b970dbf99c25820, type: 3}
 --- !u!114 &4086869925511800428
 MonoBehaviour:
   m_ObjectHideFlags: 0

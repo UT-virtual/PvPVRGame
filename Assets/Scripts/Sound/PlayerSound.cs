@@ -13,6 +13,7 @@ public class PlayerSound : NetworkBehaviour
     [SerializeField] private AudioClip reloadSE;
     [SerializeField] private AudioClip tookDamageSE;
     [SerializeField] private AudioClip diedSE;
+    [SerializeField] private AudioClip hitSE;
 
     private PlayerController playerController;
     private PlayerMove playerMove;
@@ -96,6 +97,8 @@ public class PlayerSound : NetworkBehaviour
 
     private void PlayJumpSound()
     {
+        if (!Object.HasInputAuthority) return;
+
         if (jumpSE != null && audioSource != null)
         {
             audioSource.PlayOneShot(jumpSE);
@@ -112,6 +115,8 @@ public class PlayerSound : NetworkBehaviour
 
     private void PlayReloadingSound()
     {
+        if (!Object.HasInputAuthority) return;
+
         if(reloadingSE != null && audioSource != null)
         {
             reloadAudioSource.pitch = Random.Range(0.9f, 1.1f); // 0.95倍 〜 1.05倍
@@ -131,6 +136,8 @@ public class PlayerSound : NetworkBehaviour
 
     private void StopReloadingSound()
     {
+        if (!Object.HasInputAuthority) return;
+        
         if (reloadAudioSource != null && reloadAudioSource.isPlaying)
         {
             reloadAudioSource.Stop();
@@ -139,6 +146,8 @@ public class PlayerSound : NetworkBehaviour
 
     private void PlayReloadSound()
     {
+        if (!Object.HasInputAuthority) return;
+
         StopReloadingSound();
         
         if (reloadSE != null && audioSource != null)
@@ -149,6 +158,8 @@ public class PlayerSound : NetworkBehaviour
 
     private void PlayDamageSound(float current, float max)
     {
+        if (!Object.HasInputAuthority) return;
+
         if (!hasInitializedHealth)
         {
             previousHealth = current;
@@ -173,9 +184,21 @@ public class PlayerSound : NetworkBehaviour
 
     private void PlayDiedSound(PlayerHealth target)
     {
+        if (!Object.HasInputAuthority) return;
+        
         if (diedSE != null && audioSource != null)
         {
             audioSource.PlayOneShot(diedSE);
+        }
+    }
+
+    // RpcTargets.InputAuthority を指定することで、このキャラを操作している本人の環境でだけ実行されます
+    [Rpc(RpcSources.StateAuthority | RpcSources.InputAuthority, RpcTargets.InputAuthority)]
+    public void Rpc_PlayHitMarkerSound()
+    {
+        if (hitSE != null && audioSource != null)
+        {
+            audioSource.PlayOneShot(hitSE);
         }
     }
 }

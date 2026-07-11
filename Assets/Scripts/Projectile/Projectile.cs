@@ -168,6 +168,16 @@ public class Projectile : NetworkBehaviour
 
         targetHealth.TakeDamage(damage);
 
+        //ヒットオン鳴らす
+        if (owner != null)
+        {
+            PlayerSound ownerSound = owner.GetComponent<PlayerSound>();
+            if (ownerSound != null)
+            {
+                ownerSound.Rpc_PlayHitMarkerSound();
+            }
+        }
+
         Runner.Despawn(Object);
     }
 
@@ -186,6 +196,9 @@ public class Projectile : NetworkBehaviour
         );
 
         HashSet<PlayerHealth> damagedTargets = new();
+
+        //当たったかどうかのフラグ
+        bool hasHitEnemy = false;
 
         foreach (Collider hitCollider in hitColliders)
         {
@@ -212,6 +225,17 @@ public class Projectile : NetworkBehaviour
             }
 
             targetHealth.TakeDamage(explosionDamage);
+
+            hasHitEnemy = true;
+        }
+        
+        if (hasHitEnemy && owner != null)
+        {
+            PlayerSound ownerSound = owner.GetComponent<PlayerSound>();
+            if (ownerSound != null)
+            {
+                ownerSound.Rpc_PlayHitMarkerSound();
+            }
         }
     }
 
