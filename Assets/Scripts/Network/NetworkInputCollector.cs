@@ -242,19 +242,22 @@ public sealed class NetworkInputCollector
         Quaternion leftRotation = xrLeftController != null
             ? xrLeftController.rotation
             : ReadQuaternionAction(leftHandRotationAction);
-        Vector3 aimDirection = leftRotation * Vector3.up;
 
-        const float directionThreshold = 0.1f;
+        Vector3 aim = (leftRotation * (Vector3.forward - new Vector3(0, 0, 0.2f))).normalized;
+        Vector3 up = xrHmd.up;
+        float vertical = Vector3.Dot(aim, up);
 
-        if (aimDirection.y < -directionThreshold)
+        const float directionThreshold = 0.5f;
+
+        if (vertical < -directionThreshold)
         {
-            skillSlot = 1;
+            skillSlot = 0;
             return true;
         }
 
-        if (aimDirection.y > directionThreshold)
+        if (vertical > directionThreshold)
         {
-            skillSlot = 0;
+            skillSlot = 1;
             return true;
         }
 
