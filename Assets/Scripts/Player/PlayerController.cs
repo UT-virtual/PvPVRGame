@@ -26,6 +26,7 @@ public class PlayerController : NetworkBehaviour
     [Networked] private NetworkBool NetworkedIsRunning { get; set; }
     [Networked] private float NetworkedMoveX { get; set; }
     [Networked] private float NetworkedMoveY { get; set; }
+    [Networked] public NetworkBool IsCurrentInputVR { get; private set; }
     [Networked] public Vector3 NetworkedSpectatorCameraPosition { get; private set; }
     [Networked] public Vector3 NetworkedSpectatorViewForward { get; private set; }
     [Networked] public Vector3 NetworkedSpectatorViewUp { get; private set; }
@@ -91,6 +92,8 @@ public class PlayerController : NetworkBehaviour
         {
             return;
         }
+
+        IsCurrentInputVR = input.IsVR;
 
         NetworkButtons pressedButtons = input.Buttons.GetPressed(PreviousButtons);
         PreviousButtons = input.Buttons;

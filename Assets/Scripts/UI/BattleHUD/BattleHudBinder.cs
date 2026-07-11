@@ -11,6 +11,7 @@ public class BattleHudBinder : MonoBehaviour
     private PlayerHealth currentHealth;
     private PlayerWeapon currentWeapon;
     private PlayerSkillController currentSkillController;
+    private PlayerController currentPlayerController;
 
     private bool spectatorOverride;
     private Coroutine bindLocalCoroutine;
@@ -112,10 +113,12 @@ public class BattleHudBinder : MonoBehaviour
 
         PlayerWeapon playerWeapon = playerHealth.GetComponent<PlayerWeapon>();
         PlayerSkillController playerSkillController = playerHealth.GetComponent<PlayerSkillController>();
+        PlayerController playerController = playerHealth.GetComponent<PlayerController>();
 
         currentHealth = playerHealth;
         currentWeapon = playerWeapon;
         currentSkillController = playerSkillController;
+        currentPlayerController = playerController;
 
         if (healthBar != null)
         {
@@ -141,7 +144,7 @@ public class BattleHudBinder : MonoBehaviour
 
         if (skillHudUI != null && currentSkillController != null)
         {
-            skillHudUI.SetupSkillController(currentSkillController);
+            skillHudUI.SetupSkillController(currentSkillController, currentPlayerController);
         }
         else if (skillHudUI == null)
         {
