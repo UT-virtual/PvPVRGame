@@ -17,9 +17,12 @@ EditorBuildSettings:
   - enabled: 0
     path: Assets/Scenes/MainScene.unity
     guid: ab489e00a5ec24c6c95b1825e27af476
-  - enabled: 1
+  - enabled: 0
     path: Assets/Scenes/ForPCMainScene.unity
     guid: ffa1dbfa02f624836a1778febfc33c00
+  - enabled: 1
+    path: Assets/Scenes/wayosScene.unity
+    guid: 84b31901d9941f449a406b760af54c0a
   m_configObjects:
     com.unity.dt.app-ui: {fileID: 11400000, guid: 1b1c20d82303e4b5781c3ef50ac1449f, type: 2}
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 052faaac586de48259a63d0c4782560b, type: 3}
