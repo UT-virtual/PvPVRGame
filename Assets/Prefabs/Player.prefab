@@ -1601,7 +1601,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 315b6328bde944c308c7c13ecf849319, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerHealth
-  maxHealth: 20
+  maxHealth: 10
   visualRoot: {fileID: 4762586069857500457}
   weaponVisualRoot: {fileID: 2209430232442334037}
   overheadIconRoot: {fileID: 4915071045229155744}
@@ -1638,7 +1638,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d29aa7d5ed7124b52812c2e12576fece, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerMove
-  moveSpeed: 20
+  moveSpeed: 10
   gravity: 6
   jumpSpeed: 12
   planetCenter: {fileID: 5110394550287685901, guid: 6efab54670793466cb5125952d5cd355, type: 3}
@@ -1906,24 +1906,24 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerSkillController
   cooldownAfterSkillEnd: 20
-  doubleJumpDuration: 10
+  doubleJumpDuration: 20
   doubleJumpExtraAirJumpCount: 1
-  rapidFireDuration: 10
+  rapidFireDuration: 15
   rapidFireIntervalMultiplier: 0.4
-  bulletSpeedUpDuration: 10
+  bulletSpeedUpDuration: 15
   bulletSpeedMultiplier: 1.8
   damageReductionDuration: 10
   damageTakenMultiplier: 0.5
-  xRayVisionDuration: 10
+  xRayVisionDuration: 5
   moveSpeedUpDuration: 10
   moveSpeedMultiplier: 2
-  slowFallDuration: 10
+  slowFallDuration: 20
   slowFallGravityMultiplier: 0.1
-  shrinkDuration: 10
+  shrinkDuration: 15
   shrinkSizeMultiplier: 0.5
   shrinkDamageDealtMultiplier: 0.5
   delayedDamageInvincibleDuration: 5
-  instantReloadDuration: 20
+  instantReloadDuration: 10
   gravityBurstReloadDuration: 0.1
   gravityBurstReloadAmmoCount: 20
   heavyBulletReloadDuration: 0.1
