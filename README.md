@@ -1,4 +1,4 @@
-# PvPVRGame（開発中につき仮称になります）
+# Cosmic Sphere Arena
 
 ## 概要
 
