@@ -47,6 +47,8 @@ public sealed class RoundFlowController
     private readonly Action showWaitingRoomUI;
     private readonly Action logReadyStates;
 
+    private readonly Action beginRoundEffect;
+
     private bool isRoundEnding;
 
     public RoundFlowController(
@@ -72,7 +74,8 @@ public sealed class RoundFlowController
         Action<int> showFinalResultUIRpc,
         Action hideFinalResultUIRpc,
         Action showWaitingRoomUI,
-        Action logReadyStates
+        Action logReadyStates,
+        Action beginRoundEffect
     )
     {
         this.coroutineRunner = coroutineRunner;
@@ -106,6 +109,7 @@ public sealed class RoundFlowController
 
         this.showWaitingRoomUI = showWaitingRoomUI;
         this.logReadyStates = logReadyStates;
+        this.beginRoundEffect = beginRoundEffect;
     }
 
     public void HandlePlayerDied(PlayerHealth deadPlayer)
@@ -213,7 +217,7 @@ public sealed class RoundFlowController
 
         setCurrentRound(completedRound + 1);
 
-        skillSelectionController.BeginSkillSelectionForRound(getCurrentRound());
+        beginRoundEffect();
 
         isRoundEnding = false;
     }

@@ -1,5 +1,6 @@
 using Fusion;
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -10,6 +11,7 @@ public class RoundManager : NetworkBehaviour
     public enum GamePhase
     {
         WaitingForReady,
+        RoundEffect,
         SkillSelecting,
         RoundStarting,
         RoundPlaying,
@@ -17,10 +19,23 @@ public class RoundManager : NetworkBehaviour
         MatchFinished
     }
 
+    public enum RoundEffectType
+    {
+        None,
+        BanJump,
+        Health1,
+    }
+
     private const int SkillOptionSlotCountValue = 4;
 
     [Header("Ready")]
     [SerializeField] private int minPlayersToStart = 2;
+
+    [Header("Round Effect")]
+    [SerializeField] private float roundEffectDisplayDuration = 3.0f;
+
+    [Networked]
+    private RoundEffectType currentRoundEffect { get; set; }
 
     [Header("Skill Selection")]
     [SerializeField] private float skillSelectionDuration = 10.0f;
@@ -67,6 +82,9 @@ public class RoundManager : NetworkBehaviour
 
     [Header("Debug Spectator Dummy")]
     [SerializeField] private bool countDebugSpectatorDummiesAsAlive = false;
+
+    [SerializeField]
+    private RoundEffectUI roundEffectUI; 
 
     public int CurrentRound { get; private set; } = 1;
 
@@ -140,6 +158,54 @@ public class RoundManager : NetworkBehaviour
 
     public IReadOnlyList<PlayerHealth> Players =>
         playerRegistry != null ? playerRegistry.Players : Array.Empty<PlayerHealth>();
+
+    private void BeginRoundEffect()
+    {
+        if (Object == null || !Object.HasStateAuthority)
+        {
+            return;
+        }
+
+        RoundEffectType[] effects =
+        {
+        RoundEffectType.None,
+        RoundEffectType.BanJump,
+        RoundEffectType.Health1
+    };
+
+        currentRoundEffect = effects[
+            UnityEngine.Random.Range(0, effects.Length)
+        ];
+
+        phase = GamePhase.RoundEffect;
+
+        RPC_ShowRoundEffect(currentRoundEffect);
+
+        StartCoroutine(BeginSkillSelectionAfterEffect());
+    }
+
+    private IEnumerator BeginSkillSelectionAfterEffect()
+    {
+        yield return new WaitForSeconds(roundEffectDisplayDuration);
+
+        if (Object == null || !Object.HasStateAuthority)
+        {
+            yield break;
+        }
+
+        skillSelectionController.BeginSkillSelectionForRound(CurrentRound);
+    }
+
+    [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+    private void RPC_ShowRoundEffect(RoundEffectType effect)
+    {
+        Debug.Log($"[RoundManager] Round Effect: {effect}");
+        if (roundEffectUI != null)
+        {
+            roundEffectUI.ShowEffect(effect, 3.0f);
+        }
+        // ここでRoundEffect UIを表示
+    }
 
     public int SkillOptionSlotCount =>
         skillSelectionController != null
@@ -324,7 +390,8 @@ public class RoundManager : NetworkBehaviour
             RPC_ShowFinalResultUI,
             RPC_HideFinalResultUI,
             ShowWaitingRoomUI,
-            LogReadyStates
+            LogReadyStates,
+            BeginRoundEffect
         );
     }
 
@@ -550,7 +617,7 @@ public class RoundManager : NetworkBehaviour
         }
 
         CurrentRound = 1;
-        skillSelectionController.BeginSkillSelectionForRound(CurrentRound);
+        BeginRoundEffect();
     }
 
     private List<PlayerHealth> GetValidPlayers()
