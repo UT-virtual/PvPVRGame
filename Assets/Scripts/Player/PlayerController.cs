@@ -161,6 +161,16 @@ public class PlayerController : NetworkBehaviour
             return;
         }
 
+        float speedMultiplier = 1.0f;
+
+        if (RoundManager.Instance != null)
+        {
+            speedMultiplier =
+                RoundManager.Instance.CurrentMoveSpeedMultiplier;
+        }
+
+        playerMove.SetMoveSpeedMultiplier(speedMultiplier);
+
         Vector2 moveInput = input.MoveInput;
 
         if (moveInput.sqrMagnitude > 1.0f)
@@ -211,7 +221,19 @@ public class PlayerController : NetworkBehaviour
         playerMove.UpdateAimBasis();
 
         playerMove.AlignToSurface(deltaTime);
-        playerMove.ApplyGravityAndJump(jumpPressed, deltaTime);
+
+        // ラウンド効果がジャンプ禁止ならジャンプ入力を無効化
+        bool jumpAllowed = true;
+
+        if (RoundManager.Instance != null)
+        {
+            jumpAllowed = !RoundManager.Instance.IsJumpProhibited;
+        }
+
+        playerMove.ApplyGravityAndJump(
+            jumpPressed && jumpAllowed,
+            deltaTime
+        );
 
         UpdateNetworkedSpectatorView();
 

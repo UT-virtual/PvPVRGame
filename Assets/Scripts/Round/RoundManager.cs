@@ -36,6 +36,11 @@ public class RoundManager : NetworkBehaviour
 
     [Networked]
     private RoundEffectType currentRoundEffect { get; set; }
+    public bool IsJumpProhibited =>
+    currentRoundEffect == RoundEffectType.BanJump;
+
+    public float CurrentMoveSpeedMultiplier =>
+        currentRoundEffect == RoundEffectType.BanJump ? 2.0f : 1.0f;
 
     [Header("Skill Selection")]
     [SerializeField] private float skillSelectionDuration = 10.0f;
@@ -159,6 +164,7 @@ public class RoundManager : NetworkBehaviour
     public IReadOnlyList<PlayerHealth> Players =>
         playerRegistry != null ? playerRegistry.Players : Array.Empty<PlayerHealth>();
 
+
     private void BeginRoundEffect()
     {
         if (Object == null || !Object.HasStateAuthority)
@@ -166,22 +172,57 @@ public class RoundManager : NetworkBehaviour
             return;
         }
 
-        RoundEffectType[] effects =
-        {
-        RoundEffectType.None,
-        RoundEffectType.BanJump,
-        RoundEffectType.Health1
-    };
+        // 5分の1の確率でラウンド効果を発生させる
+        bool effectOccurs = UnityEngine.Random.Range(0, 5) == 0;
 
-        currentRoundEffect = effects[
-            UnityEngine.Random.Range(0, effects.Length)
-        ];
+        if (effectOccurs)
+        {
+            // 効果が発生するときだけ、効果を抽選する
+            RoundEffectType[] effects =
+            {
+                RoundEffectType.BanJump,
+                RoundEffectType.Health1
+            };
+
+            currentRoundEffect = effects[
+                UnityEngine.Random.Range(0, effects.Length)
+            ];
+        }
+        else
+        {
+            // 効果が発生しない
+            currentRoundEffect = RoundEffectType.None;
+        }
 
         phase = GamePhase.RoundEffect;
 
         RPC_ShowRoundEffect(currentRoundEffect);
 
         StartCoroutine(BeginSkillSelectionAfterEffect());
+    }
+
+
+    public void ApplyHealthOneEffect()
+    {
+        if (Object == null || !Object.HasStateAuthority)
+        {
+            return;
+        }
+
+        if (currentRoundEffect != RoundEffectType.Health1)
+        {
+            return;
+        }
+
+        foreach (PlayerHealth player in Players)
+        {
+            if (player == null || player.IsDead)
+            {
+                continue;
+            }
+
+            player.SetHealthToOne();
+        }
     }
 
     private IEnumerator BeginSkillSelectionAfterEffect()

@@ -88,7 +88,11 @@ public sealed class RoundStartController
             $"Round {getCurrentRound()} starts in {getStartAfterAllSkillsSelectedDelay()} seconds."
         );
 
-        yield return new WaitForSeconds(getStartAfterAllSkillsSelectedDelay());
+        yield return new WaitForSeconds(
+              getStartAfterAllSkillsSelectedDelay()
+        );
+
+        RoundManager.Instance?.ApplyHealthOneEffect();
 
         setPhase(RoundManager.GamePhase.RoundPlaying);
         startRoundCoroutine = null;
