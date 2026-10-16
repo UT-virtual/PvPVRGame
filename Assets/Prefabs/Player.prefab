@@ -1099,7 +1099,7 @@ RectTransform:
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
   m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 3, y: 0.3}
+  m_SizeDelta: {x: 3, y: 0.25}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &9048065217371945380
 CanvasRenderer:
@@ -2189,10 +2189,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::OtherPlayerHealthBar
   playerHealth: {fileID: 6087450692815741008}
-  barRoot: {fileID: 3871707002512310615}
+  barRoot: {fileID: 5220016223102300399}
   healthFill: {fileID: 1241213008503330552}
-  worldOffset: {x: 0, y: 10, z: 0}
-  faceCamera: 1
+  heightOffset: 5
 --- !u!1 &8114149245204947776
 GameObject:
   m_ObjectHideFlags: 0

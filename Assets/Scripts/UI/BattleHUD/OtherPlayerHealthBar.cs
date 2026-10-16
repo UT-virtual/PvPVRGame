@@ -1,135 +1,93 @@
-
 using Fusion;
 using UnityEngine;
 using UnityEngine.UI;
 
 public class OtherPlayerHealthBar : NetworkBehaviour
 {
-    [Header("References")]
+    [Header("Health")]
     [SerializeField] private PlayerHealth playerHealth;
-    [SerializeField] private GameObject barRoot;
-    [SerializeField] private Image healthFill;
 
     [Header("Display")]
-    [SerializeField] private Vector3 worldOffset = new Vector3(0f, 10f, 0f);
-    [SerializeField] private bool faceCamera = true;
+    [SerializeField] private Transform barRoot;
+    [SerializeField] private Image healthFill;
+    [SerializeField] private float heightOffset = 2.0f;
 
-    private Transform cameraTransform;
+    private Camera localCamera;
 
     public override void Spawned()
     {
         if (playerHealth == null)
-        {
             playerHealth = GetComponent<PlayerHealth>();
+
+        if (barRoot == null || healthFill == null || playerHealth == null)
+        {
+            Debug.LogWarning(
+                $"[{nameof(OtherPlayerHealthBar)}] Inspector references are missing.",
+                this
+            );
+            return;
+        }
+
+        // 自分のHPバーは表示しない
+        barRoot.gameObject.SetActive(!Object.HasInputAuthority);
+
+        UpdateHealthBar();
+    }
+
+    private void LateUpdate()
+    {
+        if (Object == null || barRoot == null)
+            return;
+
+        // 自分のHPバーは非表示
+        if (Object.HasInputAuthority)
+        {
+            if (barRoot.gameObject.activeSelf)
+                barRoot.gameObject.SetActive(false);
+
+            return;
         }
 
         if (playerHealth == null)
+            return;
+
+        if (!barRoot.gameObject.activeSelf)
+            barRoot.gameObject.SetActive(true);
+
+        if (localCamera == null)
+            localCamera = Camera.main;
+
+        // PlayerHeadIcon と同じ位置計算
+        barRoot.position =
+            transform.position + transform.up * heightOffset;
+
+        if (localCamera == null)
+            return;
+
+        // HPバーだけをカメラに向ける
+        Vector3 toCamera =
+            localCamera.transform.position - barRoot.position;
+
+        if (toCamera.sqrMagnitude > 0.0001f)
         {
-            Debug.LogError(
-                $"{name}: PlayerHealth was not found."
+            barRoot.rotation = Quaternion.LookRotation(
+                -toCamera.normalized,
+                localCamera.transform.up
             );
-            enabled = false;
+        }
+
+        UpdateHealthBar();
+    }
+
+    private void UpdateHealthBar()
+    {
+        if (playerHealth == null || healthFill == null)
             return;
-        }
-
-        playerHealth.OnHealthChanged += OnHealthChanged;
-
-        // 自分の体力バーは表示しない
-        if (barRoot != null)
-        {
-            barRoot.SetActive(!Object.HasInputAuthority);
-        }
-
-        cameraTransform = Camera.main != null
-            ? Camera.main.transform
-            : null;
-
-        RefreshHealthBar();
-    }
-
-    public override void Despawned(
-        NetworkRunner runner,
-        bool hasState)
-    {
-        if (playerHealth != null)
-        {
-            playerHealth.OnHealthChanged -= OnHealthChanged;
-        }
-    }
-
-    private void OnDestroy()
-    {
-        if (playerHealth != null)
-        {
-            playerHealth.OnHealthChanged -= OnHealthChanged;
-        }
-    }
-
-    private void OnHealthChanged(float current, float max)
-    {
-        RefreshHealthBar();
-    }
-
-    private void RefreshHealthBar()
-    {
-        if (playerHealth == null ||
-            barRoot == null ||
-            healthFill == null)
-        {
-            return;
-        }
-
-        bool isOtherPlayer =
-            Object != null && !Object.HasInputAuthority;
-
-        bool shouldShow =
-            isOtherPlayer && !playerHealth.IsDead;
-
-        barRoot.SetActive(shouldShow);
-
-        if (!shouldShow)
-        {
-            return;
-        }
 
         float maxHealth = playerHealth.MaxHealth;
 
         healthFill.fillAmount = maxHealth > 0f
-            ? Mathf.Clamp01(
-                playerHealth.CurrentHealth / maxHealth
-              )
+            ? Mathf.Clamp01(playerHealth.CurrentHealth / maxHealth)
             : 0f;
     }
-
-
-    private void LateUpdate()
-    {
-        if (playerHealth == null || barRoot == null)
-            return;
-
-        // プレイヤーの位置には追従するが、回転には追従しない
-        barRoot.transform.position = transform.position + worldOffset;
-
-        if (cameraTransform == null)
-        {
-            Camera cam = Camera.main;
-            if (cam != null)
-                cameraTransform = cam.transform;
-        }
-
-        if (cameraTransform == null)
-            return;
-
-        // カメラの向きを基準にする
-        Vector3 forward = cameraTransform.forward;
-        forward.y = 0f;
-
-        if (forward.sqrMagnitude > 0.001f)
-        {
-            barRoot.transform.rotation =
-                Quaternion.LookRotation(forward, Vector3.up);
-        }
-    }
-
 }
-
