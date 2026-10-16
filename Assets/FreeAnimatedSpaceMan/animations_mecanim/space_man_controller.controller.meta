@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 3fddf5519a321ec4bb1315b9ec0a1a9e
+timeCreated: 1507126630
+licenseType: Store
+NativeFormatImporter:
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 61548
+  packageName: Free Animated Space Man
+  packageVersion: 1.0
+  assetPath: Assets/FreeAnimatedSpaceMan/animations_mecanim/space_man_controller.controller
+  uploadId: 204545

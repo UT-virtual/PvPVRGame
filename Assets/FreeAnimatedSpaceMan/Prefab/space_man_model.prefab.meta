@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: e7965cb5f3b6b49439772edd4131b2b0
+timeCreated: 1507128093
+licenseType: Store
+NativeFormatImporter:
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 61548
+  packageName: Free Animated Space Man
+  packageVersion: 1.0
+  assetPath: Assets/FreeAnimatedSpaceMan/Prefab/space_man_model.prefab
+  uploadId: 204545
