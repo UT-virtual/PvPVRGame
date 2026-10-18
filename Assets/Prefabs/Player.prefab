@@ -691,12 +691,12 @@ Transform:
   m_GameObject: {fileID: 3871707002512310615}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalPosition: {x: 0.49, y: 0.54, z: 0}
+  m_LocalScale: {x: 0.5, y: 0.5, z: 0.5}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 4914992223980831106}
-  m_Father: {fileID: 7900882557392664941}
+  m_Father: {fileID: 1536190954768535111}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &4762586069857500457
 GameObject:
@@ -727,6 +727,7 @@ Transform:
   m_LocalScale: {x: 2, y: 2, z: 2}
   m_ConstrainProportionsScale: 1
   m_Children:
+  - {fileID: 5220016223102300399}
   - {fileID: 3820009052105664099}
   m_Father: {fileID: 7900882557392664941}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
@@ -1350,7 +1351,7 @@ RectTransform:
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
   m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 0, y: 0}
+  m_SizeDelta: {x: 3, y: 0.25}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &7605245530283233393
 CanvasRenderer:
@@ -1373,15 +1374,15 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Image
   m_Material: {fileID: 0}
-  m_Color: {r: 1, g: 1, b: 1, a: 1}
+  m_Color: {r: 1, g: 0.43529412, b: 0.43529412, a: 1}
   m_RaycastTarget: 1
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 0}
-  m_Type: 0
+  m_Sprite: {fileID: 10905, guid: 0000000000000000f000000000000000, type: 0}
+  m_Type: 1
   m_PreserveAspect: 0
   m_FillCenter: 1
   m_FillMethod: 4
@@ -1621,7 +1622,6 @@ Transform:
   - {fileID: 8521847564726328779}
   - {fileID: 1096241845050815040}
   - {fileID: 1536190954768535111}
-  - {fileID: 5220016223102300399}
   - {fileID: 2847849160676308526}
   - {fileID: 1742778256503361924}
   - {fileID: 5874837870598913118}
@@ -2192,6 +2192,11 @@ MonoBehaviour:
   barRoot: {fileID: 5220016223102300399}
   healthFill: {fileID: 1241213008503330552}
   heightOffset: 5
+  visibleDistance: 30
+  visibleAngle: 70
+  obstructionMask:
+    serializedVersion: 2
+    m_Bits: 0
 --- !u!1 &8114149245204947776
 GameObject:
   m_ObjectHideFlags: 0
