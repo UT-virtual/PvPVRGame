@@ -29,10 +29,10 @@ Material:
         m_Offset: {x: 0, y: 0}
     m_Ints: []
     m_Floats:
-    - _Alpha: 0.6
-    - _Intensity: 2
+    - _Alpha: 0.48
+    - _Intensity: 2.64
     - _OutlineWidth: 0.03
     m_Colors:
-    - _BaseColor: {r: 0.048801474, g: 0.9169811, b: 0, a: 1}
+    - _BaseColor: {r: 0.048801452, g: 0.9169811, b: 0, a: 0.29411766}
   m_BuildTextureStacks: []
   m_AllowLocking: 1
