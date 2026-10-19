@@ -119,6 +119,16 @@ public class PlayerHeadIcon : NetworkBehaviour
         int colorIndex = playerIdentity.ColorIndex % playerColors.Length;
         iconRenderer.color = playerColors[colorIndex];
     }
+    public Color GetPlayerColor()
+    {
+        if (playerIdentity == null || playerColors == null || playerColors.Length == 0)
+        {
+            return Color.white;
+        }
+
+        int colorIndex = playerIdentity.ColorIndex % playerColors.Length;
+        return playerColors[colorIndex];
+    }
 
     private bool ShouldShowIcon()
     {
