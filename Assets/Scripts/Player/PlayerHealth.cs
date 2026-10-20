@@ -60,7 +60,7 @@ public class PlayerHealth : NetworkBehaviour
     }
 
     /// <summary>
-    /// 結果表示と待機UIに使うチームを同期する。NetworkObjectがある場合はStateAuthorityに限る。
+    /// 結果表示・待機UI・頭上アイコンのチーム色を同期する。NetworkObjectがある場合はStateAuthorityに限る。
     /// </summary>
     public void SetTeam(TeamColor team)
     {
@@ -70,6 +70,11 @@ public class PlayerHealth : NetworkBehaviour
         }
 
         NetworkedTeamIndex = (int)team;
+        PlayerIdentity identity = GetComponent<PlayerIdentity>();
+        if (identity != null)
+        {
+            identity.SetIdentity(identity.PlayerNumber, NetworkedTeamIndex);
+        }
     }
 
     private NetworkTransform networkTransform;

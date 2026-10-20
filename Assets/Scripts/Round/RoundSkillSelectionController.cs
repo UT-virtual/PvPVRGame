@@ -33,7 +33,7 @@ public sealed class RoundSkillSelectionController
     private readonly RoundDebugLogger debugLogger;
 
     private readonly Action hideWaitingRoomUI;
-    private readonly Action<PlayerRef, int> notifySkillSelectionProgressRpc;
+    private readonly Action<PlayerRef, int, int, PlayerSkillType> notifySkillSelectionProgressRpc;
 
     private readonly Action<
         PlayerSkillType,
@@ -77,7 +77,7 @@ public sealed class RoundSkillSelectionController
         RoundProjectileCleaner projectileCleaner,
         RoundDebugLogger debugLogger,
         Action hideWaitingRoomUI,
-        Action<PlayerRef, int> notifySkillSelectionProgressRpc,
+        Action<PlayerRef, int, int, PlayerSkillType> notifySkillSelectionProgressRpc,
         Action<
             PlayerSkillType,
             PlayerSkillType,
@@ -304,7 +304,7 @@ public sealed class RoundSkillSelectionController
         SelectSkill(player, skill, false);
     }
 
-    public void HandleRequestSelectSkillBySlot(PlayerRef playerRef, int slotIndex)
+    public void HandleRequestSelectSkillBySlot(PlayerRef playerRef, int slotIndex, int expectedSelectionStep)
     {
         if (!IsSkillSelecting)
         {
@@ -328,7 +328,11 @@ public sealed class RoundSkillSelectionController
 
         int beforeCount = GetSkillSelectionCount(player);
 
-        SelectSkillBySlot(player, slotIndex);
+        // 応答待ちの再送を次の選択として扱わない。受理済みなら現在の結果だけを返す。
+        if (expectedSelectionStep == beforeCount)
+        {
+            SelectSkillBySlot(player, slotIndex);
+        }
 
         int afterCount = GetSkillSelectionCount(player);
 
@@ -338,7 +342,7 @@ public sealed class RoundSkillSelectionController
             $"Count={beforeCount}->{afterCount}"
         );
 
-        notifySkillSelectionProgressRpc(playerRef, afterCount);
+        notifySkillSelectionProgressRpc(playerRef, afterCount, expectedSelectionStep, GetFirstSelectedSkill(player));
     }
 
     public void ApplySkillOptionsFromNetwork(

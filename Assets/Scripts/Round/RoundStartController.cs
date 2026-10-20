@@ -25,6 +25,7 @@ public sealed class RoundStartController
     private readonly RoundHealthItemController healthItemController;
 
     private Coroutine startRoundCoroutine;
+    private readonly Func<bool> hasStartDelayElapsed;
 
     public RoundStartController(
         MonoBehaviour coroutineRunner,
@@ -35,7 +36,8 @@ public sealed class RoundStartController
         Func<float> getStartAfterAllSkillsSelectedDelay,
         Func<PlayerHealth, PlayerSkillType> getFirstSelectedSkill,
         Func<PlayerHealth, PlayerSkillType> getSecondSelectedSkill,
-        RoundHealthItemController healthItemController
+        RoundHealthItemController healthItemController,
+        Func<bool> hasStartDelayElapsed = null
     )
     {
         this.coroutineRunner = coroutineRunner;
@@ -52,6 +54,7 @@ public sealed class RoundStartController
         this.getSecondSelectedSkill = getSecondSelectedSkill;
 
         this.healthItemController = healthItemController;
+        this.hasStartDelayElapsed = hasStartDelayElapsed;
     }
 
     /// <summary>
@@ -96,7 +99,24 @@ public sealed class RoundStartController
             $"Round {getCurrentRound()} starts in {getStartAfterAllSkillsSelectedDelay()} seconds."
         );
 
-        yield return new WaitForSeconds(getStartAfterAllSkillsSelectedDelay());
+        if (hasStartDelayElapsed == null)
+        {
+            yield return new WaitForSeconds(getStartAfterAllSkillsSelectedDelay());
+        }
+        else
+        {
+            // UIと同じネットワーク時刻を使い、描画開始の遅れで戦闘開始時刻を変えない。
+            while (!hasStartDelayElapsed())
+            {
+                yield return null;
+            }
+        }
+
+        if (getPhase() != RoundManager.GamePhase.RoundStarting)
+        {
+            startRoundCoroutine = null;
+            yield break;
+        }
 
         setPhase(RoundManager.GamePhase.RoundPlaying);
         startRoundCoroutine = null;

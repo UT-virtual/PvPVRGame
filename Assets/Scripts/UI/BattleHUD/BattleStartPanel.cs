@@ -34,13 +34,17 @@ public class BattleStartUI : MonoBehaviour
         gameObject.SetActive(true);
         canvasGroup.alpha = 1f;
 
-        for (int i = 3; i >= 1 && roundManager.IsRoundStarting; i--)
-        {
-            yield return StartCoroutine(AnimateText(i.ToString(), countDuration, true));
-        }
-
+        // ローカルで3秒を数え直さず、同期された開始期限から残りの表示を決める。
+        float interval = Mathf.Max(0.01f, countDuration);
         while (roundManager.IsRoundStarting)
         {
+            float remaining = roundManager.RoundStartRemainingSeconds;
+            countText.text = Mathf.Max(1, Mathf.CeilToInt(remaining / interval)).ToString();
+            float normalized = 1f - (remaining % interval) / interval;
+            countText.transform.localScale = Vector3.one * Mathf.Lerp(0.5f, 1.5f, normalized);
+            Color color = countText.color;
+            color.a = Mathf.Lerp(1f, 0f, normalized);
+            countText.color = color;
             yield return null;
         }
 

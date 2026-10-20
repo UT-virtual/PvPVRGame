@@ -182,10 +182,11 @@ public sealed class NetworkPlayerSpawner
 
         if (playerIdentity != null)
         {
-            playerIdentity.SetIdentity(
-                visualIndex + 1,
-                visualIndex
-            );
+            PlayerHealth health = playerObject.GetComponent<PlayerHealth>();
+            int colorIndex = health != null && health.HasTeamAssigned
+                ? health.NetworkedTeamIndex
+                : visualIndex % NetworkSessionController.MaxPlayerCount;
+            playerIdentity.SetIdentity(visualIndex + 1, colorIndex);
         }
         else
         {

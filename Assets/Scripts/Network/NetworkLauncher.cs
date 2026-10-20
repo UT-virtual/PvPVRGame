@@ -224,9 +224,9 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
         playerSpawner.ResetSession();
     }
 
-    public void OnServerSkillSelectionProgress(PlayerRef playerRef, int selectedCount)
+    public void OnServerSkillSelectionProgress(PlayerRef playerRef, int selectedCount, int requestStep, PlayerSkillType firstSkill, int selectionVersion)
     {
-        skillSelectionInputController.OnServerSkillSelectionProgress(playerRef, selectedCount);
+        skillSelectionInputController.OnServerSkillSelectionProgress(playerRef, selectedCount, requestStep, firstSkill, selectionVersion);
     }
 
     /// <summary>

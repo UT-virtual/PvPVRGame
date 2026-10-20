@@ -19,6 +19,9 @@ public class WaitingRoomUI : MonoBehaviour
 
     private bool localPlayerSpawned = false;
 
+    private const float RefreshInterval = 0.1f;
+    private float nextRefreshTime;
+    private readonly List<(PlayerHealth player, int team, bool ready, bool local)> nextPlayers = new();
     private readonly List<GameObject> currentEntries = new();
     private readonly List<(PlayerHealth player, int team, bool ready, bool local)> displayedPlayers = new();
 
@@ -45,6 +48,7 @@ public class WaitingRoomUI : MonoBehaviour
     public void SetLocalPlayerSpawned(bool spawned)
     {
         localPlayerSpawned = spawned;
+        nextRefreshTime = 0f;
 
         Debug.Log($"[WaitingRoomUI] LocalPlayerSpawned={localPlayerSpawned}");
 
@@ -57,11 +61,18 @@ public class WaitingRoomUI : MonoBehaviour
 
     private void Update()
     {
-        bool hasLocalPlayer = localPlayerSpawned || HasLocalInputAuthorityPlayer();
-
-        if (hasLocalPlayer && !localPlayerSpawned)
+        if (Time.unscaledTime < nextRefreshTime)
         {
-            localPlayerSpawned = true;
+            return;
+        }
+
+        nextRefreshTime = Time.unscaledTime + RefreshInterval;
+        PlayerHealth[] players = FindObjectsByType<PlayerHealth>(FindObjectsSortMode.InstanceID);
+        bool hasLocalPlayer = HasLocalInputAuthorityPlayer(players);
+
+        if (hasLocalPlayer != localPlayerSpawned)
+        {
+            localPlayerSpawned = hasLocalPlayer;
             Debug.Log("[WaitingRoomUI] Local player detected automatically.");
         }
 
@@ -88,7 +99,7 @@ public class WaitingRoomUI : MonoBehaviour
 
         if (shouldShow)
         {
-            RefreshPlayerList();
+            RefreshPlayerList(players);
         }
         else
         {
@@ -96,11 +107,8 @@ public class WaitingRoomUI : MonoBehaviour
         }
     }
 
-    private bool HasLocalInputAuthorityPlayer()
+    private bool HasLocalInputAuthorityPlayer(PlayerHealth[] players)
     {
-        PlayerHealth[] players = FindObjectsByType<PlayerHealth>(
-            FindObjectsSortMode.None
-        );
 
         foreach (PlayerHealth player in players)
         {
@@ -162,16 +170,12 @@ public class WaitingRoomUI : MonoBehaviour
         }
     }
 
-    private void RefreshPlayerList()
+    private void RefreshPlayerList(PlayerHealth[] players)
     {
-        PlayerHealth[] players = FindObjectsByType<PlayerHealth>(
-            FindObjectsSortMode.InstanceID
-        );
-
-        List<(PlayerHealth player, int team, bool ready, bool local)> nextPlayers = new();
+        nextPlayers.Clear();
         foreach (PlayerHealth player in players)
         {
-            if (player.Object == null || !player.Object.IsValid || player.Object.InputAuthority == PlayerRef.None)
+            if (player == null || player.Object == null || !player.Object.IsValid || player.Object.InputAuthority == PlayerRef.None)
             {
                 continue;
             }
