@@ -1,6 +1,10 @@
 using Fusion;
 using UnityEngine;
 
+/// <summary>
+/// 2つのスキル枠の選択、発動状態、効果時間とクールダウンを同期する。
+/// StateAuthorityで状態を進め、発動処理はPlayerSkillActivator、継続効果の反映はPlayerSkillEffectApplierへ委譲する。
+/// </summary>
 [RequireComponent(typeof(PlayerMove))]
 [RequireComponent(typeof(PlayerWeapon))]
 [RequireComponent(typeof(PlayerHealth))]
@@ -76,6 +80,7 @@ public class PlayerSkillController : NetworkBehaviour
     [Networked] public PlayerSkillType LastRoundSkill { get; private set; }
     [Networked] public PlayerSkillType LastRoundSecondSkill { get; private set; }
 
+    // 各枠の状態と期限を同期し、HUDと各端末の効果表示は同じ期限を参照する。
     [Networked] public PlayerSkillType ActiveSkill { get; private set; }
     [Networked] private TickTimer SkillActiveTimer { get; set; }
     [Networked] private TickTimer CooldownTimer { get; set; }
@@ -129,6 +134,7 @@ public class PlayerSkillController : NetworkBehaviour
             return;
         }
 
+        // Renderでも同期済みの状態から補正を適用する。期限切れの確定とクールダウン開始はTick側で行う。
         ApplySkillEffects();
     }
 
@@ -142,10 +148,12 @@ public class PlayerSkillController : NetworkBehaviour
         UpdateSkillState();
     }
 
+    /// <summary>
+    /// 現在はラウンド間の連続選択を制限しない。
+    /// None・同一ラウンド内の重複・候補枠の有効性は選択処理側で判定する。
+    /// </summary>
     public bool CanSelectSkill(PlayerSkillType skill)
     {
-        // 現状の挙動維持: 連続使用制限は無効。
-        // 連続使用禁止を戻す場合は allowSameSkillConsecutiveForDebug を使ってここを切り替える。
         return true;
     }
 
@@ -154,6 +162,10 @@ public class PlayerSkillController : NetworkBehaviour
         PrepareForRound(requestedSkill, PlayerSkillType.None);
     }
 
+    /// <summary>
+    /// StateAuthorityで発動状態とクールダウンを消去し、ラウンドの2枠と履歴を設定する。
+    /// 2枠目が1枠目と同じ場合はNoneに置き換える。
+    /// </summary>
     public void PrepareForRound(PlayerSkillType requestedFirstSkill, PlayerSkillType requestedSecondSkill)
     {
         if (Object == null || !Object.HasStateAuthority)
@@ -210,6 +222,10 @@ public class PlayerSkillController : NetworkBehaviour
         );
     }
 
+    /// <summary>
+    /// StateAuthorityで今ラウンドの選択・発動・クールダウンを消去して継続補正を標準へ戻す。
+    /// 前回の選択履歴と、武器側に残る特殊弾・次弾強化は保持する。
+    /// </summary>
     public void ClearSkillState()
     {
         if (Object == null || !Object.HasStateAuthority)
@@ -226,6 +242,9 @@ public class PlayerSkillController : NetworkBehaviour
         ApplySkillEffects();
     }
 
+    /// <summary>
+    /// 試合を待機へ戻す際、StateAuthorityで前回履歴を含むスキル状態を消去する。
+    /// </summary>
     public void ResetSkillHistory()
     {
         if (Object == null || !Object.HasStateAuthority)
@@ -239,6 +258,9 @@ public class PlayerSkillController : NetworkBehaviour
         ClearSkillState();
     }
 
+    /// <summary>
+    /// StateAuthorityで操作対象のスキル枠を切り替える。有効な枠が1つだけならその枠を選ぶ。
+    /// </summary>
     public void SwitchCurrentSkill()
     {
         if (Object == null || !Object.HasStateAuthority)
@@ -275,6 +297,10 @@ public class PlayerSkillController : NetworkBehaviour
         );
     }
 
+    /// <summary>
+    /// StateAuthorityで現在選択中の枠を検証し、効果中でもクールダウン中でもなければ発動する。
+    /// 戦闘フェーズの許可は呼び出し元のPlayerControllerが確認する。
+    /// </summary>
     public void TryActivateSkill()
     {
         if (Object == null || !Object.HasStateAuthority)
@@ -313,7 +339,10 @@ public class PlayerSkillController : NetworkBehaviour
         skillActivator.Activate(selectedSkill);
     }
 
-    //wayo追記
+    /// <summary>
+    /// StateAuthorityで指定枠の未発動・クールダウン完了を確認して発動する。
+    /// slotIndexは0以下を1枠目、それ以外を2枠目として扱い、現在の選択インデックスは変更しない。
+    /// </summary>
     public void TryActivateSkillBySlot(int slotIndex)
     {
         if (Object == null || !Object.HasStateAuthority)
@@ -390,6 +419,10 @@ public class PlayerSkillController : NetworkBehaviour
         );
     }
 
+    /// <summary>
+    /// 現在の選択インデックスの枠に発動状態とTickTimerを記録する。
+    /// 発動要求で参照した枠ではなく、CurrentSelectedSkillIndexを保存先に使う。
+    /// </summary>
     private void BeginActiveSkill(PlayerSkillType skill, float duration)
     {
         int slotIndex = GetNormalizedCurrentSelectedSkillIndex();
@@ -413,6 +446,10 @@ public class PlayerSkillController : NetworkBehaviour
         );
     }
 
+    /// <summary>
+    /// StateAuthorityで各枠の効果終了を確定し、その時点からクールダウンを開始する。
+    /// 期限はTickTimerで同期し、補正は期限の判定結果から再適用する。
+    /// </summary>
     private void UpdateSkillState()
     {
         if (Runner == null)

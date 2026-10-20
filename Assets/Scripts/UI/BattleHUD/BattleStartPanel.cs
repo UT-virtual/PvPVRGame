@@ -3,6 +3,10 @@ using System.Collections;
 using TMPro;
 using UnityEngine;
 
+/// <summary>
+/// RoundStartingへの遷移に合わせてカウントダウンと開始文言の演出を再生する。
+/// 演出の再生時間と戦闘開始の判定は独立しており、フェーズ遷移はRoundStartControllerが行う。
+/// </summary>
 public class BattleStartUI : MonoBehaviour
 {
     [Header("UI")]
@@ -24,16 +28,13 @@ public class BattleStartUI : MonoBehaviour
 
         canvasGroup.alpha = 1f;
 
-        // 3 → 2 → 1
         for (int i = 3; i >= 1; i--)
         {
             yield return StartCoroutine(AnimateText(i.ToString()));
         }
 
-        // ENGAGE表示
         yield return StartCoroutine(AnimateText("Round " + roundManager.CurrentRound + " Start!"));
 
-        // フェードアウト
         float t = 0f;
 
         while (t < 0.5f)
@@ -61,11 +62,9 @@ public class BattleStartUI : MonoBehaviour
 
             float normalized = t / duration;
 
-            // 大きさを変化
             float scale = Mathf.Lerp(0.5f, 1.5f, normalized);
             countText.transform.localScale = Vector3.one * scale;
 
-            // 透明度を変化
             Color color = countText.color;
             color.a = Mathf.Lerp(1f, 0f, normalized);
             countText.color = color;

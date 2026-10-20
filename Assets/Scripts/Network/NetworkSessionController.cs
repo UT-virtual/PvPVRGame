@@ -5,6 +5,10 @@ using System.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
+/// <summary>
+/// NetworkRunnerの生成・接続開始・失敗時の再試行と、待機中の手動再接続を管理する。
+/// プレイヤー生成と入力処理はNetworkLauncherから別の担当へ委譲される。
+/// </summary>
 public sealed class NetworkSessionController
 {
     private readonly MonoBehaviour owner;
@@ -57,6 +61,10 @@ public sealed class NetworkSessionController
         this.getWaitingRoomUI = getWaitingRoomUI;
     }
 
+    /// <summary>
+    /// Runnerが存在せず接続開始中でもない場合に接続を開始する。
+    /// ClientのGameNotFoundだけを設定に従って再試行し、試行ごとにRunnerを作り直す。
+    /// </summary>
     public async void StartGame(GameMode gameMode)
     {
         if (owner == null)
@@ -173,6 +181,9 @@ public sealed class NetworkSessionController
         }
     }
 
+    /// <summary>
+    /// 接続・再接続処理が進行中でなく、RoundManagerが待機フェーズのときだけ手動再接続を許可する。
+    /// </summary>
     public bool CanReconnectFromWaitingRoom()
     {
         if (isStartingGame || isReconnecting)
@@ -185,6 +196,10 @@ public sealed class NetworkSessionController
             RoundManager.Instance.IsWaitingForReady;
     }
 
+    /// <summary>
+    /// 現在のRunnerのShutdownを待ち、参照と待機UIをリセットしてClientとして接続し直す。
+    /// 多重実行は抑止するが、待機フェーズの確認は呼び出し元が行う。
+    /// </summary>
     public async void ReconnectAsClient()
     {
         if (isStartingGame || isReconnecting)
@@ -230,6 +245,10 @@ public sealed class NetworkSessionController
         StartGame(GameMode.Client);
     }
 
+    /// <summary>
+    /// コールバックを解除してRunner関連オブジェクトを破棄し、参照をクリアする。
+    /// 接続中のRunnerを停止する必要がある場合は、呼び出し前にShutdownを待つ。
+    /// </summary>
     public void CleanupRunner()
     {
         if (runner != null)

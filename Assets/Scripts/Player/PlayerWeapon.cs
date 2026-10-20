@@ -2,6 +2,10 @@ using System;
 using Fusion;
 using UnityEngine;
 
+/// <summary>
+/// StateAuthorityで射撃間隔、装填、弾薬消費とProjectile生成を管理する。
+/// 弾薬・装填中フラグは同期し、特殊弾と次弾強化の消費はこのコンポーネント内で扱う。
+/// </summary>
 [RequireComponent(typeof(PlayerHealth))]
 [RequireComponent(typeof(PlayerLook))]
 [RequireComponent(typeof(PlayerCamera))]
@@ -120,6 +124,9 @@ public class PlayerWeapon : NetworkBehaviour
         OnAmmoChanged?.Invoke(NetworkedCurrentAmmo, maxAmmo);
     }
 
+    /// <summary>
+    /// PlayerControllerのネットワークTickから呼び、StateAuthorityで射撃待ちと装填時間を進める。
+    /// </summary>
     public void Tick(float deltaTime)
     {
         if (!Object.HasStateAuthority)
@@ -214,6 +221,10 @@ public class PlayerWeapon : NetworkBehaviour
         }
     }
 
+    /// <summary>
+    /// StateAuthorityで通常弾への再装填を始め、装填済みの特殊弾を解除する。
+    /// 即時装填効果中は待たず補充し、装填中または満弾なら何もしない。
+    /// </summary>
     public void ReloadAmmo()
     {
         if (!Object.HasStateAuthority)
@@ -259,6 +270,10 @@ public class PlayerWeapon : NetworkBehaviour
         Debug.Log($"Reload started. Duration={reloadDuration} seconds.");
     }
 
+    /// <summary>
+    /// StateAuthorityで装填を終了し、通常弾を満タンに戻す。
+    /// 特殊弾と未消費の次弾強化も解除する。
+    /// </summary>
     public void RefillAmmoImmediately()
     {
         if (!Object.HasStateAuthority)
@@ -297,6 +312,9 @@ public class PlayerWeapon : NetworkBehaviour
         Debug.Log($"Reload completed: {NetworkedCurrentAmmo}/{maxAmmo}");
     }
 
+    /// <summary>
+    /// StateAuthorityで進行中の装填を中止し、中止イベントを通知する。弾薬は補充しない。
+    /// </summary>
     public void CancelReload()
     {
         if (!Object.HasStateAuthority)
@@ -319,6 +337,10 @@ public class PlayerWeapon : NetworkBehaviour
         Debug.Log("Reload canceled.");
     }
 
+    /// <summary>
+    /// StateAuthorityで装填中・射撃間隔・残弾を確認し、生成成功時だけ弾薬と特殊弾を消費する。
+    /// 空撃ち時も待ち時間を設定してイベントの連続発火を抑える。
+    /// </summary>
     public void TryFireProjectile()
     {
         if (!Object.HasStateAuthority)
@@ -373,6 +395,10 @@ public class PlayerWeapon : NetworkBehaviour
         );
     }
 
+    /// <summary>
+    /// 銃口があればその向き、未設定ならカメラの視線で弾を生成・初期化する。
+    /// Prefab不正またはProjectile欠落時は失敗し、次弾強化を消費しない。
+    /// </summary>
     private bool FireProjectile(ProjectileShotKind shotKind)
     {
         if (!projectilePrefab.IsValid)
@@ -459,6 +485,10 @@ public class PlayerWeapon : NetworkBehaviour
         LoadSpecialAmmo(ProjectileShotKind.Heavy, ammoCount);
     }
 
+    /// <summary>
+    /// StateAuthorityで次に生成する1発分のダメージ倍率を保持する。
+    /// 発動時間が切れても残り、発射成功時または即時補充時に解除される。
+    /// </summary>
     public void SetNextShotDamageMultiplier(float multiplier)
     {
         if (Object == null || !Object.HasStateAuthority)
@@ -469,6 +499,9 @@ public class PlayerWeapon : NetworkBehaviour
         pendingNextShotDamageMultiplier = Mathf.Clamp(multiplier, 1.0f, 10.0f);
     }
 
+    /// <summary>
+    /// StateAuthorityで装填中状態を終了し、弾種と残弾を指定した特殊弾へ置き換える。通常弾への追加ではない。
+    /// </summary>
     private void LoadSpecialAmmo(ProjectileShotKind shotKind, int ammoCount)
     {
         if (Object == null || !Object.HasStateAuthority)

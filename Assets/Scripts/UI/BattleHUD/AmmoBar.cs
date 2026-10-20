@@ -4,6 +4,10 @@ using UnityEngine.UI;
 using System.Collections;
 using System.Collections.Generic;
 
+/// <summary>
+/// 接続先のPlayerWeaponの弾薬変更イベントを受け、残弾数をセルで表示する。
+/// 未接続時はローカル武器を探し、観戦時はBattleHudBinderから対象を差し替えられる。
+/// </summary>
 public class AmmoBar : MonoBehaviour
 {
     [SerializeField] private PlayerWeapon weapon;
@@ -98,6 +102,10 @@ public class AmmoBar : MonoBehaviour
         findWeaponCoroutine = null;
     }
 
+    /// <summary>
+    /// 接続先のイベント購読を切り替え、最大弾数に合わせてセルを再生成する。
+    /// NetworkObjectが未有効ならローカル武器の探索へ戻る。
+    /// </summary>
     public void SetupWeapon(PlayerWeapon targetWeapon)
     {
         if (targetWeapon == null)

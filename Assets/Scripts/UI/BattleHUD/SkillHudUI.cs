@@ -2,6 +2,9 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
+/// <summary>
+/// 接続先のPlayerSkillControllerから選択中のスキルと残りクールダウンを読み、使用可否を表示する。
+/// </summary>
 public class SkillHudUI : MonoBehaviour
 {
     [System.Serializable]

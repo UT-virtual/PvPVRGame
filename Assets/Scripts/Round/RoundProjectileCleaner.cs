@@ -1,6 +1,9 @@
 using Fusion;
 using UnityEngine;
 
+/// <summary>
+/// ラウンドの切り替え時に残弾を探し、その弾のStateAuthorityを持つ場合だけDespawnする。
+/// </summary>
 public sealed class RoundProjectileCleaner
 {
     public void DespawnProjectiles()

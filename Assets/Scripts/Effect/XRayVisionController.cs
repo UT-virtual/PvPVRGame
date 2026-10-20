@@ -2,6 +2,10 @@ using System.Collections.Generic;
 using Fusion;
 using UnityEngine;
 
+/// <summary>
+/// InputAuthorityを持つプレイヤーの透視スキルに応じ、この端末上の他の生存者のマテリアルを置き換える。
+/// 効果終了・死亡・無効化時には保存した元のマテリアルへ戻す。
+/// </summary>
 [RequireComponent(typeof(PlayerSkillController))]
 [RequireComponent(typeof(PlayerHealth))]
 public class XRayVisionController : NetworkBehaviour
@@ -92,6 +96,7 @@ public class XRayVisionController : NetworkBehaviour
 
                 if (!originalMaterials.ContainsKey(renderer))
                 {
+                    // 初回だけ退避し、毎フレーム上書きされる透視マテリアルを復元元として保存しない。
                     originalMaterials[renderer] = renderer.materials;
                 }
 
@@ -185,6 +190,7 @@ public class XRayVisionController : NetworkBehaviour
             return;
         }
 
+        // 復元対象はマテリアルのみ。Renderer.enabledは死亡表示や観戦表示の制御と別に扱われている。
         renderer.materials = materials;
         originalMaterials.Remove(renderer);
     }

@@ -3,6 +3,10 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 
+/// <summary>
+/// 同期する試合フェーズと、準備・スキル選択・戦闘・結果表示をつなぐ窓口を持つ。
+/// StateAuthority側の参加者管理と進行を各Controllerへ委譲し、各端末のUIは同期フェーズと結果通知RPCで更新する。
+/// </summary>
 public class RoundManager : NetworkBehaviour
 {
     public static RoundManager Instance { get; private set; }
@@ -98,6 +102,7 @@ public class RoundManager : NetworkBehaviour
         TeamColor.Yellow
     };
 
+    // Spawn前とDespawn後は同期プロパティを読まず、操作・UIの許可を閉じる。
     private bool CanReadNetworkedPhase =>
         isSpawned && Object != null;
 
@@ -227,6 +232,7 @@ public class RoundManager : NetworkBehaviour
             return;
         }
 
+        // 同期フェーズへの進入時だけ開始演出を再生し、Renderごとの再起動を避ける。
         bool enteredRoundStarting =
             lastAppliedUIPhase != GamePhase.RoundStarting &&
             phase == GamePhase.RoundStarting;
@@ -328,6 +334,9 @@ public class RoundManager : NetworkBehaviour
         );
     }
 
+    /// <summary>
+    /// StateAuthorityでラウンド参加者を登録し、死亡購読・準備・得点・選択状態を初期化する。重複登録は無視する。
+    /// </summary>
     public void RegisterPlayer(PlayerHealth player)
     {
         if (player == null)
@@ -357,6 +366,10 @@ public class RoundManager : NetworkBehaviour
         );
     }
 
+    /// <summary>
+    /// 参加者の死亡購読と各管理状態を解除する。
+    /// ネットワークが有効なStateAuthorityでは、待機・選択フェーズの完了条件を再評価する。
+    /// </summary>
     public void UnregisterPlayer(PlayerHealth player)
     {
         if (player == null)
@@ -405,6 +418,9 @@ public class RoundManager : NetworkBehaviour
         return readyController.IsPlayerReady(player);
     }
 
+    /// <summary>
+    /// StateAuthorityで待機中の登録済み参加者を準備完了にし、人数と全員の準備条件を再判定する。
+    /// </summary>
     public void SetPlayerReady(PlayerHealth player)
     {
         if (player == null)
@@ -444,6 +460,10 @@ public class RoundManager : NetworkBehaviour
         skillSelectionController.SelectSkillBySlot(player, slotIndex);
     }
 
+    /// <summary>
+    /// 選択スロットの要求をRoundManagerのStateAuthorityへ届ける。
+    /// 対象は引数のPlayerRefから検索し、選択フェーズ・登録・候補を検証する。
+    /// </summary>
     [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
     public void RPC_RequestSelectSkillBySlot(PlayerRef playerRef, int slotIndex)
     {

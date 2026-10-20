@@ -2,6 +2,10 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
+/// <summary>
+/// スキル種別をカードの名称・説明・記号へ変換し、カーソル選択状態を表示する。
+/// 選択の送信や受理判定は行わない。
+/// </summary>
 public class SkillCardUI : MonoBehaviour
 {
     [SerializeField] private TMP_Text slotText;

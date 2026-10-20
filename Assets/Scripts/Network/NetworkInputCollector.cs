@@ -3,6 +3,10 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.InputSystem.Controls;
 
+/// <summary>
+/// ローカル端末の入力とXR姿勢を収集し、NetworkLauncher.OnInputに渡すPlayerNetworkInputを構築する。
+/// 視点は毎フレーム即時反映し、ゲーム状態の変更はPlayerController側に委ねる。
+/// </summary>
 public sealed class NetworkInputCollector
 {
     private readonly InputActionReference moveAction;
@@ -32,6 +36,7 @@ public sealed class NetworkInputCollector
     private Vector2 editorHmdEuler;
     private Quaternion currentHMD = Quaternion.identity;
 
+    // UpdateとOnInputは呼び出し間隔が異なるため、視点差分は加算し、単発操作は送信まで保持する。
     private Vector2 queuedLookInput;
     private bool jumpQueued;
     private bool reloadQueued;
@@ -42,7 +47,6 @@ public sealed class NetworkInputCollector
     private bool selectSkill3Queued;
     private bool selectSkill4Queued;
     private bool switchSkillQueued;
-    //wayo追記
     private bool wasBothVrTriggerPressed;
     private bool wasLeftTriggerPressed;
     private bool activateSkill1Queued;
@@ -149,6 +153,9 @@ public sealed class NetworkInputCollector
         DisableAction(reloadAction);
     }
 
+    /// <summary>
+    /// 毎フレームの視点差分を蓄積し、登録済みのローカルプレイヤーへ同時に反映する。
+    /// </summary>
     public void UpdateHmdAndLook()
     {
         UpdateHMD();
@@ -163,6 +170,10 @@ public sealed class NetworkInputCollector
         }
     }
 
+    /// <summary>
+    /// フレームで検出した単発操作を、次のCollectInputまで保持する。
+    /// 複数フレームで同じ操作が起きた場合は1つのフラグにまとめる。
+    /// </summary>
     public void QueueGameplayButtons()
     {
         if (ReadJumpPressed())
@@ -190,7 +201,6 @@ public sealed class NetworkInputCollector
             switchSkillQueued = true;
         }
 
-        //wayo追記
         if (ReadVrSkillActivation(out int skillSlot))
         {
             if (skillSlot == 0)
@@ -204,7 +214,10 @@ public sealed class NetworkInputCollector
         }
     }
 
-    //wayo追記
+    /// <summary>
+    /// 左トリガーの押下開始時に、左手の向きから発動するスキル枠を決める。
+    /// 水平に近い向きは発動せず、押し続けても再判定しない。
+    /// </summary>
     private bool ReadVrSkillActivation(out int skillSlot)
     {
         skillSlot = -1;
@@ -243,6 +256,10 @@ public sealed class NetworkInputCollector
         return false; // 横を向いているなど → 発動しない
     }
 
+    /// <summary>
+    /// NetworkLauncher.OnInputから呼び、保持した操作と最新の姿勢・移動・射撃状態をFusionへ渡す。
+    /// 送信データを設定した後に単発操作と視点差分を消費する。
+    /// </summary>
     public void CollectInput(NetworkInput input)
     {
         PlayerNetworkInput data = new PlayerNetworkInput();
@@ -288,7 +305,6 @@ public sealed class NetworkInputCollector
         buttons.Set((int)PlayerInputButton.SelectSkill3, selectSkill3Queued);
         buttons.Set((int)PlayerInputButton.SelectSkill4, selectSkill4Queued);
 
-        //wayo追記
         buttons.Set((int)PlayerInputButton.ActivateSkill1, activateSkill1Queued);
         buttons.Set((int)PlayerInputButton.ActivateSkill2, activateSkill2Queued);
 
@@ -315,6 +331,10 @@ public sealed class NetworkInputCollector
         Debug.Log($"[NetworkInputCollector] Registered local player: {playerController.name}");
     }
 
+    /// <summary>
+    /// 現在の入力先と一致する場合だけ参照を解除する。
+    /// 再接続などで旧プレイヤーの破棄が遅れても、新しい登録を消さない。
+    /// </summary>
     public bool UnregisterLocalPlayer(PlayerController playerController)
     {
         if (playerController == null)
@@ -349,7 +369,6 @@ public sealed class NetworkInputCollector
         selectSkill3Queued = false;
         selectSkill4Queued = false;
 
-        //wayo追記
         activateSkill1Queued = false;
         activateSkill2Queued = false;
     }
@@ -498,6 +517,7 @@ public sealed class NetworkInputCollector
 
             if (Mouse.current != null && lookAction.action.activeControl?.device == Mouse.current)
             {
+                // マウスはフレーム内の変位なので、速度入力のスティックと異なりdeltaTimeを掛けない。
                 return rawLook * mouseLookSpeed;
             }
 
@@ -587,7 +607,6 @@ public sealed class NetworkInputCollector
     {
         bool readyPressed = false;
 
-        //wayo追記
         if (IsVRActive)
         {
             bool bothPressed = AreBothVrTriggersPressed();
@@ -618,6 +637,7 @@ public sealed class NetworkInputCollector
             if (leftTriggerPressed && !wasLeftTriggerPressed)
             {
                 readyPressed = true;
+                // ゲームパッドの左トリガーは準備とリロードを兼用し、実行可否は受信側のフェーズ判定に従う。
                 reloadQueued = true;
             }
 
@@ -631,7 +651,6 @@ public sealed class NetworkInputCollector
         return readyPressed;
     }
 
-    //wayo追記
     private static bool IsXrTriggerHeld(string handPath)
     {
         InputControl triggerButton = InputSystem.FindControl($"{handPath}/triggerButton");

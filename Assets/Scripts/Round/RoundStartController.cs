@@ -3,6 +3,10 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
+/// <summary>
+/// スキル選択の完了を受け、選択内容を各プレイヤーへ設定して開始待機から戦闘へ移行する。
+/// RoundManagerのStateAuthority側の進行経路でコルーチンを開始・停止する。
+/// </summary>
 public sealed class RoundStartController
 {
     private readonly MonoBehaviour coroutineRunner;
@@ -50,6 +54,10 @@ public sealed class RoundStartController
         this.healthItemController = healthItemController;
     }
 
+    /// <summary>
+    /// 選択フェーズから1回だけ開始待機へ移り、選択済みスキルを設定する。
+    /// 待機時間はこのControllerが管理し、UIの演出終了は待たない。
+    /// </summary>
     public void StartRoundAfterSkillSelection()
     {
         if (getPhase() != RoundManager.GamePhase.SkillSelecting)

@@ -4,6 +4,10 @@ using System.Linq;
 using Fusion;
 using UnityEngine;
 
+/// <summary>
+/// サーバーで回復アイテムを配置し、取得された地点ごとに遅延再生成を管理する。
+/// ラウンド終了時は生成済みアイテムと再生成待ちをまとめて破棄する。
+/// </summary>
 public class HealthItemSpawner : MonoBehaviour
 {
     [Header("Health Item")]
@@ -25,6 +29,10 @@ public class HealthItemSpawner : MonoBehaviour
 
     private int currentItemCount;
 
+    /// <summary>
+    /// 既存配置と再生成待ちを消去し、人数の半分（最低1個、地点数を上限）を配置する。
+    /// 実際のSpawnはサーバーだけで行う。
+    /// </summary>
     public void SetupItemsForPlayerCount(int playerCount)
     {
         ClearAllItems();
@@ -67,6 +75,10 @@ public class HealthItemSpawner : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// 取得済み地点の参照を外し、その地点の再生成待ちを1つだけ予約する。
+    /// HealthItemのStateAuthority側の取得成功経路から呼ぶ。
+    /// </summary>
     public void NotifyItemPickedUp(int spawnIndex)
     {
         if (spawnedItems.ContainsKey(spawnIndex))
@@ -84,6 +96,10 @@ public class HealthItemSpawner : MonoBehaviour
         respawnCoroutines[spawnIndex] = coroutine;
     }
 
+    /// <summary>
+    /// 先に再生成コルーチンをすべて止め、サーバーでは生成済みアイテムもDespawnする。
+    /// ラウンド終了後に遅延生成が残らないよう、配置情報も消去する。
+    /// </summary>
     public void ClearAllItems()
     {
         foreach (Coroutine coroutine in respawnCoroutines.Values)
@@ -121,6 +137,7 @@ public class HealthItemSpawner : MonoBehaviour
 
         respawnCoroutines.Remove(spawnIndex);
 
+        // 待機中に終了フェーズへ移っていれば再生成しない。RoundManager未配置時は生成を継続する。
         if (RoundManager.Instance != null && !RoundManager.Instance.CanUseWeapons)
         {
             yield break;

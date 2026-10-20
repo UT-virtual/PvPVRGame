@@ -1,6 +1,10 @@
 using System;
 using UnityEngine;
 
+/// <summary>
+/// 地表法線を基準とする移動座標系、接地、重力、ジャンプをCharacterControllerで処理する。
+/// ネットワーク入力やAuthorityの判定は呼び出し元のPlayerControllerが担当する。
+/// </summary>
 [RequireComponent(typeof(CharacterController))]
 public class PlayerMove : MonoBehaviour
 {
@@ -92,6 +96,10 @@ public class PlayerMove : MonoBehaviour
         aimForward = Vector3.Cross(aimRight, surfaceUp).normalized;
     }
 
+    /// <summary>
+    /// 現在の地表上方向から接地を調べ、法線と接地距離を更新する。
+    /// 接地を検出できない場合は、設定済みの惑星中心から上方向を補う。
+    /// </summary>
     public void ProbeGround()
     {
         Vector3 probeOrigin = transform.position + surfaceUp * groundProbeStartOffset;
@@ -136,6 +144,10 @@ public class PlayerMove : MonoBehaviour
         return Mathf.Max(0.02f, offset);
     }
 
+    /// <summary>
+    /// 視線の水平成分を現在の地表へ投影し、移動に使う直交基底を再構築する。
+    /// 地表法線を更新した後に呼ぶ。
+    /// </summary>
     public void UpdateAimBasis()
     {
         aimForward = Vector3.ProjectOnPlane(aimForward, surfaceUp);
@@ -147,6 +159,7 @@ public class PlayerMove : MonoBehaviour
 
         if (aimForward.sqrMagnitude < 0.001f)
         {
+            // 前方が法線と平行になった場合も、平行でない軸から基底を復元してゼロ方向を避ける。
             Vector3 reference = Mathf.Abs(Vector3.Dot(surfaceUp, Vector3.up)) < 0.99f
                 ? Vector3.up
                 : Vector3.forward;
@@ -203,7 +216,10 @@ public class PlayerMove : MonoBehaviour
         controller.Move(moveDir * moveSpeed * moveSpeedMultiplier * deltaTime);
     }
 
-    //VRでHMDの向きに進む処理
+    /// <summary>
+    /// HMDの視線を地表へ投影して前後移動の基準にする。
+    /// 視線が地表法線と平行ならAimForwardを代用し、右方向は前方と法線から再計算する。
+    /// </summary>
     public void MoveOnSurfaceVR(Vector2 input, float deltaTime, Vector3 moveForward,Vector3 moveRight)
     {
         if (input.sqrMagnitude < 0.01f)
@@ -254,6 +270,10 @@ public class PlayerMove : MonoBehaviour
         );
     }
 
+    /// <summary>
+    /// ProbeGroundで得た接地状態に従い、接地補正または重力・ジャンプを適用する。
+    /// 着地で空中ジャンプ回数を補充し、落下中だけ落下用の重力倍率を使う。
+    /// </summary>
     public void ApplyGravityAndJump(bool jumpPressed, float deltaTime)
     {
         if (isGrounded)
@@ -341,6 +361,10 @@ public class PlayerMove : MonoBehaviour
         aimForward = Vector3.Cross(aimRight, surfaceUp).normalized;
     }
 
+    /// <summary>
+    /// 落下・接地・空中ジャンプの状態だけを初期化し、移動の基底は維持する。
+    /// 復活地点の地表へ向きも合わせる場合はResetAfterRespawnを使う。
+    /// </summary>
     public void ResetMovementState()
     {
         verticalSpeed = 0.0f;
@@ -350,6 +374,9 @@ public class PlayerMove : MonoBehaviour
         remainingAirJumps = extraAirJumpCount;
     }
 
+    /// <summary>
+    /// 復活位置へ移した後に呼び、落下速度と接地状態を消去して地表基準の向きも即時に再構築する。
+    /// </summary>
     public void ResetAfterRespawn()
     {
         verticalSpeed = 0.0f;

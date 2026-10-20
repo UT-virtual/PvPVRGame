@@ -7,6 +7,10 @@ using UnityEngine.InputSystem;
 using TMPro;
 using UnityEngine.UI;
 
+/// <summary>
+/// 接続UI、セッション、プレイヤー生成、入力収集の窓口をまとめる。
+/// Updateでローカル入力を蓄積し、Fusionのコールバックを各担当Controllerへ振り分ける。
+/// </summary>
 public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
 {
     [Header("Network")]
@@ -211,6 +215,10 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
         skillSelectionInputController.OnServerSkillSelectionProgress(playerRef, selectedCount);
     }
 
+    /// <summary>
+    /// ローカルプレイヤーの生成・復活を待機UIへ通知する。
+    /// この通知だけで待機フェーズに変更することはない。
+    /// </summary>
     public void NotifyLocalPlayerSpawnedOnWaitingPlanet()
     {
         Debug.Log("[NetworkLauncher] Local player spawned on waiting planet.");
@@ -261,12 +269,16 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
         playerSpawner.OnPlayerLeft(runner, player);
     }
 
+    /// <summary>
+    /// Fusionが入力を要求したタイミングで、Updateから蓄積したローカル入力を送信データへ移す。
+    /// </summary>
     public void OnInput(NetworkRunner runner, NetworkInput input)
     {
         inputCollector.CollectInput(input);
     }
 
     public void OnInputMissing(NetworkRunner runner, PlayerRef player, NetworkInput input) { }
+    // 終了・切断通知からの自動復旧は行わない。待機中の再接続入力はNetworkSessionControllerへ渡す。
     public void OnShutdown(NetworkRunner runner, ShutdownReason shutdownReason) { }
     public void OnConnectedToServer(NetworkRunner runner) { }
     public void OnDisconnectedFromServer(NetworkRunner runner, NetDisconnectReason reason) { }

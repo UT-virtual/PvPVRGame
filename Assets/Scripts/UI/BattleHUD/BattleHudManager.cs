@@ -1,6 +1,10 @@
 using UnityEngine;
 using Fusion;
 
+/// <summary>
+/// ローカルプレイヤーの戦闘フェーズでHUDを表示する。
+/// 親にNetworkObjectがないシーン配置のHUDも表示対象として扱う。
+/// </summary>
 public class BattleHudManager : MonoBehaviour
 {
     [SerializeField] private GameObject battleHudRoot;

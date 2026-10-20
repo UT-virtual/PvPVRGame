@@ -2,6 +2,10 @@ using Fusion;
 using System.Collections.Generic;
 using UnityEngine;
 
+/// <summary>
+/// サーバーで参加者のNetworkObjectを生成し、参加者をInputAuthorityとして割り当てる。
+/// 生成したオブジェクトを保持し、退出時のDespawnと識別情報の初期化を担当する。
+/// </summary>
 public sealed class NetworkPlayerSpawner
 {
     private readonly NetworkPrefabRef playerPrefab;
@@ -24,6 +28,9 @@ public sealed class NetworkPlayerSpawner
         this.debugSpectatorDummyCount = debugSpectatorDummyCount;
     }
 
+    /// <summary>
+    /// サーバーだけが参加者のプレイヤーを生成する。Spawnのplayer引数をInputAuthorityに割り当てる。
+    /// </summary>
     public void OnPlayerJoined(NetworkRunner runner, PlayerRef player)
     {
         if (runner == null)

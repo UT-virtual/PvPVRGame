@@ -1,6 +1,10 @@
 using UnityEngine;
 using Fusion;
 
+/// <summary>
+/// 移動・武器・HPのローカルイベントを購読して効果音を再生する。
+/// 独自の音声通知RPCは持たず、装填中のループ音は専用AudioSourceで管理する。
+/// </summary>
 [RequireComponent(typeof(PlayerController))]
 [RequireComponent(typeof(AudioSource))]
 [RequireComponent(typeof(PlayerHealth))]
@@ -37,6 +41,7 @@ public class PlayerSound : NetworkBehaviour
             audioSource.playOnAwake = false;
         }
 
+        // 装填のループだけを停止できるよう、単発効果音とはAudioSourceを分ける。
         reloadAudioSource = gameObject.AddComponent<AudioSource>();
         reloadAudioSource.playOnAwake = false;
         // メインのAudioSourceと同じ3D設定（空間音響）を引き継ぐ
@@ -114,15 +119,13 @@ public class PlayerSound : NetworkBehaviour
     {
         if(reloadingSE != null && audioSource != null)
         {
-            reloadAudioSource.pitch = Random.Range(0.9f, 1.1f); // 0.95倍 〜 1.05倍
-            reloadAudioSource.volume = Random.Range(1.2f, 1.3f); // 85% 〜 100%の音量
+            reloadAudioSource.pitch = Random.Range(0.9f, 1.1f); // 0.9倍 〜 1.1倍
+            reloadAudioSource.volume = Random.Range(1.2f, 1.3f); // 120% 〜 130%の音量
 
-            // 2. 音声をセットし、ループ再生を有効にする
             reloadAudioSource.clip = reloadingSE;
             reloadAudioSource.loop = true;
 
-            // 3. 【今回の工夫】再生開始位置をランダムに変更する
-            // クリップ全体の長さ（秒）の範囲内で、ランダムなスタート地点を決定
+            // 装填音の反復感を減らすため、ループの開始位置を毎回変える。
             reloadAudioSource.time = Random.Range(0f, reloadingSE.length);
 
             reloadAudioSource.Play();

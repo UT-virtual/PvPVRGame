@@ -2,6 +2,9 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
+/// <summary>
+/// SpectatorCameraControllerの観戦状態と対象のチーム色を読み、観戦案内を表示する。
+/// </summary>
 public class SpectatorStatusUI : MonoBehaviour
 {
     [Header("References")]

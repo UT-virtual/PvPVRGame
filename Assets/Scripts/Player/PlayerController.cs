@@ -1,6 +1,10 @@
 using Fusion;
 using UnityEngine;
 
+/// <summary>
+/// 受信入力をStateAuthorityのネットワークTickで解釈し、移動・武器・スキル・準備操作を各コンポーネントへ振り分ける。
+/// InputAuthority側の視点は別途即時更新し、アニメーションと観戦用視点には同期状態を用いる。
+/// </summary>
 [RequireComponent(typeof(NetworkObject))]
 [RequireComponent(typeof(CharacterController))]
 [RequireComponent(typeof(PlayerHealth))]
@@ -93,6 +97,10 @@ public class PlayerController : NetworkBehaviour
         }
     }
 
+    /// <summary>
+    /// StateAuthorityで入力の押下差分を判定し、フェーズの許可に従って操作を実行する。
+    /// この実装ではInputAuthorityだけを持つ端末で移動・戦闘処理は実行しない。
+    /// </summary>
     public override void FixedUpdateNetwork()
     {
         if (playerHealth != null && playerHealth.IsDead)
@@ -129,7 +137,6 @@ public class PlayerController : NetworkBehaviour
         bool switchSkillPressed = pressedButtons.IsSet((int)PlayerInputButton.SwitchSkill);
         bool fireHeld = input.Buttons.IsSet((int)PlayerInputButton.Fire);
 
-        //wayo追記
         bool activateSkill1Pressed = pressedButtons.IsSet((int)PlayerInputButton.ActivateSkill1);
         bool activateSkill2Pressed = pressedButtons.IsSet((int)PlayerInputButton.ActivateSkill2);
 
@@ -177,6 +184,7 @@ public class PlayerController : NetworkBehaviour
         playerMove.ProbeGround();
         playerMove.UpdateAimBasis();
 
+        // ローカル視点は入力収集時に反映済み。StateAuthorityでリモート所有者の視線だけを復元する。
         if (!Object.HasInputAuthority)
         {
             if (input.IsVR)
@@ -197,7 +205,6 @@ public class PlayerController : NetworkBehaviour
             }
         }
 
-        //VRではHMDの向きを参照する
         if (input.IsVR)
         {
             playerMove.MoveOnSurfaceVR(moveInput, deltaTime, playerLook.ViewForward, playerMove.AimRight);
@@ -207,6 +214,7 @@ public class PlayerController : NetworkBehaviour
             playerMove.MoveOnSurface(moveInput, deltaTime);
         }
 
+        // 移動先で法線が変わるため、姿勢整列と重力の前に接地基準を再取得する。
         playerMove.ProbeGround();
         playerMove.UpdateAimBasis();
 
@@ -227,7 +235,6 @@ public class PlayerController : NetworkBehaviour
             playerSkillController.SwitchCurrentSkill();
         }
 
-        //wayo追記
         if (activateSkill1Pressed && playerSkillController != null)
         {
             playerSkillController.TryActivateSkillBySlot(0);
@@ -312,6 +319,10 @@ public class PlayerController : NetworkBehaviour
         NetworkedSpectatorViewUp = viewUp.normalized;
     }
 
+    /// <summary>
+    /// Tickで同期された移動状態をAnimatorへ反映する。
+    /// ここでは移動や射撃などのゲーム状態を進めない。
+    /// </summary>
     public override void Render()
     {
         if (animator == null)
@@ -360,6 +371,10 @@ public class PlayerController : NetworkBehaviour
         return playerLook.ViewForward;
     }
 
+    /// <summary>
+    /// 入力収集のフレームで視点だけを即時反映する。
+    /// StateAuthority側で同じ入力を扱う際は、InputAuthorityも持つ場合の二重適用を避ける。
+    /// </summary>
     public void ApplyLocalLook(Vector2 lookInput, bool isVR, Quaternion hmdRotation)
     {
         if (playerHealth != null && playerHealth.IsDead)

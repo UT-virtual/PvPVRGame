@@ -4,6 +4,10 @@ using Unity.Cinemachine;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
+/// <summary>
+/// ローカルプレイヤーの戦闘中の死亡を検出し、待機時間後に生存者の同期視点へカメラとHUDを切り替える。
+/// 観戦対象のモデルを端末上で一時的に隠し、対象切替や観戦終了時に保存した表示状態へ戻す。
+/// </summary>
 public class SpectatorCameraController : MonoBehaviour
 {
     [Header("Camera")]
@@ -150,6 +154,7 @@ public class SpectatorCameraController : MonoBehaviour
 
         PlayerController targetController = currentTarget.GetComponent<PlayerController>();
 
+        // 他プレイヤーのローカル視点計算に依存せず、StateAuthorityが同期した観戦用視点を優先する。
         if (targetController != null && targetController.HasSpectatorView)
         {
             Quaternion rotation = Quaternion.LookRotation(
@@ -465,6 +470,7 @@ public class SpectatorCameraController : MonoBehaviour
                 continue;
             }
 
+            // 元から非表示だったRendererもあるため、終了時に一律で有効化せず個別の状態を保存する。
             previousRendererStates[renderer] = renderer.enabled;
             renderer.enabled = false;
         }

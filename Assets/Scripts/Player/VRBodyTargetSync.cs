@@ -1,6 +1,10 @@
 using Fusion;
 using UnityEngine;
 
+/// <summary>
+/// 入力内のHMD・両手姿勢を地表基準のワールド座標へ変換し、頭と手のターゲット姿勢を同期する。
+/// StateAuthorityがTickで算出し、各端末はRender／LateUpdateでターゲットへ適用する。
+/// </summary>
 [RequireComponent(typeof(PlayerMove))]
 [RequireComponent(typeof(PlayerCamera))]
 public class VRBodyTargetSync : NetworkBehaviour
@@ -65,6 +69,10 @@ public class VRBodyTargetSync : NetworkBehaviour
         UpdateNetworkedTargets(input);
     }
 
+    /// <summary>
+    /// HMDから手までの相対位置を地表基準へ回転し、固定のカメラ位置を頭の基点としてワールド姿勢を作る。
+    /// 追跡位置がゼロまたは手のAction未設定なら、Prefab配置由来の手オフセットを代用する。
+    /// </summary>
     private void UpdateNetworkedTargets(PlayerNetworkInput input)
     {
         if (playerMove == null || playerCamera == null)
@@ -100,6 +108,7 @@ public class VRBodyTargetSync : NetworkBehaviour
             ? input.HMDPosition
             : Vector3.zero;
 
+        // 追跡空間の原点やHMDの高さを二重加算しないよう、手はHMDからの相対位置として扱う。
         Vector3 leftLocalOffset =
             hasHmdPosition && hasLeftHandPosition
                 ? input.LeftHandPosition - hmdLocalPosition

@@ -1,5 +1,9 @@
 using UnityEngine;
 
+/// <summary>
+/// RoundManagerの待機・戦闘フェーズに応じてBGMを切り替える。
+/// それ以外のフェーズでは現在の再生を維持する。
+/// </summary>
 [RequireComponent(typeof(AudioSource))]
 public class BgmManager : MonoBehaviour
 {
@@ -10,18 +14,15 @@ public class BgmManager : MonoBehaviour
 
     private void Update()
     {
-        // RoundManagerが存在しない場合は何もしない
         if (RoundManager.Instance == null)
         {
             return;
         }
 
-        // 待機画面のBGM再生判定
         if (RoundManager.Instance.IsWaitingForReady)
         {
             PlayBgm(waitingBgm);
         }
-        // 戦闘画面のBGM再生判定
         else if (RoundManager.Instance.IsRoundPlaying)
         {
             PlayBgm(battleBgm);

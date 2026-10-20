@@ -4,6 +4,10 @@ using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 
+/// <summary>
+/// 死亡通知からラウンド終了を判定し、得点確定、結果通知、次の選択または試合終了後の待機復帰を進める。
+/// RoundManagerのStateAuthority側の進行経路から使用し、終了処理の重複を抑止する。
+/// </summary>
 public sealed class RoundFlowController
 {
     private readonly MonoBehaviour coroutineRunner;
@@ -108,6 +112,10 @@ public sealed class RoundFlowController
         this.logReadyStates = logReadyStates;
     }
 
+    /// <summary>
+    /// 戦闘中の死亡を受け、生存人数が1以下なら終了フェーズへ移る。
+    /// 終了フラグをコルーチン開始前に立て、同じラウンドの得点加算と結果通知の重複を防ぐ。
+    /// </summary>
     public void HandlePlayerDied(PlayerHealth deadPlayer)
     {
         if (deadPlayer == null)
@@ -253,6 +261,7 @@ public sealed class RoundFlowController
 
         List<PlayerHealth> validPlayers = getValidPlayers();
 
+        // 得点・準備・選択・履歴を消去して全員を復活させてから、再び待機操作を許可する。
         scoreCalculator.ResetPoints(validPlayers);
         readyController.ResetReadyStates(validPlayers);
         skillSelectionController.ResetSelectionStates(validPlayers);

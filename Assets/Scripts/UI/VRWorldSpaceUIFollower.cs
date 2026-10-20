@@ -1,5 +1,9 @@
 using UnityEngine;
 
+/// <summary>
+/// カメラ前方にワールド空間UIを追従させ、視線方向の変化を平滑化する。
+/// 遅い実行順のLateUpdateでカメラ姿勢を読み、ピッチ追従と表裏の向きを設定で切り替える。
+/// </summary>
 [DefaultExecutionOrder(10000)]
 public class VRWorldSpaceUIFollower : MonoBehaviour
 {

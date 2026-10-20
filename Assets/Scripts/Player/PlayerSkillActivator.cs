@@ -1,6 +1,10 @@
 using System;
 using UnityEngine;
 
+/// <summary>
+/// 検証済みのスキルを発動し、効果時間の開始と特殊弾装填・次弾強化などの一度限りの操作を行う。
+/// Authorityと発動可否は呼び出し元のPlayerSkillControllerが確認する。
+/// </summary>
 public sealed class PlayerSkillActivator
 {
     private readonly PlayerWeapon playerWeapon;
@@ -24,6 +28,10 @@ public sealed class PlayerSkillActivator
         this.applySkillEffects = applySkillEffects;
     }
 
+    /// <summary>
+    /// 呼び出し元で検証済みのスキルを発動する。
+    /// 特殊弾装填と次弾強化は一度だけ実行し、その残存状態は武器側が管理する。
+    /// </summary>
     public void Activate(PlayerSkillType skill)
     {
         switch (skill)

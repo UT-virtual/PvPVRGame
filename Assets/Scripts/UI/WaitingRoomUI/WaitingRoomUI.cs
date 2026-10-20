@@ -5,6 +5,10 @@ using UnityEngine;
 using UnityEngine.UI;
 using static RoundManager;
 
+/// <summary>
+/// ローカルプレイヤーの存在と同期フェーズから待機パネルの表示を決める。
+/// 端末内のPlayerHealthを列挙し、同期されたチーム色と準備状態を表示する。
+/// </summary>
 public class WaitingRoomUI : MonoBehaviour
 {
     [Header("UI References")]
@@ -28,6 +32,9 @@ public class WaitingRoomUI : MonoBehaviour
         // 実際に表示するかどうかは Update() で判定する
     }
 
+    /// <summary>
+    /// 現在の一覧とパネルを隠す。次のUpdateではローカルプレイヤーの存在とフェーズから表示を再判定する。
+    /// </summary>
     public void HideRoomUI()
     {
         ClearEntries();
@@ -64,6 +71,7 @@ public class WaitingRoomUI : MonoBehaviour
             roundManager.IsNetworkReady &&
             roundManager.CanShowWaitingRoomUI;
 
+        // ローカル生成とRoundManagerのSpawn順は固定せず、同期フェーズが読めるまで待機表示を許可する。
         bool roundManagerNotReadyYet =
             roundManager == null ||
             !roundManager.IsNetworkReady;

@@ -3,6 +3,10 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
+/// <summary>
+/// 勝者と累積勝利数を表示し、表示を閉じると生成したスコア行を破棄する。
+/// ネットワーク経路ではRoundManagerのRPCからチーム別の集計値を受け取る。
+/// </summary>
 public class RoundEndUI : MonoBehaviour
 {
     [Header("Root")]
@@ -43,6 +47,10 @@ public class RoundEndUI : MonoBehaviour
         RefreshScoreList(players, points);
     }
 
+    /// <summary>
+    /// 結果RPCで受け取った勝者と各チームの累積勝利数を表示する。
+    /// winnerTeamIndexが負なら勝者なし、teamMaskのビットが立つチームだけ一覧へ追加する。
+    /// </summary>
     public void ShowTeamScores(
     int roundNumber,
     int winnerTeamIndex,

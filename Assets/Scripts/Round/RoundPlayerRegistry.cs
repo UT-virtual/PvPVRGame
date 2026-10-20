@@ -3,6 +3,10 @@ using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 
+/// <summary>
+/// ラウンド参加者の登録と死亡イベントの購読を管理し、登録順でチーム色を割り当てる。
+/// 得点・準備・スキルの状態はRoundManagerが別の担当へ登録する。
+/// </summary>
 public sealed class RoundPlayerRegistry
 {
     private readonly List<PlayerHealth> players = new();

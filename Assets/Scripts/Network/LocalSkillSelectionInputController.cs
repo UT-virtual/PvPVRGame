@@ -2,9 +2,12 @@ using Fusion;
 using System;
 using UnityEngine;
 using UnityEngine.InputSystem;
-//wayo追記
 using UnityEngine.InputSystem.Controls;
 
+/// <summary>
+/// スキル選択中のローカルカーソルと2段階の選択進行を管理し、RoundManagerへRPCで選択を要求する。
+/// 表示用の進行は送信時に先行更新し、選択の受理判定はStateAuthority側に委ねる。
+/// </summary>
 public sealed class LocalSkillSelectionInputController
 {
     private readonly InputActionReference moveAction;
@@ -20,7 +23,6 @@ public sealed class LocalSkillSelectionInputController
     private bool wasSkillSelecting;
     private bool skillSelectionMoveHeld;
     private bool localSkillSelectionConfirmed;
-    //wayo追記
     private bool wasLeftVrTriggerPressed;
     private bool wasRightVrTriggerPressed;
 
@@ -42,6 +44,10 @@ public sealed class LocalSkillSelectionInputController
         this.getLocalPlayerController = getLocalPlayerController;
     }
 
+    /// <summary>
+    /// 選択フェーズならローカル選択UIの操作を処理し、通常のゲーム入力収集を止めるためtrueを返す。
+    /// フェーズ外ではローカルの選択進行をリセットする。
+    /// </summary>
     public bool UpdateIfSkillSelecting()
     {
         bool isSkillSelecting =
@@ -58,6 +64,9 @@ public sealed class LocalSkillSelectionInputController
         return true;
     }
 
+    /// <summary>
+    /// 自分宛ての選択進捗通知だけを受け、2つ受理された場合にローカルの完了表示を確定する。
+    /// </summary>
     public void OnServerSkillSelectionProgress(PlayerRef playerRef, int selectedCount)
     {
         NetworkRunner runner = getRunner();
@@ -94,10 +103,10 @@ public sealed class LocalSkillSelectionInputController
             localFirstSelectedSkill = PlayerSkillType.None;
             localSkillSelectionConfirmed = false;
 
+            // 画面を開く前から倒していたスティックを、そのまま最初のカーソル移動として扱わない。
             skillSelectionMoveHeld = IsSkillSelectionNavigateActive(navigateInput);
             wasSkillSelecting = true;
 
-            //wayo追記
             wasLeftVrTriggerPressed = IsXrTriggerHeld("<XRController>{LeftHand}");
             wasRightVrTriggerPressed = IsXrTriggerHeld("<XRController>{RightHand}");
             return;
@@ -246,7 +255,6 @@ public sealed class LocalSkillSelectionInputController
         return false;
     }
 
-    //wayo追記
     private bool ReadVrTriggerConfirmPressed()
     {
         if (!UnityEngine.XR.XRSettings.isDeviceActive)
@@ -273,6 +281,10 @@ public sealed class LocalSkillSelectionInputController
         return pressedThisFrame;
     }
 
+    /// <summary>
+    /// 空枠や同一スキルを除外して選択RPCを送り、応答を待たず次の選択段階へ進める。
+    /// 2回目の送信時点でローカルを完了表示にし、サーバーの受理結果による巻き戻しは行わない。
+    /// </summary>
     private void QueueSelectedSkillSlot()
     {
         if (!CanConfirmCurrentSkillSelection())
@@ -305,7 +317,6 @@ public sealed class LocalSkillSelectionInputController
             skillSelectionMoveHeld = true;
             localSkillSelectionConfirmed = false;
 
-            //wayo追記
             IsXrTriggerHeld("<XRController>{LeftHand}");
             IsXrTriggerHeld("<XRController>{RightHand}");
             return;
