@@ -14,6 +14,9 @@ public class BattleStartUI : MonoBehaviour
     [SerializeField] private float engageDuration = 1.5f;
     [SerializeField] private RoundManager roundManager;
 
+    public event Action<int> OnCountdownTick;       // 追加
+    public event Action<int> OnRoundStartAnnounced; // 追加
+
     private void Start()
     {
 
@@ -27,10 +30,12 @@ public class BattleStartUI : MonoBehaviour
         // 3 → 2 → 1
         for (int i = 3; i >= 1; i--)
         {
+            OnCountdownTick?.Invoke(i); // 追加
             yield return StartCoroutine(AnimateText(i.ToString()));
         }
 
         // ENGAGE表示
+        OnRoundStartAnnounced?.Invoke(roundManager != null ? roundManager.CurrentRound : 1); // 追加
         yield return StartCoroutine(AnimateText("Round " + roundManager.CurrentRound + " Start!"));
 
         // フェードアウト

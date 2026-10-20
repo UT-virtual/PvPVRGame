@@ -20,6 +20,7 @@ public class Projectile : NetworkBehaviour
     private bool explodeOnHit;
     private float explosionRadius;
     private float explosionDamage;
+    private bool hasImpacted;
 
     private PlayerHealth owner;
     private bool initialized;
@@ -156,24 +157,28 @@ public class Projectile : NetworkBehaviour
 
         if (explodeOnHit)
         {
-            ApplyExplosionDamage(transform.position);
+            bool hitByExplosion = ApplyExplosionDamage(transform.position); // 変更（戻り値を受け取る）
+            bool hitEnemy = (targetHealth != null && !targetHealth.IsDead) || hitByExplosion; // 追加
+            NotifyOwnerProjectileHit(hitEnemy, transform.position); // 追加
             Runner.Despawn(Object);
             return;
         }
 
+        bool isEnemyHit = targetHealth != null && !targetHealth.IsDead; // 追加
         if (targetHealth != null)
         {
             targetHealth.TakeDamage(damage);
         }
 
+        NotifyOwnerProjectileHit(isEnemyHit, transform.position); // 追加
         Runner.Despawn(Object);
     }
 
-    private void ApplyExplosionDamage(Vector3 explosionPosition)
+    private bool ApplyExplosionDamage(Vector3 explosionPosition)
     {
         if (explosionRadius <= 0.0f || explosionDamage <= 0.0f)
         {
-            return;
+            return false;   //変更
         }
 
         Collider[] hitColliders = Physics.OverlapSphere(
@@ -211,6 +216,7 @@ public class Projectile : NetworkBehaviour
 
             targetHealth.TakeDamage(explosionDamage);
         }
+        return damagedTargets.Count > 0; //追加
     }
 
     private void SetupCollision()
@@ -234,5 +240,20 @@ public class Projectile : NetworkBehaviour
         rb.isKinematic = true;
         rb.useGravity = false;
         rb.collisionDetectionMode = CollisionDetectionMode.ContinuousSpeculative;
+    }
+
+    // 追加
+    private void NotifyOwnerProjectileHit(bool hitEnemy, Vector3 hitPosition)
+    {
+        if (owner == null)
+        {
+            return;
+        }
+
+        PlayerSound ownerSound = owner.GetComponent<PlayerSound>();
+        if (ownerSound != null)
+        {
+            ownerSound.NotifyProjectileHitFromServer(hitEnemy, hitPosition);
+        }
     }
 }

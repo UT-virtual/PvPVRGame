@@ -1,3 +1,4 @@
+using System;
 using Fusion;
 using UnityEngine;
 
@@ -69,6 +70,8 @@ public class PlayerSkillController : NetworkBehaviour
     private PlayerSkillSettings skillSettings;
     private PlayerSkillEffectApplier effectApplier;
     private PlayerSkillActivator skillActivator;
+
+    public event Action<PlayerSkillType> OnSkillActivated;
 
     [Networked] public PlayerSkillType CurrentRoundSkill { get; private set; }
     [Networked] public PlayerSkillType CurrentRoundSecondSkill { get; private set; }
@@ -411,6 +414,8 @@ public class PlayerSkillController : NetworkBehaviour
             $"[Skill] {gameObject.name}: BeginActiveSkill. " +
             $"Slot={slotIndex + 1}, Skill={skill}, Duration={duration}"
         );
+
+        OnSkillActivated?.Invoke(skill); // 追加
     }
 
     private void UpdateSkillState()
