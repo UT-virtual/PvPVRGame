@@ -518,20 +518,6 @@ HPの減少・回復・死亡をStateAuthority側で処理しています。
 
 <details>
 
-<summary><strong>ネットワーク効果音と状態復元</strong></summary>
-
-### 主なコード
-
-- [PlayerSound.cs](Assets/Scripts/Sound/PlayerSound.cs)
-
-射撃・ジャンプ・リロード・死亡などのイベントをStateAuthority側からRPCで通知しています。
-
-装填中のループ音は、同期された装填状態も参照し、途中参加などで開始イベントを受信していない場合にも再生状態を復元する構成です。
-
-</details>
-
-<details>
-
 <summary><strong>透視スキルとプレイヤー描画の制御</strong></summary>
 
 ### 主なコード
