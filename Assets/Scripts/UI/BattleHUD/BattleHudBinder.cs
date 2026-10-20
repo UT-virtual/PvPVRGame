@@ -2,6 +2,10 @@ using System.Collections;
 using Fusion;
 using UnityEngine;
 
+/// <summary>
+/// InputAuthorityを持つプレイヤーを継続探索し、HP・弾薬・スキルのHUD参照を接続する。
+/// 観戦中は自動接続を抑止し、SpectatorCameraControllerが指定する対象へ切り替える。
+/// </summary>
 public class BattleHudBinder : MonoBehaviour
 {
     [SerializeField] private HealthBar healthBar;
@@ -49,6 +53,11 @@ public class BattleHudBinder : MonoBehaviour
 
     private void StartBindLocalPlayer()
     {
+        if (!isActiveAndEnabled)
+        {
+            return;
+        }
+
         if (bindLocalCoroutine != null)
         {
             StopCoroutine(bindLocalCoroutine);
@@ -61,6 +70,7 @@ public class BattleHudBinder : MonoBehaviour
     {
         while (true)
         {
+            // 再生成されたローカルプレイヤーにも追従するが、観戦中にHUDを自分へ戻さない。
             if (!spectatorOverride)
             {
                 PlayerHealth localPlayer = FindLocalPlayerHealth();
@@ -75,6 +85,9 @@ public class BattleHudBinder : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// 観戦による固定を解除し、ローカルプレイヤーへ接続する。未生成なら継続探索する。
+    /// </summary>
     public void BindToLocalPlayer()
     {
         spectatorOverride = false;
@@ -87,19 +100,46 @@ public class BattleHudBinder : MonoBehaviour
         }
         else
         {
+            ClearBindings();
             StartBindLocalPlayer();
         }
     }
 
+    /// <summary>
+    /// 自動のローカル接続を抑止して観戦対象へHUDを接続する。
+    /// 観戦終了時はBindToLocalPlayerで固定を解除する。
+    /// </summary>
     public void BindToSpectatorTarget(PlayerHealth playerHealth)
     {
         spectatorOverride = true;
         BindToPlayerInternal(playerHealth);
     }
 
+    /// <summary>
+    /// HUDの参照先だけを差し替える。自動接続を固定しないため、観戦にはBindToSpectatorTargetを使う。
+    /// </summary>
     public void BindToPlayer(PlayerHealth playerHealth)
     {
         BindToPlayerInternal(playerHealth);
+    }
+
+    /// <summary>
+    /// 観戦対象がいない間は購読と表示値を消去する。ローカル探索を固定し、古い対象のHPを残さない。
+    /// </summary>
+    public void ClearSpectatorTarget()
+    {
+        spectatorOverride = true;
+        ClearBindings();
+    }
+
+    private void ClearBindings()
+    {
+        currentHealth = null;
+        currentWeapon = null;
+        currentSkillController = null;
+        if (healthBar != null) healthBar.SetupPlayerHealth(null);
+        if (ammoBar != null) ammoBar.SetupWeapon(null);
+        if (skillHudUI != null) skillHudUI.SetupSkillController(null);
     }
 
     private void BindToPlayerInternal(PlayerHealth playerHealth)

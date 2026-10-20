@@ -2,6 +2,10 @@ using Fusion;
 using System.Collections.Generic;
 using UnityEngine;
 
+/// <summary>
+/// サーバーで対戦者のNetworkObjectを生成・破棄し、表示番号とスポーン枠を管理する。
+/// 生成を許可する役割・フェーズの検証はNetworkParticipantRegistryが担当する。
+/// </summary>
 public sealed class NetworkPlayerSpawner
 {
     private readonly NetworkPrefabRef playerPrefab;
@@ -12,6 +16,9 @@ public sealed class NetworkPlayerSpawner
     private readonly List<NetworkObject> debugSpectatorDummies = new();
 
     private bool debugSpectatorDummiesSpawned;
+    private int nextVisualIndex;
+    private readonly Dictionary<PlayerRef, int> spawnSlots = new();
+    private static readonly float[] InitialSpawnAngles = { 180.0f, 0.0f, 90.0f, 270.0f };
 
     public NetworkPlayerSpawner(
         NetworkPrefabRef playerPrefab,
@@ -24,59 +31,81 @@ public sealed class NetworkPlayerSpawner
         this.debugSpectatorDummyCount = debugSpectatorDummyCount;
     }
 
-    public void OnPlayerJoined(NetworkRunner runner, PlayerRef player)
+    public int CombatantCount => spawnedPlayers.Count;
+
+    /// <summary>
+    /// サーバーで対戦者だけを生成する。生成失敗・重複・上限到達時は番号やスポーン枠を消費しない。
+    /// </summary>
+    public bool TrySpawnCombatant(NetworkRunner runner, PlayerRef player)
     {
-        if (runner == null)
+        if (runner == null || !runner.IsServer || !playerPrefab.IsValid ||
+            spawnedPlayers.Count >= NetworkSessionController.MaxCombatantCount || spawnedPlayers.ContainsKey(player))
         {
-            return;
+            return false;
         }
 
-        Debug.Log($"[NetworkPlayerSpawner] OnPlayerJoined: {player}, IsServer: {runner.IsServer}");
-
-        if (!runner.IsServer)
+        int spawnSlot = 0;
+        while (spawnSlots.ContainsValue(spawnSlot))
         {
-            return;
+            spawnSlot++;
         }
 
-        if (!playerPrefab.IsValid)
-        {
-            Debug.LogWarning("[NetworkPlayerSpawner] Cannot spawn player because Player Prefab is not valid.");
-            return;
-        }
-
-        Vector3 spawnPosition = GetSpawnPosition(player);
+        Vector3 spawnPosition = GetSpawnPosition(spawnSlot);
         Quaternion spawnRotation = Quaternion.identity;
 
-        NetworkObject playerObject = runner.Spawn(
-            playerPrefab,
-            spawnPosition,
-            spawnRotation,
-            player
+        NetworkSpawnStatus status = runner.TrySpawn(
+            playerPrefab, out NetworkObject playerObject, spawnPosition, spawnRotation, player
         );
+        if (status != NetworkSpawnStatus.Spawned || playerObject == null)
+        {
+            Debug.LogError($"[NetworkPlayerSpawner] Player spawn failed: {player}, Status={status}");
+            return false;
+        }
 
-        int visualIndex = spawnedPlayers.Count;
+        int visualIndex = nextVisualIndex++;
 
         ApplyPlayerIdentity(playerObject, visualIndex);
 
         spawnedPlayers.Add(player, playerObject);
+        spawnSlots.Add(player, spawnSlot);
 
         Debug.Log($"[NetworkPlayerSpawner] Spawned player: {player}, VisualIndex={visualIndex}");
 
         SpawnDebugSpectatorDummiesIfNeeded(runner);
+        return true;
     }
 
-    public void OnPlayerLeft(NetworkRunner runner, PlayerRef player)
+    /// <summary>
+    /// 退出または観戦者への変更時に、生成物とスポーン枠を解放する。観戦者の接続自体は維持できる。
+    /// </summary>
+    public void DespawnCombatant(NetworkRunner runner, PlayerRef player)
     {
-        if (runner == null)
+        if (runner == null || !runner.IsServer)
         {
             return;
         }
 
         if (spawnedPlayers.TryGetValue(player, out NetworkObject playerObject))
         {
-            runner.Despawn(playerObject);
             spawnedPlayers.Remove(player);
+            spawnSlots.Remove(player);
+            if (playerObject != null)
+            {
+                runner.Despawn(playerObject);
+            }
         }
+    }
+
+    /// <summary>
+    /// Runnerの終了に伴って生成物が破棄される際に、前セッションの管理参照を解放する。
+    /// </summary>
+    public void ResetSession()
+    {
+        spawnedPlayers.Clear();
+        spawnSlots.Clear();
+        nextVisualIndex = 0;
+        debugSpectatorDummies.Clear();
+        debugSpectatorDummiesSpawned = false;
     }
 
     private void SpawnDebugSpectatorDummiesIfNeeded(NetworkRunner runner)
@@ -111,18 +140,20 @@ public sealed class NetworkPlayerSpawner
             Vector3 position = GetDebugSpectatorDummyPosition(i);
             Quaternion rotation = Quaternion.identity;
 
-            NetworkObject dummyObject = runner.Spawn(
-                playerPrefab,
-                position,
-                rotation,
-                PlayerRef.None
+            NetworkSpawnStatus status = runner.TrySpawn(
+                playerPrefab, out NetworkObject dummyObject, position, rotation, PlayerRef.None
             );
+            if (status != NetworkSpawnStatus.Spawned || dummyObject == null)
+            {
+                Debug.LogWarning($"[NetworkPlayerSpawner] Dummy spawn failed: Status={status}");
+                continue;
+            }
 
             dummyObject.name = $"DebugSpectatorDummy_{i + 1}";
 
             debugSpectatorDummies.Add(dummyObject);
 
-            int visualIndex = spawnedPlayers.Count + i;
+            int visualIndex = nextVisualIndex++;
             ApplyPlayerIdentity(dummyObject, visualIndex);
 
             Debug.Log($"[NetworkPlayerSpawner] Spawned debug spectator dummy: {dummyObject.name}");
@@ -140,10 +171,11 @@ public sealed class NetworkPlayerSpawner
 
         if (playerIdentity != null)
         {
-            playerIdentity.SetIdentity(
-                visualIndex + 1,
-                visualIndex
-            );
+            PlayerHealth health = playerObject.GetComponent<PlayerHealth>();
+            int colorIndex = health != null && health.HasTeamAssigned
+                ? health.NetworkedTeamIndex
+                : visualIndex % NetworkSessionController.MaxCombatantCount;
+            playerIdentity.SetIdentity(visualIndex + 1, colorIndex);
         }
         else
         {
@@ -151,14 +183,12 @@ public sealed class NetworkPlayerSpawner
         }
     }
 
-    private Vector3 GetSpawnPosition(PlayerRef player)
+    private Vector3 GetSpawnPosition(int slotIndex)
     {
-        if (player.RawEncoded % 2 == 0)
-        {
-            return new Vector3(-5.0f, 5.0f, 0.0f);
-        }
-
-        return new Vector3(5.0f, 5.0f, 0.0f);
+        // 元の左右2地点を含む円周上へ分散し、同時参加者が同じ位置を使わないようにする。
+        float angle = InitialSpawnAngles[slotIndex % InitialSpawnAngles.Length] * Mathf.Deg2Rad;
+        float radius = 5.0f + 3.0f * (slotIndex / InitialSpawnAngles.Length);
+        return new Vector3(Mathf.Cos(angle) * radius, 5.0f, Mathf.Sin(angle) * radius);
     }
 
     private Vector3 GetDebugSpectatorDummyPosition(int index)
