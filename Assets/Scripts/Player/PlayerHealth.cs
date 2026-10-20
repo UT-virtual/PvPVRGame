@@ -150,7 +150,7 @@ public class PlayerHealth : NetworkBehaviour
             damageTakenMultiplier = 1.0f;
         }
 
-        ApplyAliveState(true);
+        ApplyAliveState(!NetworkedIsDead);
         NotifyHealthChanged();
 
         if (!Object.HasStateAuthority)
@@ -175,7 +175,7 @@ public class PlayerHealth : NetworkBehaviour
         }
     }
 
-    private void OnDestroy()
+    public override void Despawned(NetworkRunner runner, bool hasState)
     {
         if (RoundManager.Instance != null)
         {
@@ -432,6 +432,8 @@ public class PlayerHealth : NetworkBehaviour
         NetworkedCurrentHealth = maxHealth;
         NetworkedIsDead = false;
         damageTakenMultiplier = 1.0f;
+        delayedDamageActive = false;
+        delayedDamageTotal = 0.0f;
 
         NotifyHealthChanged();
 

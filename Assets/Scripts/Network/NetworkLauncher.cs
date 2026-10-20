@@ -128,6 +128,7 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
     private void OnDestroy()
     {
         connectionUIController?.DisposeButtons();
+        sessionController?.Dispose();
     }
 
     private void Update()
@@ -142,7 +143,7 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
         if (sessionController.CanReconnectFromWaitingRoom() &&
             inputCollector.ReadReconnectPressed())
         {
-            sessionController.ReconnectAsClient();
+            ReconnectAsClient();
             return;
         }
 
@@ -197,17 +198,30 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
             editorHmdRotationSpeed
         );
 
+        sessionController.ConnectionReset += ResetLocalSessionState;
+
         skillSelectionInputController = new LocalSkillSelectionInputController(
             moveAction,
             skillSelectionStickThreshold,
-            () => sessionController.Runner,
-            () => inputCollector.LocalPlayerController
+            () => sessionController.Runner
         );
     }
 
-    public void StartGame(GameMode gameMode)
+    public async void StartGame(GameMode gameMode)
     {
-        sessionController.StartGame(gameMode);
+        await sessionController.StartGameAsync(gameMode);
+    }
+
+    private async void ReconnectAsClient()
+    {
+        await sessionController.ReconnectAsClientAsync();
+    }
+
+    private void ResetLocalSessionState()
+    {
+        inputCollector.ResetLocalState();
+        skillSelectionInputController?.ResetSkillSelectionInputState();
+        playerSpawner.ResetSession();
     }
 
     public void OnServerSkillSelectionProgress(PlayerRef playerRef, int selectedCount)
@@ -278,10 +292,15 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
     }
 
     public void OnInputMissing(NetworkRunner runner, PlayerRef player, NetworkInput input) { }
-    // 終了・切断通知からの自動復旧は行わない。待機中の再接続入力はNetworkSessionControllerへ渡す。
-    public void OnShutdown(NetworkRunner runner, ShutdownReason shutdownReason) { }
+    public async void OnShutdown(NetworkRunner runner, ShutdownReason shutdownReason)
+    {
+        await sessionController.HandleDisconnectedAsync(runner, shutdownReason.ToString());
+    }
     public void OnConnectedToServer(NetworkRunner runner) { }
-    public void OnDisconnectedFromServer(NetworkRunner runner, NetDisconnectReason reason) { }
+    public async void OnDisconnectedFromServer(NetworkRunner runner, NetDisconnectReason reason)
+    {
+        await sessionController.HandleDisconnectedAsync(runner, reason.ToString());
+    }
     public void OnConnectRequest(NetworkRunner runner, NetworkRunnerCallbackArgs.ConnectRequest request, byte[] token) { request.Accept(); }
     public void OnConnectFailed(NetworkRunner runner, NetAddress remoteAddress, NetConnectFailedReason reason) { }
     public void OnUserSimulationMessage(NetworkRunner runner, SimulationMessagePtr message) { }

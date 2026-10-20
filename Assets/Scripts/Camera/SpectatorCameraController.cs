@@ -50,6 +50,26 @@ public class SpectatorCameraController : MonoBehaviour
         battleHudBinder = FindFirstObjectByType<BattleHudBinder>();
     }
 
+    private void OnDisable()
+    {
+        if (isSpectating)
+        {
+            RestoreLocalCamera();
+        }
+
+        ResetSpectatorState();
+    }
+
+    private void OnDestroy()
+    {
+        RestoreHiddenSpectatedTargetModel();
+
+        if (spectatorCameraTarget != null)
+        {
+            Destroy(spectatorCameraTarget.gameObject);
+        }
+    }
+
     private void Update()
     {
         FindLocalPlayerIfNeeded();
@@ -435,6 +455,11 @@ public class SpectatorCameraController : MonoBehaviour
     {
         RestoreHiddenSpectatedTargetModel();
 
+        if (isSpectating && battleHudBinder != null && battleHudBinder.isActiveAndEnabled)
+        {
+            battleHudBinder.BindToLocalPlayer();
+        }
+
         deadTimer = 0.0f;
         wasLocalDead = false;
         isSpectating = false;
@@ -470,9 +495,9 @@ public class SpectatorCameraController : MonoBehaviour
                 continue;
             }
 
-            // 元から非表示だったRendererもあるため、終了時に一律で有効化せず個別の状態を保存する。
-            previousRendererStates[renderer] = renderer.enabled;
-            renderer.enabled = false;
+            // 死亡・復活が制御するenabledと競合しないよう、観戦中だけ描画を抑止する。
+            previousRendererStates[renderer] = renderer.forceRenderingOff;
+            renderer.forceRenderingOff = true;
         }
 
         hiddenOverheadIconRoot = target.OverheadIconRoot;
@@ -497,14 +522,16 @@ public class SpectatorCameraController : MonoBehaviour
                 continue;
             }
 
-            renderer.enabled = pair.Value;
+            renderer.forceRenderingOff = pair.Value;
         }
 
         previousRendererStates.Clear();
 
         if (hiddenOverheadIconRoot != null)
         {
-            hiddenOverheadIconRoot.SetActive(previousOverheadIconActive);
+            hiddenOverheadIconRoot.SetActive(
+                previousOverheadIconActive && hiddenModelTarget != null && !hiddenModelTarget.IsDead
+            );
             hiddenOverheadIconRoot = null;
         }
 

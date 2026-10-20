@@ -2,8 +2,8 @@ using Fusion;
 using UnityEngine;
 
 /// <summary>
-/// óM“ü—Í‚ğStateAuthority‚Ìƒlƒbƒgƒ[ƒNTick‚Å‰ğß‚µAˆÚ“®E•ŠíEƒXƒLƒ‹E€”õ‘€ì‚ğŠeƒRƒ“ƒ|[ƒlƒ“ƒg‚ÖU‚è•ª‚¯‚éB
-/// InputAuthority‘¤‚Ì‹“_‚Í•Ê“r‘¦XV‚µAƒAƒjƒ[ƒVƒ‡ƒ“‚ÆŠÏí—p‹“_‚É‚Í“¯Šúó‘Ô‚ğ—p‚¢‚éB
+/// å—ä¿¡å…¥åŠ›ã‚’StateAuthorityã®ãƒãƒƒãƒˆãƒ¯ãƒ¼ã‚¯Tickã§è§£é‡ˆã—ã€ç§»å‹•ãƒ»æ­¦å™¨ãƒ»ã‚¹ã‚­ãƒ«ãƒ»æº–å‚™æ“ä½œã‚’å„ã‚³ãƒ³ãƒãƒ¼ãƒãƒ³ãƒˆã¸æŒ¯ã‚Šåˆ†ã‘ã‚‹ã€‚
+/// InputAuthorityå´ã®è¦–ç‚¹ã¯åˆ¥é€”å³æ™‚æ›´æ–°ã—ã€ã‚¢ãƒ‹ãƒ¡ãƒ¼ã‚·ãƒ§ãƒ³ã¨è¦³æˆ¦ç”¨è¦–ç‚¹ã«ã¯åŒæœŸçŠ¶æ…‹ã‚’ç”¨ã„ã‚‹ã€‚
 /// </summary>
 [RequireComponent(typeof(NetworkObject))]
 [RequireComponent(typeof(CharacterController))]
@@ -98,8 +98,8 @@ public class PlayerController : NetworkBehaviour
     }
 
     /// <summary>
-    /// StateAuthority‚Å“ü—Í‚Ì‰Ÿ‰º·•ª‚ğ”»’è‚µAƒtƒF[ƒY‚Ì‹–‰Â‚É]‚Á‚Ä‘€ì‚ğÀs‚·‚éB
-    /// ‚±‚ÌÀ‘•‚Å‚ÍInputAuthority‚¾‚¯‚ğ‚Â’[––‚ÅˆÚ“®Eí“¬ˆ—‚ÍÀs‚µ‚È‚¢B
+    /// StateAuthorityã§å…¥åŠ›ã®æŠ¼ä¸‹å·®åˆ†ã‚’åˆ¤å®šã—ã€ãƒ•ã‚§ãƒ¼ã‚ºã®è¨±å¯ã«å¾“ã£ã¦æ“ä½œã‚’å®Ÿè¡Œã™ã‚‹ã€‚
+    /// ã“ã®å®Ÿè£…ã§ã¯InputAuthorityã ã‘ã‚’æŒã¤ç«¯æœ«ã§ç§»å‹•ãƒ»æˆ¦é—˜å‡¦ç†ã¯å®Ÿè¡Œã—ãªã„ã€‚
     /// </summary>
     public override void FixedUpdateNetwork()
     {
@@ -130,15 +130,7 @@ public class PlayerController : NetworkBehaviour
         NetworkButtons pressedButtons = input.Buttons.GetPressed(PreviousButtons);
         PreviousButtons = input.Buttons;
 
-        bool jumpPressed = pressedButtons.IsSet((int)PlayerInputButton.Jump);
-        bool reloadPressed = pressedButtons.IsSet((int)PlayerInputButton.Reload);
         bool readyPressed = pressedButtons.IsSet((int)PlayerInputButton.Ready);
-        bool skillPressed = pressedButtons.IsSet((int)PlayerInputButton.Skill);
-        bool switchSkillPressed = pressedButtons.IsSet((int)PlayerInputButton.SwitchSkill);
-        bool fireHeld = input.Buttons.IsSet((int)PlayerInputButton.Fire);
-
-        bool activateSkill1Pressed = pressedButtons.IsSet((int)PlayerInputButton.ActivateSkill1);
-        bool activateSkill2Pressed = pressedButtons.IsSet((int)PlayerInputButton.ActivateSkill2);
 
         if (readyPressed && RoundManager.Instance != null)
         {
@@ -168,6 +160,14 @@ public class PlayerController : NetworkBehaviour
             return;
         }
 
+        playerWeapon.Tick(deltaTime);
+        ApplyMovementInput(input, pressedButtons.IsSet((int)PlayerInputButton.Jump), deltaTime);
+        UpdateNetworkedSpectatorView();
+        ApplyCombatInput(input, pressedButtons);
+    }
+
+    private void ApplyMovementInput(PlayerNetworkInput input, bool jumpPressed, float deltaTime)
+    {
         Vector2 moveInput = input.MoveInput;
 
         if (moveInput.sqrMagnitude > 1.0f)
@@ -179,12 +179,10 @@ public class PlayerController : NetworkBehaviour
         NetworkedMoveY = moveInput.y;
         NetworkedIsRunning = moveInput.sqrMagnitude > 0.01f;
 
-        playerWeapon.Tick(deltaTime);
-
         playerMove.ProbeGround();
         playerMove.UpdateAimBasis();
 
-        // ƒ[ƒJƒ‹‹“_‚Í“ü—ÍûW‚É”½‰fÏ‚İBStateAuthority‚ÅƒŠƒ‚[ƒgŠ—LÒ‚Ì‹ü‚¾‚¯‚ğ•œŒ³‚·‚éB
+        // ãƒ­ãƒ¼ã‚«ãƒ«è¦–ç‚¹ã¯å…¥åŠ›åé›†æ™‚ã«åæ˜ æ¸ˆã¿ã€‚StateAuthorityã§ãƒªãƒ¢ãƒ¼ãƒˆæ‰€æœ‰è€…ã®è¦–ç·šã ã‘ã‚’å¾©å…ƒã™ã‚‹ã€‚
         if (!Object.HasInputAuthority)
         {
             if (input.IsVR)
@@ -214,14 +212,22 @@ public class PlayerController : NetworkBehaviour
             playerMove.MoveOnSurface(moveInput, deltaTime);
         }
 
-        // ˆÚ“®æ‚Å–@ü‚ª•Ï‚í‚é‚½‚ßAp¨®—ñ‚Æd—Í‚Ì‘O‚ÉÚ’nŠî€‚ğÄæ“¾‚·‚éB
+        // ç§»å‹•å…ˆã§æ³•ç·šãŒå¤‰ã‚ã‚‹ãŸã‚ã€å§¿å‹¢æ•´åˆ—ã¨é‡åŠ›ã®å‰ã«æ¥åœ°åŸºæº–ã‚’å†å–å¾—ã™ã‚‹ã€‚
         playerMove.ProbeGround();
         playerMove.UpdateAimBasis();
 
         playerMove.AlignToSurface(deltaTime);
         playerMove.ApplyGravityAndJump(jumpPressed, deltaTime);
+    }
 
-        UpdateNetworkedSpectatorView();
+    private void ApplyCombatInput(PlayerNetworkInput input, NetworkButtons pressedButtons)
+    {
+        bool reloadPressed = pressedButtons.IsSet((int)PlayerInputButton.Reload);
+        bool skillPressed = pressedButtons.IsSet((int)PlayerInputButton.Skill);
+        bool switchSkillPressed = pressedButtons.IsSet((int)PlayerInputButton.SwitchSkill);
+        bool activateSkill1Pressed = pressedButtons.IsSet((int)PlayerInputButton.ActivateSkill1);
+        bool activateSkill2Pressed = pressedButtons.IsSet((int)PlayerInputButton.ActivateSkill2);
+        bool fireHeld = input.Buttons.IsSet((int)PlayerInputButton.Fire);
 
         bool canUseWeapon = RoundManager.Instance == null || RoundManager.Instance.CanUseWeapons;
 
@@ -320,8 +326,8 @@ public class PlayerController : NetworkBehaviour
     }
 
     /// <summary>
-    /// Tick‚Å“¯Šú‚³‚ê‚½ˆÚ“®ó‘Ô‚ğAnimator‚Ö”½‰f‚·‚éB
-    /// ‚±‚±‚Å‚ÍˆÚ“®‚âËŒ‚‚È‚Ç‚ÌƒQ[ƒ€ó‘Ô‚ği‚ß‚È‚¢B
+    /// Tickã§åŒæœŸã•ã‚ŒãŸç§»å‹•çŠ¶æ…‹ã‚’Animatorã¸åæ˜ ã™ã‚‹ã€‚
+    /// ã“ã“ã§ã¯ç§»å‹•ã‚„å°„æ’ƒãªã©ã®ã‚²ãƒ¼ãƒ çŠ¶æ…‹ã‚’é€²ã‚ãªã„ã€‚
     /// </summary>
     public override void Render()
     {
@@ -372,8 +378,8 @@ public class PlayerController : NetworkBehaviour
     }
 
     /// <summary>
-    /// “ü—ÍûW‚ÌƒtƒŒ[ƒ€‚Å‹“_‚¾‚¯‚ğ‘¦”½‰f‚·‚éB
-    /// StateAuthority‘¤‚Å“¯‚¶“ü—Í‚ğˆµ‚¤Û‚ÍAInputAuthority‚à‚Âê‡‚Ì“ñd“K—p‚ğ”ğ‚¯‚éB
+    /// å…¥åŠ›åé›†ã®ãƒ•ãƒ¬ãƒ¼ãƒ ã§è¦–ç‚¹ã ã‘ã‚’å³æ™‚åæ˜ ã™ã‚‹ã€‚
+    /// StateAuthorityå´ã§åŒã˜å…¥åŠ›ã‚’æ‰±ã†éš›ã¯ã€InputAuthorityã‚‚æŒã¤å ´åˆã®äºŒé‡é©ç”¨ã‚’é¿ã‘ã‚‹ã€‚
     /// </summary>
     public void ApplyLocalLook(Vector2 lookInput, bool isVR, Quaternion hmdRotation)
     {

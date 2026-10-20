@@ -105,9 +105,26 @@ public class SpectatorStatusUI : MonoBehaviour
 
     private void SetVisible(bool visible)
     {
-        if (root != null && root.activeSelf != visible)
+        GameObject targetRoot = root != null ? root : gameObject;
+
+        // 監視元まで無効にするとUpdateで復帰できないため、同一階層では表示だけを隠す。
+        if (transform.IsChildOf(targetRoot.transform))
         {
-            root.SetActive(visible);
+            CanvasGroup group = targetRoot.GetComponent<CanvasGroup>();
+            if (group == null)
+            {
+                group = targetRoot.AddComponent<CanvasGroup>();
+            }
+
+            group.alpha = visible ? 1.0f : 0.0f;
+            group.interactable = visible;
+            group.blocksRaycasts = visible;
+            return;
+        }
+
+        if (targetRoot.activeSelf != visible)
+        {
+            targetRoot.SetActive(visible);
         }
     }
 }

@@ -2,8 +2,8 @@ using System;
 using UnityEngine;
 
 /// <summary>
-/// �n�\�@������Ƃ���ړ����W�n�A�ڒn�A�d�́A�W�����v��CharacterController�ŏ�������B
-/// �l�b�g���[�N���͂�Authority�̔���͌Ăяo������PlayerController���S������B
+/// 地表法線を基準とする移動座標系、接地、重力、ジャンプをCharacterControllerで処理する。
+/// ネットワーク入力やAuthorityの判定は呼び出し元のPlayerControllerが担当する。
 /// </summary>
 [RequireComponent(typeof(CharacterController))]
 public class PlayerMove : MonoBehaviour
@@ -97,8 +97,8 @@ public class PlayerMove : MonoBehaviour
     }
 
     /// <summary>
-    /// ���݂̒n�\���������ڒn�𒲂ׁA�@���Ɛڒn�������X�V����B
-    /// �ڒn�����o�ł��Ȃ��ꍇ�́A�ݒ�ς݂̘f�����S����������₤�B
+    /// 現在の地表上方向から接地を調べ、法線と接地距離を更新する。
+    /// 接地を検出できない場合は、設定済みの惑星中心から上方向を補う。
     /// </summary>
     public void ProbeGround()
     {
@@ -145,8 +145,8 @@ public class PlayerMove : MonoBehaviour
     }
 
     /// <summary>
-    /// �����̐������������݂̒n�\�֓��e���A�ړ��Ɏg�����������č\�z����B
-    /// �n�\�@�����X�V������ɌĂԁB
+    /// 視線の水平成分を現在の地表へ投影し、移動に使う直交基底を再構築する。
+    /// 地表法線を更新した後に呼ぶ。
     /// </summary>
     public void UpdateAimBasis()
     {
@@ -159,7 +159,7 @@ public class PlayerMove : MonoBehaviour
 
         if (aimForward.sqrMagnitude < 0.001f)
         {
-            // �O�����@���ƕ��s�ɂȂ����ꍇ���A���s�łȂ���������𕜌����ă[�������������B
+            // 前方が法線と平行になった場合も、平行でない軸から基底を復元してゼロ方向を避ける。
             Vector3 reference = Mathf.Abs(Vector3.Dot(surfaceUp, Vector3.up)) < 0.99f
                 ? Vector3.up
                 : Vector3.forward;
@@ -217,8 +217,8 @@ public class PlayerMove : MonoBehaviour
     }
 
     /// <summary>
-    /// HMD�̎�����n�\�֓��e���đO��ړ��̊�ɂ���B
-    /// �������n�\�@���ƕ��s�Ȃ�AimForward���p���A�E�����͑O���Ɩ@������Čv�Z����B
+    /// HMDの視線を地表へ投影して前後移動の基準にする。
+    /// 視線が地表法線と平行ならAimForwardを代用し、右方向は前方と法線から再計算する。
     /// </summary>
     public void MoveOnSurfaceVR(Vector2 input, float deltaTime, Vector3 moveForward,Vector3 moveRight)
     {
@@ -271,8 +271,8 @@ public class PlayerMove : MonoBehaviour
     }
 
     /// <summary>
-    /// ProbeGround�œ����ڒn��Ԃɏ]���A�ڒn�␳�܂��͏d�́E�W�����v��K�p����B
-    /// ���n�ŋ󒆃W�����v�񐔂��[���A���������������p�̏d�͔{�����g���B
+    /// ProbeGroundで得た接地状態に従い、接地補正または重力・ジャンプを適用する。
+    /// 着地で空中ジャンプ回数を補充し、落下中だけ落下用の重力倍率を使う。
     /// </summary>
     public void ApplyGravityAndJump(bool jumpPressed, float deltaTime)
     {
@@ -362,8 +362,8 @@ public class PlayerMove : MonoBehaviour
     }
 
     /// <summary>
-    /// �����E�ڒn�E�󒆃W�����v�̏�Ԃ��������������A�ړ��̊��͈ێ�����B
-    /// �����n�_�̒n�\�֌��������킹��ꍇ��ResetAfterRespawn���g���B
+    /// 落下・接地・空中ジャンプの状態だけを初期化し、移動の基底は維持する。
+    /// 復活地点の地表へ向きも合わせる場合はResetAfterRespawnを使う。
     /// </summary>
     public void ResetMovementState()
     {
@@ -375,7 +375,7 @@ public class PlayerMove : MonoBehaviour
     }
 
     /// <summary>
-    /// �����ʒu�ֈڂ�����ɌĂсA�������x�Ɛڒn��Ԃ��������Ēn�\��̌����������ɍč\�z����B
+    /// 復活位置へ移した後に呼び、落下速度と接地状態を消去して地表基準の向きも即時に再構築する。
     /// </summary>
     public void ResetAfterRespawn()
     {

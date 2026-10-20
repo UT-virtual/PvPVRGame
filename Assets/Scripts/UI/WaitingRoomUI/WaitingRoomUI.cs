@@ -20,6 +20,7 @@ public class WaitingRoomUI : MonoBehaviour
     private bool localPlayerSpawned = false;
 
     private readonly List<GameObject> currentEntries = new();
+    private readonly List<(PlayerHealth player, int team, bool ready, bool local)> displayedPlayers = new();
 
     private void Awake()
     {
@@ -83,15 +84,6 @@ public class WaitingRoomUI : MonoBehaviour
                 roundManagerNotReadyYet
             );
 
-        Debug.Log(
-            $"[WaitingRoomUI] Update. " +
-            $"hasLocalPlayer={hasLocalPlayer}, " +
-            $"roundManagerExists={roundManager != null}, " +
-            $"roundManagerReady={(roundManager != null && roundManager.IsNetworkReady)}, " +
-            $"canShowByRoundManager={canShowByRoundManager}, " +
-            $"shouldShow={shouldShow}"
-        );
-
         SetPanelVisible(shouldShow);
 
         if (shouldShow)
@@ -124,7 +116,7 @@ public class WaitingRoomUI : MonoBehaviour
                 continue;
             }
 
-            if (networkObject.HasInputAuthority)
+            if (networkObject.IsValid && networkObject.HasInputAuthority)
             {
                 return true;
             }
@@ -162,6 +154,7 @@ public class WaitingRoomUI : MonoBehaviour
         }
 
         currentEntries.Clear();
+        displayedPlayers.Clear();
 
         if (playerCountText != null)
         {
@@ -171,19 +164,43 @@ public class WaitingRoomUI : MonoBehaviour
 
     private void RefreshPlayerList()
     {
-        ClearEntries();
-
         PlayerHealth[] players = FindObjectsByType<PlayerHealth>(
-            FindObjectsSortMode.None
+            FindObjectsSortMode.InstanceID
         );
+
+        List<(PlayerHealth player, int team, bool ready, bool local)> nextPlayers = new();
+        foreach (PlayerHealth player in players)
+        {
+            if (player.Object == null || !player.Object.IsValid || player.Object.InputAuthority == PlayerRef.None)
+            {
+                continue;
+            }
+
+            nextPlayers.Add((player, player.NetworkedTeamIndex, player.IsReady, player.Object.HasInputAuthority));
+        }
+
+        bool changed = nextPlayers.Count != displayedPlayers.Count;
+        for (int i = 0; !changed && i < nextPlayers.Count; i++)
+        {
+            changed = !nextPlayers[i].Equals(displayedPlayers[i]);
+        }
+
+        if (!changed)
+        {
+            return;
+        }
+
+        ClearEntries();
+        displayedPlayers.AddRange(nextPlayers);
 
         if (playerCountText != null)
         {
-            playerCountText.text = $"参加プレイヤー : {players.Length}人";
+            playerCountText.text = $"参加プレイヤー : {nextPlayers.Count}人";
         }
 
-        foreach (PlayerHealth player in players)
+        foreach (var state in nextPlayers)
         {
+            PlayerHealth player = state.player;
             if (player == null)
             {
                 continue;

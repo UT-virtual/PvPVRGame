@@ -80,7 +80,10 @@ public class PlayerLook : MonoBehaviour
         else
         {
             Vector3 viewForward = Quaternion.AngleAxis(pitch, playerMove.AimRight) * playerMove.AimForward;
-            if (viewForward.sqrMagnitude < 0.001f) return playerMove.AimForward;
+            if (viewForward.sqrMagnitude < 0.001f)
+            {
+                return playerMove.AimForward;
+            }
             return viewForward.normalized;
         }
     }
@@ -96,10 +99,16 @@ public class PlayerLook : MonoBehaviour
 
         Vector3 viewForward = GetViewForward();
         Vector3 viewRight = Vector3.Cross(playerMove.SurfaceUp, viewForward);
-        if (viewRight.sqrMagnitude < 0.001f) viewRight = playerMove.AimRight;
+        if (viewRight.sqrMagnitude < 0.001f)
+        {
+            viewRight = playerMove.AimRight;
+        }
         viewRight.Normalize();
         Vector3 viewUpVec = Vector3.Cross(viewForward, viewRight);
-        if (viewUpVec.sqrMagnitude < 0.001f) return playerMove.SurfaceUp;
+        if (viewUpVec.sqrMagnitude < 0.001f)
+        {
+            return playerMove.SurfaceUp;
+        }
         return viewUpVec.normalized;
     }
 
@@ -108,19 +117,19 @@ public class PlayerLook : MonoBehaviour
     /// 送信済みの視線方向を使う経路では視点差分の再積算を避ける。
     /// </summary>
     public void SetPitchFromViewForward(Vector3 viewForward)
-{
-    if (viewForward.sqrMagnitude < 0.001f)
     {
-        return;
+        if (viewForward.sqrMagnitude < 0.001f)
+        {
+            return;
+        }
+
+        Vector3 normalizedViewForward = viewForward.normalized;
+        float newPitch = Vector3.SignedAngle(
+            playerMove.AimForward,
+            normalizedViewForward,
+            playerMove.AimRight
+        );
+
+        pitch = Mathf.Clamp(newPitch, minPitch, maxPitch);
     }
-
-    Vector3 normalizedViewForward = viewForward.normalized;
-    float newPitch = Vector3.SignedAngle(
-        playerMove.AimForward,
-        normalizedViewForward,
-        playerMove.AimRight
-    );
-
-    pitch = Mathf.Clamp(newPitch, minPitch, maxPitch);
-}
 }

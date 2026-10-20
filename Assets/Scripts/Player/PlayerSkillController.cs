@@ -63,9 +63,6 @@ public class PlayerSkillController : NetworkBehaviour
     [SerializeField] private float nextShotDamageBoostDuration = 0.1f;
     [SerializeField] private float nextShotDamageBoostMultiplier = 1.5f;
 
-    [Header("Debug")]
-    [SerializeField] private bool allowSameSkillConsecutiveForDebug = false;
-
     private PlayerMove playerMove;
     private PlayerWeapon playerWeapon;
     private PlayerHealth playerHealth;
@@ -148,15 +145,6 @@ public class PlayerSkillController : NetworkBehaviour
         UpdateSkillState();
     }
 
-    /// <summary>
-    /// 現在はラウンド間の連続選択を制限しない。
-    /// None・同一ラウンド内の重複・候補枠の有効性は選択処理側で判定する。
-    /// </summary>
-    public bool CanSelectSkill(PlayerSkillType skill)
-    {
-        return true;
-    }
-
     public void PrepareForRound(PlayerSkillType requestedSkill)
     {
         PrepareForRound(requestedSkill, PlayerSkillType.None);
@@ -177,24 +165,6 @@ public class PlayerSkillController : NetworkBehaviour
 
         PlayerSkillType selectedFirstSkill = requestedFirstSkill;
         PlayerSkillType selectedSecondSkill = requestedSecondSkill;
-
-        if (!CanSelectSkill(selectedFirstSkill))
-        {
-            Debug.Log(
-                $"[Skill] {gameObject.name}: {selectedFirstSkill} cannot be used in consecutive rounds. Set first skill to None."
-            );
-
-            selectedFirstSkill = PlayerSkillType.None;
-        }
-
-        if (!CanSelectSkill(selectedSecondSkill))
-        {
-            Debug.Log(
-                $"[Skill] {gameObject.name}: {selectedSecondSkill} cannot be used in consecutive rounds. Set second skill to None."
-            );
-
-            selectedSecondSkill = PlayerSkillType.None;
-        }
 
         if (selectedSecondSkill != PlayerSkillType.None && selectedSecondSkill == selectedFirstSkill)
         {
@@ -336,7 +306,7 @@ public class PlayerSkillController : NetworkBehaviour
             return;
         }
 
-        skillActivator.Activate(selectedSkill);
+        skillActivator.Activate(slotIndex, selectedSkill);
     }
 
     /// <summary>
@@ -359,7 +329,7 @@ public class PlayerSkillController : NetworkBehaviour
         {
             return;
         }
-        skillActivator.Activate(selectedSkill);
+        skillActivator.Activate(slotIndex, selectedSkill);
     }
 
     public bool IsXRayVisionActive()
@@ -420,13 +390,10 @@ public class PlayerSkillController : NetworkBehaviour
     }
 
     /// <summary>
-    /// 現在の選択インデックスの枠に発動状態とTickTimerを記録する。
-    /// 発動要求で参照した枠ではなく、CurrentSelectedSkillIndexを保存先に使う。
+    /// 発動可否を検証した枠に発動状態とTickTimerを記録する。選択中の枠には依存しない。
     /// </summary>
-    private void BeginActiveSkill(PlayerSkillType skill, float duration)
+    private void BeginActiveSkill(int slotIndex, PlayerSkillType skill, float duration)
     {
-        int slotIndex = GetNormalizedCurrentSelectedSkillIndex();
-
         TickTimer activeTimer = TickTimer.CreateFromSeconds(Runner, duration);
 
         if (slotIndex <= 0)

@@ -125,6 +125,14 @@ public sealed class RoundFlowController
 
         Debug.Log($"[RoundFlowController] HandlePlayerDied: {deadPlayer.gameObject.name}");
 
+        CheckRoundEnd();
+    }
+
+    /// <summary>
+    /// 死亡・退出後の参加者一覧で終了条件を再判定する。終了開始済みなら何もしない。
+    /// </summary>
+    public void CheckRoundEnd()
+    {
         RoundManager.GamePhase currentPhase = getPhase();
 
         if (currentPhase != RoundManager.GamePhase.RoundPlaying)

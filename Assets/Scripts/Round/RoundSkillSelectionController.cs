@@ -486,20 +486,6 @@ public sealed class RoundSkillSelectionController
             Debug.LogWarning($"[RoundSkillSelectionController] PlayerSkillController was not found: {player.gameObject.name}");
             skill = PlayerSkillType.None;
         }
-        else if (!skillController.CanSelectSkill(skill))
-        {
-            Debug.Log(
-                $"[RoundSkillSelectionController] {player.gameObject.name} cannot select {skill} because it was used last round."
-            );
-
-            if (!isAutoSelect)
-            {
-                return;
-            }
-
-            skill = PlayerSkillType.None;
-        }
-
         if (selectionIndex > 0 &&
             skill != PlayerSkillType.None &&
             GetFirstSelectedSkill(player) == skill)
@@ -558,8 +544,6 @@ public sealed class RoundSkillSelectionController
             return PlayerSkillType.None;
         }
 
-        PlayerSkillController skillController = player.GetComponent<PlayerSkillController>();
-
         for (int i = 0; i < SkillOptionSlotCount; i++)
         {
             PlayerSkillType skill = GetSkillOption(i, selectionIndex);
@@ -574,10 +558,7 @@ public sealed class RoundSkillSelectionController
                 continue;
             }
 
-            if (skillController == null || skillController.CanSelectSkill(skill))
-            {
-                return skill;
-            }
+            return skill;
         }
 
         return PlayerSkillType.None;

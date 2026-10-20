@@ -252,14 +252,6 @@ public class PlayerWeapon : NetworkBehaviour
             return;
         }
 
-        if (instantReloadEnabled)
-        {
-            RefillAmmoImmediately();
-
-            Debug.Log("Instant reload activated.");
-            return;
-        }
-
         NetworkedIsReloading = true;
         reloadTimer = reloadDuration;
 
@@ -424,12 +416,14 @@ public class PlayerWeapon : NetworkBehaviour
             spawnRotation = Quaternion.LookRotation(fireDirection, playerLook.ViewUp);
         }
 
-        NetworkObject projectileObject = Runner.Spawn(
-            projectilePrefab,
-            spawnPosition,
-            spawnRotation,
-            Object.InputAuthority
+        NetworkSpawnStatus status = Runner.TrySpawn(
+            projectilePrefab, out NetworkObject projectileObject, spawnPosition, spawnRotation, Object.InputAuthority
         );
+        if (status != NetworkSpawnStatus.Spawned || projectileObject == null)
+        {
+            Debug.LogWarning($"{name}: Projectile spawn failed: {status}");
+            return false;
+        }
 
         Projectile projectile = projectileObject.GetComponent<Projectile>();
         if (projectile == null)

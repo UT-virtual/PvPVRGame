@@ -4,8 +4,8 @@ using UnityEngine.InputSystem;
 using UnityEngine.InputSystem.Controls;
 
 /// <summary>
-/// ƒ[ƒJƒ‹’[––‚Ì“ü—Í‚ÆXRp¨‚ğûW‚µANetworkLauncher.OnInput‚É“n‚·PlayerNetworkInput‚ğ\’z‚·‚éB
-/// ‹“_‚Í–ˆƒtƒŒ[ƒ€‘¦”½‰f‚µAƒQ[ƒ€ó‘Ô‚Ì•ÏX‚ÍPlayerController‘¤‚ÉˆÏ‚Ë‚éB
+/// ãƒ­ãƒ¼ã‚«ãƒ«ç«¯æœ«ã®å…¥åŠ›ã¨XRå§¿å‹¢ã‚’åé›†ã—ã€NetworkLauncher.OnInputã«æ¸¡ã™PlayerNetworkInputã‚’æ§‹ç¯‰ã™ã‚‹ã€‚
+/// è¦–ç‚¹ã¯æ¯ãƒ•ãƒ¬ãƒ¼ãƒ å³æ™‚åæ˜ ã—ã€ã‚²ãƒ¼ãƒ çŠ¶æ…‹ã®å¤‰æ›´ã¯PlayerControllerå´ã«å§”ã­ã‚‹ã€‚
 /// </summary>
 public sealed class NetworkInputCollector
 {
@@ -36,7 +36,7 @@ public sealed class NetworkInputCollector
     private Vector2 editorHmdEuler;
     private Quaternion currentHMD = Quaternion.identity;
 
-    // Update‚ÆOnInput‚ÍŒÄ‚Ño‚µŠÔŠu‚ªˆÙ‚È‚é‚½‚ßA‹“_·•ª‚Í‰ÁZ‚µA’P”­‘€ì‚Í‘—M‚Ü‚Å•Û‚·‚éB
+    // Updateã¨OnInputã¯å‘¼ã³å‡ºã—é–“éš”ãŒç•°ãªã‚‹ãŸã‚ã€è¦–ç‚¹å·®åˆ†ã¯åŠ ç®—ã—ã€å˜ç™ºæ“ä½œã¯é€ä¿¡ã¾ã§ä¿æŒã™ã‚‹ã€‚
     private Vector2 queuedLookInput;
     private bool jumpQueued;
     private bool reloadQueued;
@@ -154,7 +154,7 @@ public sealed class NetworkInputCollector
     }
 
     /// <summary>
-    /// –ˆƒtƒŒ[ƒ€‚Ì‹“_·•ª‚ğ’~Ï‚µA“o˜^Ï‚İ‚Ìƒ[ƒJƒ‹ƒvƒŒƒCƒ„[‚Ö“¯‚É”½‰f‚·‚éB
+    /// æ¯ãƒ•ãƒ¬ãƒ¼ãƒ ã®è¦–ç‚¹å·®åˆ†ã‚’è“„ç©ã—ã€ç™»éŒ²æ¸ˆã¿ã®ãƒ­ãƒ¼ã‚«ãƒ«ãƒ—ãƒ¬ã‚¤ãƒ¤ãƒ¼ã¸åŒæ™‚ã«åæ˜ ã™ã‚‹ã€‚
     /// </summary>
     public void UpdateHmdAndLook()
     {
@@ -171,8 +171,8 @@ public sealed class NetworkInputCollector
     }
 
     /// <summary>
-    /// ƒtƒŒ[ƒ€‚ÅŒŸo‚µ‚½’P”­‘€ì‚ğAŸ‚ÌCollectInput‚Ü‚Å•Û‚·‚éB
-    /// •¡”ƒtƒŒ[ƒ€‚Å“¯‚¶‘€ì‚ª‹N‚«‚½ê‡‚Í1‚Â‚Ìƒtƒ‰ƒO‚É‚Ü‚Æ‚ß‚éB
+    /// ãƒ•ãƒ¬ãƒ¼ãƒ ã§æ¤œå‡ºã—ãŸå˜ç™ºæ“ä½œã‚’ã€æ¬¡ã®CollectInputã¾ã§ä¿æŒã™ã‚‹ã€‚
+    /// è¤‡æ•°ãƒ•ãƒ¬ãƒ¼ãƒ ã§åŒã˜æ“ä½œãŒèµ·ããŸå ´åˆã¯1ã¤ã®ãƒ•ãƒ©ã‚°ã«ã¾ã¨ã‚ã‚‹ã€‚
     /// </summary>
     public void QueueGameplayButtons()
     {
@@ -215,8 +215,8 @@ public sealed class NetworkInputCollector
     }
 
     /// <summary>
-    /// ¶ƒgƒŠƒK[‚Ì‰Ÿ‰ºŠJn‚ÉA¶è‚ÌŒü‚«‚©‚ç”­“®‚·‚éƒXƒLƒ‹˜g‚ğŒˆ‚ß‚éB
-    /// …•½‚É‹ß‚¢Œü‚«‚Í”­“®‚¹‚¸A‰Ÿ‚µ‘±‚¯‚Ä‚àÄ”»’è‚µ‚È‚¢B
+    /// å·¦ãƒˆãƒªã‚¬ãƒ¼ã®æŠ¼ä¸‹é–‹å§‹æ™‚ã«ã€å·¦æ‰‹ã®å‘ãã‹ã‚‰ç™ºå‹•ã™ã‚‹ã‚¹ã‚­ãƒ«æ ã‚’æ±ºã‚ã‚‹ã€‚
+    /// æ°´å¹³ã«è¿‘ã„å‘ãã¯ç™ºå‹•ã›ãšã€æŠ¼ã—ç¶šã‘ã¦ã‚‚å†åˆ¤å®šã—ãªã„ã€‚
     /// </summary>
     private bool ReadVrSkillActivation(out int skillSlot)
     {
@@ -243,22 +243,22 @@ public sealed class NetworkInputCollector
 
         if (aimDirection.y > directionThreshold)
         {
-            skillSlot = 0; // ãŒü‚« ¨ ƒXƒLƒ‹1
+            skillSlot = 0; // ä¸Šå‘ã â†’ ã‚¹ã‚­ãƒ«1
             return true;
         }
 
         if (aimDirection.y < -directionThreshold)
         {
-            skillSlot = 1; // ‰ºŒü‚« ¨ ƒXƒLƒ‹2
+            skillSlot = 1; // ä¸‹å‘ã â†’ ã‚¹ã‚­ãƒ«2
             return true;
         }
 
-        return false; // ‰¡‚ğŒü‚¢‚Ä‚¢‚é‚È‚Ç ¨ ”­“®‚µ‚È‚¢
+        return false; // æ¨ªã‚’å‘ã„ã¦ã„ã‚‹ãªã© â†’ ç™ºå‹•ã—ãªã„
     }
 
     /// <summary>
-    /// NetworkLauncher.OnInput‚©‚çŒÄ‚ÑA•Û‚µ‚½‘€ì‚ÆÅV‚Ìp¨EˆÚ“®EËŒ‚ó‘Ô‚ğFusion‚Ö“n‚·B
-    /// ‘—Mƒf[ƒ^‚ğİ’è‚µ‚½Œã‚É’P”­‘€ì‚Æ‹“_·•ª‚ğÁ”ï‚·‚éB
+    /// NetworkLauncher.OnInputã‹ã‚‰å‘¼ã³ã€ä¿æŒã—ãŸæ“ä½œã¨æœ€æ–°ã®å§¿å‹¢ãƒ»ç§»å‹•ãƒ»å°„æ’ƒçŠ¶æ…‹ã‚’Fusionã¸æ¸¡ã™ã€‚
+    /// é€ä¿¡ãƒ‡ãƒ¼ã‚¿ã‚’è¨­å®šã—ãŸå¾Œã«å˜ç™ºæ“ä½œã¨è¦–ç‚¹å·®åˆ†ã‚’æ¶ˆè²»ã™ã‚‹ã€‚
     /// </summary>
     public void CollectInput(NetworkInput input)
     {
@@ -327,13 +327,18 @@ public sealed class NetworkInputCollector
 
     public void RegisterLocalPlayer(PlayerController playerController)
     {
+        if (LocalPlayerController != playerController)
+        {
+            ClearQueuedInputs();
+        }
+
         LocalPlayerController = playerController;
         Debug.Log($"[NetworkInputCollector] Registered local player: {playerController.name}");
     }
 
     /// <summary>
-    /// Œ»İ‚Ì“ü—Íæ‚Æˆê’v‚·‚éê‡‚¾‚¯QÆ‚ğ‰ğœ‚·‚éB
-    /// ÄÚ‘±‚È‚Ç‚Å‹ŒƒvƒŒƒCƒ„[‚Ì”jŠü‚ª’x‚ê‚Ä‚àAV‚µ‚¢“o˜^‚ğÁ‚³‚È‚¢B
+    /// ç¾åœ¨ã®å…¥åŠ›å…ˆã¨ä¸€è‡´ã™ã‚‹å ´åˆã ã‘å‚ç…§ã‚’è§£é™¤ã™ã‚‹ã€‚
+    /// å†æ¥ç¶šãªã©ã§æ—§ãƒ—ãƒ¬ã‚¤ãƒ¤ãƒ¼ã®ç ´æ£„ãŒé…ã‚Œã¦ã‚‚ã€æ–°ã—ã„ç™»éŒ²ã‚’æ¶ˆã•ãªã„ã€‚
     /// </summary>
     public bool UnregisterLocalPlayer(PlayerController playerController)
     {
@@ -351,9 +356,22 @@ public sealed class NetworkInputCollector
         }
 
         LocalPlayerController = null;
+        ClearQueuedInputs();
 
         Debug.Log($"[NetworkInputCollector] Unregistered local player: {playerController.name}");
         return true;
+    }
+
+    /// <summary>
+    /// ã‚»ãƒƒã‚·ãƒ§ãƒ³çµ‚äº†æ™‚ã«å…¥åŠ›å…ˆã¨æœªé€ä¿¡æ“ä½œã‚’æ¶ˆå»ã—ã€å†æ¥ç¶šå…ˆã¸å¤ã„å…¥åŠ›ã‚’æŒã¡è¶Šã•ãªã„ã€‚
+    /// </summary>
+    public void ResetLocalState()
+    {
+        LocalPlayerController = null;
+        ClearQueuedInputs();
+        wasBothVrTriggerPressed = false;
+        wasLeftTriggerPressed = false;
+        wasLeftVrTriggerPressedForSkill = false;
     }
 
     private void ClearQueuedInputs()
@@ -424,7 +442,7 @@ public sealed class NetworkInputCollector
             editorHmdEuler.x = Mathf.Clamp(editorHmdEuler.x, -85.0f, 85.0f);
             currentHMD = Quaternion.Euler(editorHmdEuler.x, editorHmdEuler.y, 0.0f);
 
-            Debug.Log($"[Editor HMD] Euler={currentHMD.eulerAngles}");
+
 
             return;
         }
@@ -444,7 +462,7 @@ public sealed class NetworkInputCollector
 
         currentHMD = hmdRotationAction.action.ReadValue<Quaternion>();
 
-        Debug.Log($"[HMD] Euler={currentHMD.eulerAngles}");
+
     }
 
     private Vector2 ReadMoveInput()
@@ -517,13 +535,18 @@ public sealed class NetworkInputCollector
 
             if (Mouse.current != null && lookAction.action.activeControl?.device == Mouse.current)
             {
-                // ƒ}ƒEƒX‚ÍƒtƒŒ[ƒ€“à‚Ì•ÏˆÊ‚È‚Ì‚ÅA‘¬“x“ü—Í‚ÌƒXƒeƒBƒbƒN‚ÆˆÙ‚È‚èdeltaTime‚ğŠ|‚¯‚È‚¢B
+                // ãƒã‚¦ã‚¹ã¯ãƒ•ãƒ¬ãƒ¼ãƒ å†…ã®å¤‰ä½ãªã®ã§ã€é€Ÿåº¦å…¥åŠ›ã®ã‚¹ãƒ†ã‚£ãƒƒã‚¯ã¨ç•°ãªã‚ŠdeltaTimeã‚’æ›ã‘ãªã„ã€‚
                 return rawLook * mouseLookSpeed;
             }
 
             return rawLook * gamepadLookSpeed * Time.deltaTime;
         }
 
+        return ReadFallbackLookInput();
+    }
+
+    private Vector2 ReadFallbackLookInput()
+    {
         Vector2 lookInput = Vector2.zero;
 
         if (Mouse.current != null)
@@ -637,7 +660,7 @@ public sealed class NetworkInputCollector
             if (leftTriggerPressed && !wasLeftTriggerPressed)
             {
                 readyPressed = true;
-                // ƒQ[ƒ€ƒpƒbƒh‚Ì¶ƒgƒŠƒK[‚Í€”õ‚ÆƒŠƒ[ƒh‚ğŒ“—p‚µAÀs‰Â”Û‚ÍóM‘¤‚ÌƒtƒF[ƒY”»’è‚É]‚¤B
+                // ã‚²ãƒ¼ãƒ ãƒ‘ãƒƒãƒ‰ã®å·¦ãƒˆãƒªã‚¬ãƒ¼ã¯æº–å‚™ã¨ãƒªãƒ­ãƒ¼ãƒ‰ã‚’å…¼ç”¨ã—ã€å®Ÿè¡Œå¯å¦ã¯å—ä¿¡å´ã®ãƒ•ã‚§ãƒ¼ã‚ºåˆ¤å®šã«å¾“ã†ã€‚
                 reloadQueued = true;
             }
 

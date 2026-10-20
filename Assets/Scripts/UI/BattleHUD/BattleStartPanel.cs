@@ -5,7 +5,7 @@ using UnityEngine;
 
 /// <summary>
 /// RoundStartingへの遷移に合わせてカウントダウンと開始文言の演出を再生する。
-/// 演出の再生時間と戦闘開始の判定は独立しており、フェーズ遷移はRoundStartControllerが行う。
+/// フェーズ遷移はRoundStartControllerが行い、開始文言は同期フェーズが戦闘へ移った後に表示する。
 /// </summary>
 public class BattleStartUI : MonoBehaviour
 {
@@ -18,22 +18,39 @@ public class BattleStartUI : MonoBehaviour
     [SerializeField] private float engageDuration = 1.5f;
     [SerializeField] private RoundManager roundManager;
 
-    private void Start()
-    {
-
-    }
     public IEnumerator PlaySequence()
     {
-        gameObject.SetActive(true);
-
-        canvasGroup.alpha = 1f;
-
-        for (int i = 3; i >= 1; i--)
+        if (roundManager == null)
         {
-            yield return StartCoroutine(AnimateText(i.ToString()));
+            roundManager = RoundManager.Instance;
         }
 
-        yield return StartCoroutine(AnimateText("Round " + roundManager.CurrentRound + " Start!"));
+        if (roundManager == null || canvasGroup == null || countText == null)
+        {
+            Debug.LogWarning("[BattleStartUI] Required references are missing.");
+            yield break;
+        }
+
+        gameObject.SetActive(true);
+        canvasGroup.alpha = 1f;
+
+        for (int i = 3; i >= 1 && roundManager.IsRoundStarting; i--)
+        {
+            yield return StartCoroutine(AnimateText(i.ToString(), countDuration, true));
+        }
+
+        while (roundManager.IsRoundStarting)
+        {
+            yield return null;
+        }
+
+        if (!roundManager.IsRoundPlaying)
+        {
+            canvasGroup.alpha = 0.0f;
+            yield break;
+        }
+
+        yield return StartCoroutine(AnimateText("Round " + roundManager.CurrentRound + " Start!", engageDuration));
 
         float t = 0f;
 
@@ -47,16 +64,13 @@ public class BattleStartUI : MonoBehaviour
 
     }
 
-    private IEnumerator AnimateText(string text)
+    private IEnumerator AnimateText(string text, float duration, bool isCountdown = false)
     {
         countText.text = text;
 
-        float duration = (text == "ENGAGE") ?
-            engageDuration : countDuration;
-
         float t = 0f;
 
-        while (t < duration)
+        while (t < duration && (!isCountdown || roundManager.IsRoundStarting))
         {
             t += Time.deltaTime;
 

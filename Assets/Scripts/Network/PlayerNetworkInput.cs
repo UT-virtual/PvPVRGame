@@ -2,8 +2,8 @@ using Fusion;
 using UnityEngine;
 
 /// <summary>
-/// PlayerNetworkInput.Buttons‚Å‘—‚é‘€ì‚ÌƒrƒbƒgˆÊ’u‚ğ’è‹`‚·‚éB
-/// ‰Ÿ‚µ‘±‚¯‚éËŒ‚‚ÆAPlayerController‚ª‘OTick‚Æ‚Ì·•ª‚Å”»’è‚·‚é‘€ì‚ğŠÜ‚ŞB
+/// PlayerNetworkInput.Buttonsã§é€ã‚‹æ“ä½œã®ãƒ“ãƒƒãƒˆä½ç½®ã‚’å®šç¾©ã™ã‚‹ã€‚
+/// æŠ¼ã—ç¶šã‘ã‚‹å°„æ’ƒã¨ã€PlayerControllerãŒå‰Tickã¨ã®å·®åˆ†ã§åˆ¤å®šã™ã‚‹æ“ä½œã‚’å«ã‚€ã€‚
 /// </summary>
 public enum PlayerInputButton
 {
@@ -23,8 +23,8 @@ public enum PlayerInputButton
 }
 
 /// <summary>
-/// NetworkInputCollector‚©‚çPlayerController‚ÆVRBodyTargetSync‚Ö“n‚·1‰ñ•ª‚Ì“ü—Íƒf[ƒ^B
-/// ‹ü‚Ì•ûŒü‚Íƒ[ƒ‹ƒhÀ•WAHMDEè‚Ìp¨‚Í“ü—ÍAction‚Ì’ÇÕÀ•W‚Å‘—‚èA’n•\Šî€‚Ö‚Ì•ÏŠ·‚ÍóM‘¤‚Ås‚¤B
+/// NetworkInputCollectorã‹ã‚‰PlayerControllerã¨VRBodyTargetSyncã¸æ¸¡ã™1å›åˆ†ã®å…¥åŠ›ãƒ‡ãƒ¼ã‚¿ã€‚
+/// è¦–ç·šã®æ–¹å‘ã¯ãƒ¯ãƒ¼ãƒ«ãƒ‰åº§æ¨™ã€HMDãƒ»æ‰‹ã®å§¿å‹¢ã¯å…¥åŠ›Actionã®è¿½è·¡åº§æ¨™ã§é€ã‚Šã€åœ°è¡¨åŸºæº–ã¸ã®å¤‰æ›ã¯å—ä¿¡å´ã§è¡Œã†ã€‚
 /// </summary>
 public struct PlayerNetworkInput : INetworkInput
 {
@@ -34,7 +34,7 @@ public struct PlayerNetworkInput : INetworkInput
 
     public Vector3 AimForward;
     public Vector3 ViewForward;
-    // –¢“o˜^‚Ìƒ[ƒ•ûŒü‚Æ‹æ•Ê‚µAóM‘¤‚ª‹“_·•ª‚ğg‚¤Œo˜H‚ÖØ‚è‘Ö‚¦‚éB
+    // æœªç™»éŒ²æ™‚ã®ã‚¼ãƒ­æ–¹å‘ã¨åŒºåˆ¥ã—ã€å—ä¿¡å´ãŒè¦–ç‚¹å·®åˆ†ã‚’ä½¿ã†çµŒè·¯ã¸åˆ‡ã‚Šæ›¿ãˆã‚‹ã€‚
     public byte HasLookDirection;
 
     public NetworkBool IsVR;
@@ -44,7 +44,7 @@ public struct PlayerNetworkInput : INetworkInput
 
     public Vector3 LeftHandPosition;
     public Quaternion LeftHandRotation;
-    // ˆÊ’uAction‚ÌŠ„‚è“–‚Ä—L–³‚ğ•\‚·B’ÇÕˆÊ’u‚»‚Ì‚à‚Ì‚Ì—LŒø«‚ÍVRBodyTargetSync‘¤‚ÅŠm”F‚·‚éB
+    // ä½ç½®Actionã®å‰²ã‚Šå½“ã¦æœ‰ç„¡ã‚’è¡¨ã™ã€‚è¿½è·¡ä½ç½®ãã®ã‚‚ã®ã®æœ‰åŠ¹æ€§ã¯VRBodyTargetSyncå´ã§ç¢ºèªã™ã‚‹ã€‚
     public byte HasLeftHand;
 
     public Vector3 RightHandPosition;

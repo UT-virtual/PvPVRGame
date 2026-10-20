@@ -72,7 +72,7 @@ public class RoundManager : NetworkBehaviour
     [Header("Debug Spectator Dummy")]
     [SerializeField] private bool countDebugSpectatorDummiesAsAlive = false;
 
-    public int CurrentRound { get; private set; } = 1;
+    [Networked] public int CurrentRound { get; private set; }
 
     [Networked]
     private GamePhase phase { get; set; }
@@ -124,6 +124,9 @@ public class RoundManager : NetworkBehaviour
     public bool IsSkillSelecting =>
         CanReadNetworkedPhase &&
         phase == GamePhase.SkillSelecting;
+
+    public bool IsRoundStarting =>
+        CanReadNetworkedPhase && phase == GamePhase.RoundStarting;
 
     public bool IsRoundPlaying =>
         CanReadNetworkedPhase &&
@@ -186,6 +189,7 @@ public class RoundManager : NetworkBehaviour
 
         if (Object.HasStateAuthority)
         {
+            CurrentRound = 1;
             phase = GamePhase.WaitingForReady;
         }
 
@@ -271,6 +275,13 @@ public class RoundManager : NetworkBehaviour
         debugLogger = new RoundDebugLogger();
         projectileCleaner = new RoundProjectileCleaner();
 
+        InitializeRoundStartController();
+        InitializeSkillSelectionController();
+        InitializeFlowController();
+    }
+
+    private void InitializeRoundStartController()
+    {
         roundStartController = new RoundStartController(
             this,
             () => phase,
@@ -282,7 +293,10 @@ public class RoundManager : NetworkBehaviour
             player => skillSelectionController.GetSecondSelectedSkill(player),
             healthItemController
         );
+    }
 
+    private void InitializeSkillSelectionController()
+    {
         skillSelectionController = new RoundSkillSelectionController(
             this,
             () => phase,
@@ -306,7 +320,10 @@ public class RoundManager : NetworkBehaviour
             roundStartController.StartRoundAfterSkillSelection,
             roundStartController.StopStartRoundCoroutine
         );
+    }
 
+    private void InitializeFlowController()
+    {
         flowController = new RoundFlowController(
             this,
             () => phase,
@@ -393,7 +410,7 @@ public class RoundManager : NetworkBehaviour
             $"Count={RegisteredPlayerCount}"
         );
 
-        if (!IsNetworkReady)
+        if (!IsNetworkReady || Runner == null || !Runner.IsRunning)
         {
             return;
         }
@@ -410,6 +427,10 @@ public class RoundManager : NetworkBehaviour
         else if (IsSkillSelecting)
         {
             skillSelectionController.TryFinishSkillSelection();
+        }
+        else if (IsRoundPlaying)
+        {
+            flowController.CheckRoundEnd();
         }
     }
 
@@ -462,11 +483,17 @@ public class RoundManager : NetworkBehaviour
 
     /// <summary>
     /// 選択スロットの要求をRoundManagerのStateAuthorityへ届ける。
-    /// 対象は引数のPlayerRefから検索し、選択フェーズ・登録・候補を検証する。
+    /// RPCの送信者と対象PlayerRefを照合し、選択フェーズ・登録・候補を検証する。
     /// </summary>
-    [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
-    public void RPC_RequestSelectSkillBySlot(PlayerRef playerRef, int slotIndex)
+    [Rpc(RpcSources.All, RpcTargets.StateAuthority, HostMode = RpcHostMode.SourceIsHostPlayer)]
+    public void RPC_RequestSelectSkillBySlot(PlayerRef playerRef, int slotIndex, RpcInfo info = default)
     {
+        if (info.Source == PlayerRef.None || info.Source != playerRef)
+        {
+            Debug.LogWarning("[RoundManager] Skill selection sender does not match the requested player.");
+            return;
+        }
+
         skillSelectionController.HandleRequestSelectSkillBySlot(playerRef, slotIndex);
     }
 

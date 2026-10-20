@@ -146,14 +146,14 @@ public class SkillCardUI : MonoBehaviour
                 return new SkillDisplayData(
                     "弾",
                     "即時装填",
-                    "10秒間、リロードが即座に完了する"
+                    "一定時間、リロードが即座に完了する"
                 );
             
             case PlayerSkillType.GravityBurstReload:
                 return new SkillDisplayData(
                     "炸",
                     "拡散曲射弾",
-                    "重力で落ち、着弾時に周囲へダメージを与える弾を5発装填"
+                    "重力で落ち、着弾時に周囲へダメージを与える特殊弾を装填"
                 );
 
             case PlayerSkillType.HeavyBulletReload:

@@ -79,6 +79,7 @@ public class PlayerSound : NetworkBehaviour
 
     public override void Despawned(NetworkRunner runner, bool hasState)
     {
+        StopReloadingSound();
         if (playerMove != null)
         {
             playerMove.OnJumped -= PlayJumpSound;
@@ -88,7 +89,7 @@ public class PlayerSound : NetworkBehaviour
         {
             playerWeapon.OnShot -= PlayFireSound;
             playerWeapon.OnReloadStarted -= PlayReloadingSound;
-            playerWeapon.OnReloadCanceled += StopReloadingSound;
+            playerWeapon.OnReloadCanceled -= StopReloadingSound;
             playerWeapon.OnReloaded -= PlayReloadSound;
         }
 

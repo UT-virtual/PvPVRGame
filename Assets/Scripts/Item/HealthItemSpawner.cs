@@ -178,12 +178,14 @@ public class HealthItemSpawner : MonoBehaviour
 
         Quaternion spawnRotation = GetSurfaceAlignedRotation(spawnPoint);
 
-        NetworkObject itemObject = runner.Spawn(
-            healthItemPrefab,
-            spawnPoint.position,
-            spawnRotation,
-            PlayerRef.None
+        NetworkSpawnStatus status = runner.TrySpawn(
+            healthItemPrefab, out NetworkObject itemObject, spawnPoint.position, spawnRotation, PlayerRef.None
         );
+        if (status != NetworkSpawnStatus.Spawned || itemObject == null)
+        {
+            Debug.LogWarning($"[HealthItemSpawner] Item spawn failed: Index={spawnIndex}, Status={status}");
+            return;
+        }
 
         HealthItem healthItem = itemObject.GetComponent<HealthItem>();
 
