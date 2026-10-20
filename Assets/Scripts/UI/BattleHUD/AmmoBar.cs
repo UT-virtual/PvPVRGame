@@ -18,7 +18,15 @@ public class AmmoBar : MonoBehaviour
 
     private void OnEnable()
     {
-        StartFindLocalWeapon();
+        // 観戦先を設定した後で親HUDが有効になる場合も、その接続先を維持して購読を再開する。
+        if (weapon != null)
+        {
+            SetupWeapon(weapon);
+        }
+        else
+        {
+            StartFindLocalWeapon();
+        }
     }
 
     private void OnDisable()
@@ -104,13 +112,23 @@ public class AmmoBar : MonoBehaviour
 
     /// <summary>
     /// 接続先のイベント購読を切り替え、最大弾数に合わせてセルを再生成する。
-    /// NetworkObjectが未有効ならローカル武器の探索へ戻る。
+    /// nullなら購読とセルを消去し、NetworkObjectが未有効ならローカル武器の探索へ戻る。
     /// </summary>
     public void SetupWeapon(PlayerWeapon targetWeapon)
     {
         if (targetWeapon == null)
         {
-            Debug.LogWarning("[AmmoBar] SetupWeapon failed. targetWeapon is null.");
+            if (findWeaponCoroutine != null)
+            {
+                StopCoroutine(findWeaponCoroutine);
+                findWeaponCoroutine = null;
+            }
+            if (weapon != null)
+            {
+                weapon.OnAmmoChanged -= UpdateCells;
+            }
+            weapon = null;
+            ClearCells();
             return;
         }
 
@@ -122,6 +140,11 @@ public class AmmoBar : MonoBehaviour
             return;
         }
 
+        if (findWeaponCoroutine != null)
+        {
+            StopCoroutine(findWeaponCoroutine);
+            findWeaponCoroutine = null;
+        }
         if (weapon != null)
         {
             weapon.OnAmmoChanged -= UpdateCells;

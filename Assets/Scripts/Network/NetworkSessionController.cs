@@ -12,7 +12,8 @@ using UnityEngine.SceneManagement;
 /// </summary>
 public sealed class NetworkSessionController : IDisposable
 {
-    public const int MaxPlayerCount = 4;
+    public const int MaxCombatantCount = 4;
+    public const int MaxConnectionCount = MaxCombatantCount + 1;
     private readonly MonoBehaviour owner;
     private readonly INetworkRunnerCallbacks callbacks;
 
@@ -129,7 +130,7 @@ public sealed class NetworkSessionController : IDisposable
         {
             lifetime.Token.ThrowIfCancellationRequested();
             attemptCount++;
-            connectionUIController.SetStatusText($"{GetGameModeLabel(gameMode)}中... Attempt {attemptCount}");
+            connectionUIController.SetStatusText($"{GetGameModeLabel(gameMode)}中…");
             CreateRunnerObject(gameMode, attemptCount);
 
             StartGameResult result = await runner.StartGame(new StartGameArgs
@@ -138,7 +139,7 @@ public sealed class NetworkSessionController : IDisposable
                 SessionName = roomName,
                 Scene = sceneRef,
                 SceneManager = sceneManager,
-                PlayerCount = MaxPlayerCount,
+                PlayerCount = MaxConnectionCount,
                 StartGameCancellationToken = lifetime.Token
             });
 
@@ -149,6 +150,9 @@ public sealed class NetworkSessionController : IDisposable
 
             if (result.Ok)
             {
+                Debug.Log($"[NetworkSessionController] Connected: Room={runner.SessionInfo.Name}, " +
+                    $"Region={runner.SessionInfo.Region}, Server={runner.IsServer}, " +
+                    $"Connections={runner.SessionInfo.PlayerCount}/{runner.SessionInfo.MaxPlayers}");
                 connectionUIController.SetConnectionMenuVisible(false);
                 connectionUIController.SetStatusTextVisible(false);
                 return;
@@ -165,7 +169,7 @@ public sealed class NetworkSessionController : IDisposable
                 return;
             }
 
-            connectionUIController.SetStatusText($"再接続先を検索中... Attempt {attemptCount}, Room: {roomName}");
+            connectionUIController.SetStatusText("再接続先を検索中…");
             int delayMilliseconds = Mathf.RoundToInt(Mathf.Max(0.1f, clientRetryInterval) * 1000.0f);
             await Task.Delay(delayMilliseconds, lifetime.Token);
         }

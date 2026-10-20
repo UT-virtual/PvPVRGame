@@ -374,6 +374,11 @@ public sealed class NetworkInputCollector
         wasLeftVrTriggerPressedForSkill = false;
     }
 
+    /// <summary>
+    /// 役割変更前の押下や視点差分を破棄する。生成済みのローカルプレイヤー参照は維持する。
+    /// </summary>
+    public void ClearPendingInput() => ClearQueuedInputs();
+
     private void ClearQueuedInputs()
     {
         queuedLookInput = Vector2.zero;

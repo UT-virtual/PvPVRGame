@@ -5,8 +5,9 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 
 /// <summary>
-/// ローカルプレイヤーの戦闘中の死亡を検出し、待機時間後に生存者の同期視点へカメラとHUDを切り替える。
+/// 観戦専用端末、または死亡後の対戦者のカメラとHUDを生存者の同期視点へ切り替える。
 /// 観戦対象のモデルを端末上で一時的に隠し、対象切替や観戦終了時に保存した表示状態へ戻す。
+/// 固定視点は待機中かつ対戦者不在の場合に限り、それ以外の対象不在時は直前の視点を保持する。
 /// </summary>
 public class SpectatorCameraController : MonoBehaviour
 {
@@ -17,8 +18,16 @@ public class SpectatorCameraController : MonoBehaviour
     [SerializeField] private float spectatorDelay = 3.0f;
     [SerializeField] private float stickSwitchThreshold = 0.6f;
 
-    private GameObject hiddenOverheadIconRoot;
-    private bool previousOverheadIconActive;
+    [Header("Overview")]
+    [SerializeField] private Transform overviewCameraPoint;
+    [SerializeField] private Vector3 defaultOverviewPosition = new Vector3(0f, 20f, -30f);
+
+    private NetworkLauncher networkLauncher;
+    private bool hasSpawnedCombatants;
+    public bool IsWaitingOverview { get; private set; }
+    private bool savedCameraTargets;
+    private Transform previousTrackingTarget;
+    private Transform previousLookAtTarget;
 
     private BattleHudBinder battleHudBinder;
 
@@ -37,7 +46,8 @@ public class SpectatorCameraController : MonoBehaviour
     private bool switchInputHeld;
     private int targetIndex;
     public bool IsSpectatingActive =>
-        isSpectating && currentTarget != null;
+        isSpectating && (currentTarget != null ||
+        (networkLauncher != null && networkLauncher.IsDedicatedSpectator));
 
     public PlayerHealth CurrentSpectatorTarget => currentTarget;
 
@@ -47,7 +57,7 @@ public class SpectatorCameraController : MonoBehaviour
 
         GameObject targetObject = new GameObject("SpectatorCameraTarget");
         spectatorCameraTarget = targetObject.transform;
-        battleHudBinder = FindFirstObjectByType<BattleHudBinder>();
+        battleHudBinder = FindFirstObjectByType<BattleHudBinder>(FindObjectsInactive.Include);
     }
 
     private void OnDisable()
@@ -72,72 +82,118 @@ public class SpectatorCameraController : MonoBehaviour
 
     private void Update()
     {
+        if (networkLauncher == null)
+        {
+            networkLauncher = FindFirstObjectByType<NetworkLauncher>();
+        }
+
+        // 観戦専用端末と役割未選択の端末にはローカルPlayerが存在しない。
+        if (networkLauncher != null && networkLauncher.IsConnected && !networkLauncher.IsLocalCombatant)
+        {
+            UpdateSpectatorView();
+            return;
+        }
+
         FindLocalPlayerIfNeeded();
-
-        if (localPlayer == null || localPlayer.Object == null)
-        {
-            ResetSpectatorState();
-            return;
-        }
-
-        if (!CanSpectateInCurrentPhase())
+        if (localPlayer == null || localPlayer.Object == null || !localPlayer.Object.IsValid ||
+            !CanSpectateInCurrentPhase() || !localPlayer.IsDead)
         {
             if (isSpectating)
             {
                 RestoreLocalCamera();
             }
-
-            ResetSpectatorState();
-            return;
-        }
-
-        if (!localPlayer.IsDead)
-        {
-            if (isSpectating)
-            {
-                RestoreLocalCamera();
-            }
-
             ResetSpectatorState();
             return;
         }
 
         if (!wasLocalDead)
         {
-            deadTimer = 0.0f;
+            deadTimer = 0f;
             wasLocalDead = true;
-            isSpectating = false;
-            currentTarget = null;
-            switchInputHeld = false;
         }
-
         deadTimer += Time.deltaTime;
-
-        if (deadTimer < spectatorDelay)
+        if (deadTimer >= spectatorDelay)
         {
-            return;
+            UpdateSpectatorView();
         }
+    }
 
+    private void UpdateSpectatorView()
+    {
         RefreshSpectatorTargets();
-
         if (spectatorTargets.Count == 0)
         {
+            ClearSpectatorTarget(CanShowWaitingOverview());
+        }
+        else if (!isSpectating || !IsValidSpectatorTarget(currentTarget))
+        {
+            targetIndex = Mathf.Clamp(targetIndex, 0, spectatorTargets.Count - 1);
+            ApplySpectatorTarget(targetIndex);
+        }
+        else
+        {
+            // 退出で配列の位置が詰まっても、現在の対象から隣の対象へ切り替える。
+            targetIndex = spectatorTargets.IndexOf(currentTarget);
+        }
+        HandleSwitchInput();
+    }
+
+    private void RememberCameraTargets()
+    {
+        FindCinemachineCameraIfNeeded();
+        if (savedCameraTargets || cinemachineCamera == null)
+        {
             return;
         }
+        previousTrackingTarget = cinemachineCamera.Target.TrackingTarget;
+        previousLookAtTarget = cinemachineCamera.Target.LookAtTarget;
+        savedCameraTargets = true;
+    }
 
-        if (!isSpectating)
+    private bool CanShowWaitingOverview()
+    {
+        RoundManager manager = RoundManager.Instance;
+        if (manager == null || !manager.IsNetworkReady || !manager.IsWaitingForReady || hasSpawnedCombatants)
         {
-            isSpectating = true;
-            targetIndex = Mathf.Clamp(targetIndex, 0, spectatorTargets.Count - 1);
-            ApplySpectatorTarget(targetIndex);
-        }
-        else if (!IsValidSpectatorTarget(currentTarget))
-        {
-            targetIndex = Mathf.Clamp(targetIndex, 0, spectatorTargets.Count - 1);
-            ApplySpectatorTarget(targetIndex);
+            return false;
         }
 
-        HandleSwitchInput();
+        // キャラクターの生成待ちも対戦者として扱い、同期途中で固定視点へ飛ばないようにする。
+        foreach (var participant in manager.ConnectedParticipants)
+        {
+            if (participant.Value == ParticipantRole.Combatant)
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private void ClearSpectatorTarget(bool showWaitingOverview)
+    {
+        RememberCameraTargets();
+        RestoreHiddenSpectatedTargetModel();
+        if (!isSpectating || currentTarget != null)
+        {
+            if (battleHudBinder != null)
+            {
+                battleHudBinder.ClearSpectatorTarget();
+            }
+        }
+        if (!isSpectating && cinemachineCamera != null && spectatorCameraTarget != null)
+        {
+            spectatorCameraTarget.SetPositionAndRotation(cinemachineCamera.transform.position, cinemachineCamera.transform.rotation);
+        }
+
+        currentTarget = null;
+        IsWaitingOverview = showWaitingOverview;
+        isSpectating = true;
+        UpdateSpectatorCameraTarget();
+        if (cinemachineCamera != null)
+        {
+            cinemachineCamera.Target.TrackingTarget = spectatorCameraTarget;
+            cinemachineCamera.Target.LookAtTarget = spectatorCameraTarget;
+        }
     }
 
     private bool CanSpectateInCurrentPhase()
@@ -164,6 +220,14 @@ public class SpectatorCameraController : MonoBehaviour
 
         if (currentTarget == null)
         {
+            // 戦闘終了直後や対象の再生成待ちは、最後のプレイヤー視点の位置を保つ。
+            if (IsWaitingOverview && spectatorCameraTarget != null)
+            {
+                Vector3 position = overviewCameraPoint != null ? overviewCameraPoint.position : defaultOverviewPosition;
+                Quaternion rotation = overviewCameraPoint != null ? overviewCameraPoint.rotation
+                    : Quaternion.LookRotation(-position.normalized, Vector3.up);
+                spectatorCameraTarget.SetPositionAndRotation(position, rotation);
+            }
             return;
         }
 
@@ -217,7 +281,7 @@ public class SpectatorCameraController : MonoBehaviour
     {
         if (localPlayer != null &&
             localPlayer.Object != null &&
-            localPlayer.Object.HasInputAuthority)
+            localPlayer.Object.IsValid && localPlayer.Object.HasInputAuthority)
         {
             return;
         }
@@ -231,7 +295,7 @@ public class SpectatorCameraController : MonoBehaviour
                 continue;
             }
 
-            if (player.Object.HasInputAuthority)
+            if (player.Object.IsValid && player.Object.HasInputAuthority)
             {
                 localPlayer = player;
                 return;
@@ -244,11 +308,17 @@ public class SpectatorCameraController : MonoBehaviour
     private void RefreshSpectatorTargets()
     {
         spectatorTargets.Clear();
+        hasSpawnedCombatants = false;
 
         PlayerHealth[] players = FindObjectsByType<PlayerHealth>(FindObjectsSortMode.None);
 
         foreach (PlayerHealth player in players)
         {
+            if (player != null && player.Object != null && player.Object.IsValid &&
+                player.Object.InputAuthority != PlayerRef.None)
+            {
+                hasSpawnedCombatants = true;
+            }
             if (!IsValidSpectatorTarget(player))
             {
                 continue;
@@ -256,6 +326,16 @@ public class SpectatorCameraController : MonoBehaviour
 
             spectatorTargets.Add(player);
         }
+
+        // 表示番号順で並べ、端末や探索順序によって切替順が変わらないようにする。
+        spectatorTargets.Sort((a, b) =>
+        {
+            PlayerIdentity aIdentity = a.GetComponent<PlayerIdentity>();
+            PlayerIdentity bIdentity = b.GetComponent<PlayerIdentity>();
+            int aNumber = aIdentity != null ? aIdentity.PlayerNumber : a.GetInstanceID();
+            int bNumber = bIdentity != null ? bIdentity.PlayerNumber : b.GetInstanceID();
+            return aNumber.CompareTo(bNumber);
+        });
 
         if (targetIndex >= spectatorTargets.Count)
         {
@@ -275,7 +355,15 @@ public class SpectatorCameraController : MonoBehaviour
             return false;
         }
 
-        if (player.Object == null)
+        if (player.Object == null || !player.Object.IsValid)
+        {
+            return false;
+        }
+
+        // 1人用の死亡後観戦テストではダミーを許可する。展示用観戦では実際の対戦者だけを列挙する。
+        if (player.Object.InputAuthority == PlayerRef.None &&
+            ((networkLauncher != null && networkLauncher.IsDedicatedSpectator) ||
+            !player.name.StartsWith("DebugSpectatorDummy")))
         {
             return false;
         }
@@ -305,8 +393,14 @@ public class SpectatorCameraController : MonoBehaviour
 
         switchInputHeld = true;
 
-        if (spectatorTargets.Count <= 1)
+        if (spectatorTargets.Count == 0)
         {
+            return;
+        }
+
+        if (currentTarget == null)
+        {
+            ApplySpectatorTarget(Mathf.Clamp(targetIndex, 0, spectatorTargets.Count - 1));
             return;
         }
 
@@ -379,25 +473,14 @@ public class SpectatorCameraController : MonoBehaviour
             return;
         }
 
-        PlayerCamera targetCamera = targetHealth.GetComponent<PlayerCamera>();
-        Transform targetTransform = null;
-
-        if (targetCamera != null)
-        {
-            targetCamera.UpdateCameraTarget();
-            targetTransform = targetCamera.CameraTarget;
-        }
-
-        if (targetTransform == null)
-        {
-            targetTransform = targetHealth.transform;
-        }
-
+        RememberCameraTargets();
+        IsWaitingOverview = false;
+        isSpectating = true;
         currentTarget = targetHealth;
 
         if (battleHudBinder == null)
         {
-            battleHudBinder = FindFirstObjectByType<BattleHudBinder>();
+            battleHudBinder = FindFirstObjectByType<BattleHudBinder>(FindObjectsInactive.Include);
         }
 
         if (battleHudBinder != null)
@@ -421,26 +504,19 @@ public class SpectatorCameraController : MonoBehaviour
 
         FindCinemachineCameraIfNeeded();
 
-        if (cinemachineCamera == null || localPlayer == null)
+        if (cinemachineCamera == null)
         {
             return;
         }
 
-        PlayerCamera localCamera = localPlayer.GetComponent<PlayerCamera>();
+        PlayerCamera localCamera = localPlayer != null ? localPlayer.GetComponent<PlayerCamera>() : null;
 
         if (localCamera == null || localCamera.CameraTarget == null)
         {
+            // 切断・役割変更で自分のPlayerが消えた場合も、破棄予定の追従先を保持しない。
+            cinemachineCamera.Target.TrackingTarget = previousTrackingTarget;
+            cinemachineCamera.Target.LookAtTarget = previousLookAtTarget;
             return;
-        }
-
-        if (battleHudBinder == null)
-        {
-            battleHudBinder = FindFirstObjectByType<BattleHudBinder>();
-        }
-
-        if (battleHudBinder != null)
-        {
-            battleHudBinder.BindToLocalPlayer();
         }
 
         localCamera.UpdateCameraTarget();
@@ -455,11 +531,15 @@ public class SpectatorCameraController : MonoBehaviour
     {
         RestoreHiddenSpectatedTargetModel();
 
-        if (isSpectating && battleHudBinder != null && battleHudBinder.isActiveAndEnabled)
+        if (isSpectating && battleHudBinder != null)
         {
             battleHudBinder.BindToLocalPlayer();
         }
 
+        savedCameraTargets = false;
+        previousTrackingTarget = null;
+        previousLookAtTarget = null;
+        IsWaitingOverview = false;
         deadTimer = 0.0f;
         wasLocalDead = false;
         isSpectating = false;
@@ -486,33 +566,38 @@ public class SpectatorCameraController : MonoBehaviour
         hiddenModelTarget = target;
         previousRendererStates.Clear();
 
-        Renderer[] renderers = target.BodyRenderers;
-
-        foreach (Renderer renderer in renderers)
+        SuppressRenderers(target.BodyRenderers ?? System.Array.Empty<Renderer>());
+        if (target.OverheadIconRoot != null)
         {
-            if (renderer == null)
-            {
-                continue;
-            }
-
-            // 死亡・復活が制御するenabledと競合しないよう、観戦中だけ描画を抑止する。
-            previousRendererStates[renderer] = renderer.forceRenderingOff;
-            renderer.forceRenderingOff = true;
-        }
-
-        hiddenOverheadIconRoot = target.OverheadIconRoot;
-
-        if (hiddenOverheadIconRoot != null)
-        {
-            previousOverheadIconActive = hiddenOverheadIconRoot.activeSelf;
-            hiddenOverheadIconRoot.SetActive(false);
+            // Rootの有効状態はPlayerHealthが死亡・復活時に変更するため、描画だけを抑止する。
+            SuppressRenderers(target.OverheadIconRoot.GetComponentsInChildren<Renderer>(true));
         }
 
         Debug.Log($"[SpectatorCameraController] Hide spectated model: {target.name}");
     }
 
+    private void SuppressRenderers(Renderer[] renderers)
+    {
+        foreach (Renderer renderer in renderers)
+        {
+            if (renderer == null || previousRendererStates.ContainsKey(renderer))
+            {
+                continue;
+            }
+
+            // enabledやSetActiveで再表示されても、観戦対象の体とアイコンは描画しない。
+            previousRendererStates.Add(renderer, renderer.forceRenderingOff);
+            renderer.forceRenderingOff = true;
+        }
+    }
+
     private void RestoreHiddenSpectatedTargetModel()
     {
+        if (previousRendererStates.Count == 0 && hiddenModelTarget == null)
+        {
+            return;
+        }
+
         foreach (KeyValuePair<Renderer, bool> pair in previousRendererStates)
         {
             Renderer renderer = pair.Key;
@@ -526,14 +611,6 @@ public class SpectatorCameraController : MonoBehaviour
         }
 
         previousRendererStates.Clear();
-
-        if (hiddenOverheadIconRoot != null)
-        {
-            hiddenOverheadIconRoot.SetActive(
-                previousOverheadIconActive && hiddenModelTarget != null && !hiddenModelTarget.IsDead
-            );
-            hiddenOverheadIconRoot = null;
-        }
 
         hiddenModelTarget = null;
 

@@ -71,6 +71,20 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
     private NetworkPlayerSpawner playerSpawner;
     private NetworkInputCollector inputCollector;
     private LocalSkillSelectionInputController skillSelectionInputController;
+    private NetworkParticipantRegistry participantRegistry;
+    private LocalParticipantRoleController participantRoleController;
+    private SpectatorCameraController spectatorController;
+
+    public int ParticipantRevision => participantRegistry.Revision;
+    public IReadOnlyDictionary<PlayerRef, ParticipantRole> ParticipantRoles => participantRegistry.Roles;
+
+    public ParticipantRole LocalRole => participantRoleController.LocalRole;
+    public bool IsConnected => participantRoleController.IsConnected;
+    public bool IsLocalCombatant => participantRoleController.IsLocalCombatant;
+    public bool IsDedicatedSpectator => participantRoleController.IsDedicatedSpectator;
+    public bool CanChooseRole => participantRoleController.CanChooseRole;
+    public bool IsRoleRequestPending => participantRoleController.IsRoleRequestPending;
+    public string RoleStatus => participantRoleController.RoleStatus;
 
     public int CurrentSkillSelectionSlot =>
         skillSelectionInputController != null
@@ -133,22 +147,45 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
 
     private void Update()
     {
-        inputCollector.UpdateHmdAndLook();
-
-        if (skillSelectionInputController.UpdateIfSkillSelecting())
-        {
-            return;
-        }
-
-        if (sessionController.CanReconnectFromWaitingRoom() &&
-            inputCollector.ReadReconnectPressed())
+        UpdateRoleSelection();
+        if (sessionController.CanReconnectFromWaitingRoom() && inputCollector.ReadReconnectPressed())
         {
             ReconnectAsClient();
             return;
         }
 
-        inputCollector.QueueGameplayButtons();
+        if (!IsLocalCombatant || IsRoleRequestPending)
+        {
+            inputCollector.ClearPendingInput();
+            skillSelectionInputController.ResetSkillSelectionInputState();
+            return;
+        }
+
+        inputCollector.UpdateHmdAndLook();
+        if (!skillSelectionInputController.UpdateIfSkillSelecting())
+        {
+            inputCollector.QueueGameplayButtons();
+        }
     }
+
+    private void UpdateRoleSelection()
+    {
+        participantRoleController.Update();
+        bool lockCursor = IsConnected;
+        Cursor.lockState = lockCursor ? CursorLockMode.Locked : CursorLockMode.None;
+        Cursor.visible = !lockCursor;
+    }
+
+    public void RequestRole(ParticipantRole role) => participantRoleController.RequestRole(role);
+
+    public bool TryChangeParticipantRole(NetworkRunner runner, PlayerRef player,
+        ParticipantRole role, int requestId, bool isWaiting, bool initialAssignment, out string message) =>
+        participantRegistry.TryChangeRole(runner, player, role, requestId, isWaiting, out message, initialAssignment);
+
+    public ParticipantRole GetParticipantRole(PlayerRef player) => participantRegistry.GetRole(player);
+
+    public void OnParticipantRoleResult(PlayerRef player, int requestId, ParticipantRole role, string message) =>
+        participantRoleController.OnResult(player, requestId, role, message);
 
     private void InitializeControllers()
     {
@@ -205,6 +242,18 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
             skillSelectionStickThreshold,
             () => sessionController.Runner
         );
+
+        participantRegistry = new NetworkParticipantRegistry(playerSpawner);
+        participantRoleController = new LocalParticipantRoleController(
+            () => sessionController.IsStartingGame || sessionController.IsReconnecting ? null : sessionController.Runner,
+            inputCollector.ClearPendingInput,
+            skillSelectionInputController.ResetSkillSelectionInputState
+        );
+        spectatorController = FindFirstObjectByType<SpectatorCameraController>();
+        if (spectatorController == null)
+        {
+            spectatorController = gameObject.AddComponent<SpectatorCameraController>();
+        }
     }
 
     public async void StartGame(GameMode gameMode)
@@ -219,6 +268,8 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
 
     private void ResetLocalSessionState()
     {
+        participantRoleController?.ResetSession();
+        participantRegistry?.ResetSession();
         inputCollector.ResetLocalState();
         skillSelectionInputController?.ResetSkillSelectionInputState();
         playerSpawner.ResetSession();
@@ -275,12 +326,12 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
 
     public void OnPlayerJoined(NetworkRunner runner, PlayerRef player)
     {
-        playerSpawner.OnPlayerJoined(runner, player);
+        participantRegistry.RegisterConnection(runner, player);
     }
 
     public void OnPlayerLeft(NetworkRunner runner, PlayerRef player)
     {
-        playerSpawner.OnPlayerLeft(runner, player);
+        participantRegistry.UnregisterConnection(runner, player);
     }
 
     /// <summary>
@@ -288,7 +339,14 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
     /// </summary>
     public void OnInput(NetworkRunner runner, NetworkInput input)
     {
-        inputCollector.CollectInput(input);
+        if (IsLocalCombatant && !IsRoleRequestPending)
+        {
+            inputCollector.CollectInput(input);
+        }
+        else
+        {
+            input.Set(default(PlayerNetworkInput));
+        }
     }
 
     public void OnInputMissing(NetworkRunner runner, PlayerRef player, NetworkInput input) { }

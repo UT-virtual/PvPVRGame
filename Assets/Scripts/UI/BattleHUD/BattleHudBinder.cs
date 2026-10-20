@@ -53,6 +53,11 @@ public class BattleHudBinder : MonoBehaviour
 
     private void StartBindLocalPlayer()
     {
+        if (!isActiveAndEnabled)
+        {
+            return;
+        }
+
         if (bindLocalCoroutine != null)
         {
             StopCoroutine(bindLocalCoroutine);
@@ -95,6 +100,7 @@ public class BattleHudBinder : MonoBehaviour
         }
         else
         {
+            ClearBindings();
             StartBindLocalPlayer();
         }
     }
@@ -115,6 +121,25 @@ public class BattleHudBinder : MonoBehaviour
     public void BindToPlayer(PlayerHealth playerHealth)
     {
         BindToPlayerInternal(playerHealth);
+    }
+
+    /// <summary>
+    /// 観戦対象がいない間は購読と表示値を消去する。ローカル探索を固定し、古い対象のHPを残さない。
+    /// </summary>
+    public void ClearSpectatorTarget()
+    {
+        spectatorOverride = true;
+        ClearBindings();
+    }
+
+    private void ClearBindings()
+    {
+        currentHealth = null;
+        currentWeapon = null;
+        currentSkillController = null;
+        if (healthBar != null) healthBar.SetupPlayerHealth(null);
+        if (ammoBar != null) ammoBar.SetupWeapon(null);
+        if (skillHudUI != null) skillHudUI.SetupSkillController(null);
     }
 
     private void BindToPlayerInternal(PlayerHealth playerHealth)

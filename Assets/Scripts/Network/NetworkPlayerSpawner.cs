@@ -3,8 +3,8 @@ using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
-/// サーバーで参加者のNetworkObjectを生成し、参加者をInputAuthorityとして割り当てる。
-/// 生成したオブジェクトを保持し、退出時のDespawnと識別情報の初期化を担当する。
+/// サーバーで対戦者のNetworkObjectを生成・破棄し、表示番号とスポーン枠を管理する。
+/// 生成を許可する役割・フェーズの検証はNetworkParticipantRegistryが担当する。
 /// </summary>
 public sealed class NetworkPlayerSpawner
 {
@@ -31,32 +31,17 @@ public sealed class NetworkPlayerSpawner
         this.debugSpectatorDummyCount = debugSpectatorDummyCount;
     }
 
+    public int CombatantCount => spawnedPlayers.Count;
+
     /// <summary>
-    /// サーバーだけが参加者のプレイヤーを生成する。Spawnのplayer引数をInputAuthorityに割り当てる。
+    /// サーバーで対戦者だけを生成する。生成失敗・重複・上限到達時は番号やスポーン枠を消費しない。
     /// </summary>
-    public void OnPlayerJoined(NetworkRunner runner, PlayerRef player)
+    public bool TrySpawnCombatant(NetworkRunner runner, PlayerRef player)
     {
-        if (runner == null)
+        if (runner == null || !runner.IsServer || !playerPrefab.IsValid ||
+            spawnedPlayers.Count >= NetworkSessionController.MaxCombatantCount || spawnedPlayers.ContainsKey(player))
         {
-            return;
-        }
-
-        Debug.Log($"[NetworkPlayerSpawner] OnPlayerJoined: {player}, IsServer: {runner.IsServer}");
-
-        if (!runner.IsServer)
-        {
-            return;
-        }
-
-        if (!playerPrefab.IsValid)
-        {
-            Debug.LogWarning("[NetworkPlayerSpawner] Cannot spawn player because Player Prefab is not valid.");
-            return;
-        }
-
-        if (spawnedPlayers.Count >= NetworkSessionController.MaxPlayerCount || spawnedPlayers.ContainsKey(player))
-        {
-            return;
+            return false;
         }
 
         int spawnSlot = 0;
@@ -74,7 +59,7 @@ public sealed class NetworkPlayerSpawner
         if (status != NetworkSpawnStatus.Spawned || playerObject == null)
         {
             Debug.LogError($"[NetworkPlayerSpawner] Player spawn failed: {player}, Status={status}");
-            return;
+            return false;
         }
 
         int visualIndex = nextVisualIndex++;
@@ -87,9 +72,13 @@ public sealed class NetworkPlayerSpawner
         Debug.Log($"[NetworkPlayerSpawner] Spawned player: {player}, VisualIndex={visualIndex}");
 
         SpawnDebugSpectatorDummiesIfNeeded(runner);
+        return true;
     }
 
-    public void OnPlayerLeft(NetworkRunner runner, PlayerRef player)
+    /// <summary>
+    /// 退出または観戦者への変更時に、生成物とスポーン枠を解放する。観戦者の接続自体は維持できる。
+    /// </summary>
+    public void DespawnCombatant(NetworkRunner runner, PlayerRef player)
     {
         if (runner == null || !runner.IsServer)
         {
@@ -185,7 +174,7 @@ public sealed class NetworkPlayerSpawner
             PlayerHealth health = playerObject.GetComponent<PlayerHealth>();
             int colorIndex = health != null && health.HasTeamAssigned
                 ? health.NetworkedTeamIndex
-                : visualIndex % NetworkSessionController.MaxPlayerCount;
+                : visualIndex % NetworkSessionController.MaxCombatantCount;
             playerIdentity.SetIdentity(visualIndex + 1, colorIndex);
         }
         else

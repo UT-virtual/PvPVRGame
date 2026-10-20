@@ -26,7 +26,9 @@ public class SkillSelectUI : MonoBehaviour
     {
         RoundManager roundManager = RoundManager.Instance;
 
+        EnsureNetworkLauncher();
         bool shouldShow =
+            networkLauncher != null && networkLauncher.IsLocalCombatant &&
             roundManager != null &&
             roundManager.IsSkillSelecting;
 

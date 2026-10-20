@@ -44,7 +44,15 @@ public class SpectatorStatusUI : MonoBehaviour
 
         if (target == null)
         {
-            SetVisible(false);
+            SetVisible(true);
+            if (spectatorText != null) spectatorText.text = spectatorController.IsWaitingOverview
+                ? "対戦者の参加を待っています" : "次の観戦対象を待っています";
+            if (operationText != null) operationText.text = "";
+            if (targetColorIcon != null)
+            {
+                targetColorIcon.enabled = !spectatorController.IsWaitingOverview;
+                targetColorIcon.color = Color.gray;
+            }
             return;
         }
 
@@ -72,6 +80,8 @@ public class SpectatorStatusUI : MonoBehaviour
         {
             return;
         }
+
+        targetColorIcon.enabled = true;
 
         if (!target.HasTeamAssigned)
         {

@@ -72,6 +72,13 @@ public class RoundManager : NetworkBehaviour
     [Header("Debug Spectator Dummy")]
     [SerializeField] private bool countDebugSpectatorDummiesAsAlive = false;
 
+    // 接続者の一覧と役割はキャラクターの有無と分け、観戦者も全端末の待機一覧へ載せる。
+    [Networked, Capacity(NetworkSessionController.MaxConnectionCount)]
+    public NetworkDictionary<PlayerRef, ParticipantRole> ConnectedParticipants => default;
+
+    private NetworkLauncher participantLauncher;
+    private int lastParticipantRevision = -1;
+
     [Networked] public int CurrentRound { get; private set; }
     [Networked] public int SkillSelectionVersion { get; private set; }
     [Networked] private TickTimer RoundStartDeadline { get; set; }
@@ -196,6 +203,7 @@ public class RoundManager : NetworkBehaviour
 
         if (Object.HasStateAuthority)
         {
+            lastParticipantRevision = -1;
             CurrentRound = 1;
             phase = GamePhase.WaitingForReady;
         }
@@ -226,6 +234,29 @@ public class RoundManager : NetworkBehaviour
         }
 
         isSpawned = false;
+    }
+
+    public override void FixedUpdateNetwork()
+    {
+        if (!Object.HasStateAuthority)
+        {
+            return;
+        }
+        if (participantLauncher == null)
+        {
+            participantLauncher = FindFirstObjectByType<NetworkLauncher>();
+        }
+        if (participantLauncher == null || lastParticipantRevision == participantLauncher.ParticipantRevision)
+        {
+            return;
+        }
+
+        ConnectedParticipants.Clear();
+        foreach (var participant in participantLauncher.ParticipantRoles)
+        {
+            ConnectedParticipants.Add(participant.Key, participant.Value);
+        }
+        lastParticipantRevision = participantLauncher.ParticipantRevision;
     }
 
     public override void Render()
@@ -502,6 +533,39 @@ public class RoundManager : NetworkBehaviour
 
         LogReadyStates();
         TryStartFirstRound();
+    }
+
+    /// <summary>
+    /// 接続者本人の役割要求をStateAuthorityで検証する。観戦者はキャラクターもラウンド登録も持たない。
+    /// </summary>
+    [Rpc(RpcSources.All, RpcTargets.StateAuthority, HostMode = RpcHostMode.SourceIsHostPlayer)]
+    public void RPC_RequestParticipantRole(PlayerRef player, ParticipantRole role,
+        int requestId, bool initialAssignment, RpcInfo info = default)
+    {
+        if (info.Source == PlayerRef.None || info.Source != player)
+        {
+            return;
+        }
+
+        NetworkLauncher launcher = FindFirstObjectByType<NetworkLauncher>();
+        if (launcher == null)
+        {
+            return;
+        }
+
+        launcher.TryChangeParticipantRole(Runner, player, role, requestId, IsWaitingForReady, initialAssignment, out string message);
+        RPC_ParticipantRoleResult(player, requestId, launcher.GetParticipantRole(player), message);
+    }
+
+    [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+    private void RPC_ParticipantRoleResult(PlayerRef player, int requestId,
+        ParticipantRole role, string message)
+    {
+        NetworkLauncher launcher = FindFirstObjectByType<NetworkLauncher>();
+        if (launcher != null)
+        {
+            launcher.OnParticipantRoleResult(player, requestId, role, message);
+        }
     }
 
     public void SelectSkillBySlot(PlayerHealth player, int slotIndex)

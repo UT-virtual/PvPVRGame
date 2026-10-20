@@ -103,15 +103,23 @@ public class PlayerController : NetworkBehaviour
     /// </summary>
     public override void FixedUpdateNetwork()
     {
+        if (!Object.HasStateAuthority)
+        {
+            return;
+        }
+
+        SimulatePlayer();
+        // 選択・開始待機・入力未到達でも復活先の視点を同期し、観戦カメラを古い位置に残さない。
+        UpdateNetworkedSpectatorView();
+    }
+
+    private void SimulatePlayer()
+    {
         if (playerHealth != null && playerHealth.IsDead)
         {
-            if (Object.HasStateAuthority)
-            {
-                NetworkedIsRunning = false;
-                NetworkedMoveX = 0.0f;
-                NetworkedMoveY = 0.0f;
-            }
-
+            NetworkedIsRunning = false;
+            NetworkedMoveX = 0.0f;
+            NetworkedMoveY = 0.0f;
             return;
         }
 
@@ -121,11 +129,6 @@ public class PlayerController : NetworkBehaviour
         }
 
         float deltaTime = Runner.DeltaTime;
-
-        if (!Object.HasStateAuthority)
-        {
-            return;
-        }
 
         NetworkButtons pressedButtons = input.Buttons.GetPressed(PreviousButtons);
         PreviousButtons = input.Buttons;
@@ -139,6 +142,7 @@ public class PlayerController : NetworkBehaviour
 
         if (RoundManager.Instance != null && RoundManager.Instance.IsSkillSelecting)
         {
+            ApplyRemoteLookInput(input);
             HandleSkillSelectionInput(pressedButtons);
 
             NetworkedMoveX = 0.0f;
@@ -152,6 +156,8 @@ public class PlayerController : NetworkBehaviour
 
         if (!canControlPlayer)
         {
+            // 移動は止めても、リモート所有者の視線は観戦用に更新する。
+            ApplyRemoteLookInput(input);
             NetworkedMoveX = 0.0f;
             NetworkedMoveY = 0.0f;
             NetworkedIsRunning = false;
@@ -162,7 +168,6 @@ public class PlayerController : NetworkBehaviour
 
         playerWeapon.Tick(deltaTime);
         ApplyMovementInput(input, pressedButtons.IsSet((int)PlayerInputButton.Jump), deltaTime);
-        UpdateNetworkedSpectatorView();
         ApplyCombatInput(input, pressedButtons);
     }
 
@@ -182,6 +187,27 @@ public class PlayerController : NetworkBehaviour
         playerMove.ProbeGround();
         playerMove.UpdateAimBasis();
 
+        ApplyRemoteLookInput(input);
+
+        if (input.IsVR)
+        {
+            playerMove.MoveOnSurfaceVR(moveInput, deltaTime, playerLook.ViewForward, playerMove.AimRight);
+        }
+        else
+        {
+            playerMove.MoveOnSurface(moveInput, deltaTime);
+        }
+
+        // 移動先で法線が変わるため、姿勢整列と重力の前に接地基準を再取得する。
+        playerMove.ProbeGround();
+        playerMove.UpdateAimBasis();
+
+        playerMove.AlignToSurface(deltaTime);
+        playerMove.ApplyGravityAndJump(jumpPressed, deltaTime);
+    }
+
+    private void ApplyRemoteLookInput(PlayerNetworkInput input)
+    {
         // ローカル視点は入力収集時に反映済み。StateAuthorityでリモート所有者の視線だけを復元する。
         if (!Object.HasInputAuthority)
         {
@@ -202,22 +228,6 @@ public class PlayerController : NetworkBehaviour
                 }
             }
         }
-
-        if (input.IsVR)
-        {
-            playerMove.MoveOnSurfaceVR(moveInput, deltaTime, playerLook.ViewForward, playerMove.AimRight);
-        }
-        else
-        {
-            playerMove.MoveOnSurface(moveInput, deltaTime);
-        }
-
-        // 移動先で法線が変わるため、姿勢整列と重力の前に接地基準を再取得する。
-        playerMove.ProbeGround();
-        playerMove.UpdateAimBasis();
-
-        playerMove.AlignToSurface(deltaTime);
-        playerMove.ApplyGravityAndJump(jumpPressed, deltaTime);
     }
 
     private void ApplyCombatInput(PlayerNetworkInput input, NetworkButtons pressedButtons)

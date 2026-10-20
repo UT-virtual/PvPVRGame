@@ -86,7 +86,7 @@ public class HealthBar : MonoBehaviour
     }
 
     /// <summary>
-    /// 以前のHP購読とローカル探索を解除し、新しい接続先の値を揺れなしで表示へ反映する。
+    /// 以前のHP購読とローカル探索を解除し、新しい接続先の値を揺れなしで表示へ反映する。nullなら表示値を消去する。
     /// </summary>
     public void SetupPlayerHealth(PlayerHealth health)
     {
@@ -105,6 +105,8 @@ public class HealthBar : MonoBehaviour
 
         if (playerHealth == null)
         {
+            currentHealth = displayHealth = 0f;
+            ApplySliderValue(0f);
             return;
         }
 
