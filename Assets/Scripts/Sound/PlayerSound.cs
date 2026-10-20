@@ -65,9 +65,9 @@ public class PlayerSound : NetworkBehaviour
         if (playerWeapon != null)
         {
             playerWeapon.OnShot += PlayFireSound;
-            playerWeapon.OnReloadStarted += PlayReloadingSound; 
+            playerWeapon.OnReloadStarted += PlayReloadStartedSound;
             playerWeapon.OnReloadCanceled += StopReloadingSound;
-            playerWeapon.OnReloaded += PlayReloadSound;
+            playerWeapon.OnReloaded += StopReloadingSound;
         }
 
         if (playerHealth != null)
@@ -88,9 +88,9 @@ public class PlayerSound : NetworkBehaviour
         if (playerWeapon != null)
         {
             playerWeapon.OnShot -= PlayFireSound;
-            playerWeapon.OnReloadStarted -= PlayReloadingSound;
+            playerWeapon.OnReloadStarted -= PlayReloadStartedSound;
             playerWeapon.OnReloadCanceled -= StopReloadingSound;
-            playerWeapon.OnReloaded -= PlayReloadSound;
+            playerWeapon.OnReloaded -= StopReloadingSound;
         }
 
         if (playerHealth != null)
@@ -141,14 +141,16 @@ public class PlayerSound : NetworkBehaviour
         }
     }
 
-    private void PlayReloadSound()
+    private void PlayReloadStartedSound()
     {
         StopReloadingSound();
-        
+
         if (reloadSE != null && audioSource != null)
         {
             audioSource.PlayOneShot(reloadSE);
         }
+
+        PlayReloadingSound();
     }
 
     private void PlayDamageSound(float current, float max)

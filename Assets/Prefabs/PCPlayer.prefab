@@ -808,7 +808,7 @@ MonoBehaviour:
   projectileSpawnDistance: 0.8
   maxAmmo: 20
   fireInterval: 0.15
-  reloadDuration: 2
+  reloadDuration: 3
   muzzleTransform: {fileID: 0}
   muzzleExitOffset: 0.05
   gravityBurstSpeedMultiplier: 0.75
