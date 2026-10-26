@@ -1,0 +1,140 @@
+using TMPro;
+using UnityEngine;
+using UnityEngine.UI;
+
+/// <summary>
+/// SpectatorCameraControllerの観戦状態と対象のチーム色を読み、観戦案内を表示する。
+/// </summary>
+public class SpectatorStatusUI : MonoBehaviour
+{
+    [Header("References")]
+    [SerializeField] private GameObject root;
+    [SerializeField] private TMP_Text spectatorText;
+    [SerializeField] private Image targetColorIcon;
+    [SerializeField] private TMP_Text operationText;
+
+    private SpectatorCameraController spectatorController;
+
+    private void Awake()
+    {
+        if (root == null)
+        {
+            root = gameObject;
+        }
+
+        spectatorController = FindFirstObjectByType<SpectatorCameraController>();
+        ApplyStaticTexts();
+        SetVisible(false);
+    }
+
+    private void Update()
+    {
+        if (spectatorController == null)
+        {
+            spectatorController = FindFirstObjectByType<SpectatorCameraController>();
+        }
+
+        if (spectatorController == null || !spectatorController.IsSpectatingActive)
+        {
+            SetVisible(false);
+            return;
+        }
+
+        PlayerHealth target = spectatorController.CurrentSpectatorTarget;
+
+        if (target == null)
+        {
+            SetVisible(true);
+            if (spectatorText != null) spectatorText.text = spectatorController.IsWaitingOverview
+                ? "対戦者の参加を待っています" : "次の観戦対象を待っています";
+            if (operationText != null) operationText.text = "";
+            if (targetColorIcon != null)
+            {
+                targetColorIcon.enabled = !spectatorController.IsWaitingOverview;
+                targetColorIcon.color = Color.gray;
+            }
+            return;
+        }
+
+        SetVisible(true);
+        ApplyStaticTexts();
+        UpdateTargetColor(target);
+    }
+
+    private void ApplyStaticTexts()
+    {
+        if (spectatorText != null)
+        {
+            spectatorText.text = "観戦中";
+        }
+
+        if (operationText != null)
+        {
+            operationText.text = "観戦対象切り替え: 左スティック";
+        }
+    }
+
+    private void UpdateTargetColor(PlayerHealth target)
+    {
+        if (targetColorIcon == null)
+        {
+            return;
+        }
+
+        targetColorIcon.enabled = true;
+
+        if (!target.HasTeamAssigned)
+        {
+            targetColorIcon.color = Color.gray;
+            return;
+        }
+
+        switch (target.Team)
+        {
+            case TeamColor.Red:
+                targetColorIcon.color = new Color32(255, 77, 109, 255);
+                break;
+
+            case TeamColor.Blue:
+                targetColorIcon.color = new Color32(77, 171, 247, 255);
+                break;
+
+            case TeamColor.Green:
+                targetColorIcon.color = new Color32(64, 192, 87, 255);
+                break;
+
+            case TeamColor.Yellow:
+                targetColorIcon.color = new Color32(255, 212, 59, 255);
+                break;
+
+            default:
+                targetColorIcon.color = Color.gray;
+                break;
+        }
+    }
+
+    private void SetVisible(bool visible)
+    {
+        GameObject targetRoot = root != null ? root : gameObject;
+
+        // 監視元まで無効にするとUpdateで復帰できないため、同一階層では表示だけを隠す。
+        if (transform.IsChildOf(targetRoot.transform))
+        {
+            CanvasGroup group = targetRoot.GetComponent<CanvasGroup>();
+            if (group == null)
+            {
+                group = targetRoot.AddComponent<CanvasGroup>();
+            }
+
+            group.alpha = visible ? 1.0f : 0.0f;
+            group.interactable = visible;
+            group.blocksRaycasts = visible;
+            return;
+        }
+
+        if (targetRoot.activeSelf != visible)
+        {
+            targetRoot.SetActive(visible);
+        }
+    }
+}

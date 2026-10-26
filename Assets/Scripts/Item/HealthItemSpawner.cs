@@ -1,0 +1,300 @@
+using System.Collections;
+using System.Collections.Generic;
+using System.Linq;
+using Fusion;
+using UnityEngine;
+
+/// <summary>
+/// サーバーで回復アイテムを配置し、取得された地点ごとに遅延再生成を管理する。
+/// ラウンド終了時は生成済みアイテムと再生成待ちをまとめて破棄する。
+/// </summary>
+public class HealthItemSpawner : MonoBehaviour
+{
+    [Header("Health Item")]
+    [SerializeField] private NetworkPrefabRef healthItemPrefab;
+    [SerializeField] private int healAmount = 3;
+    [SerializeField] private float respawnDelay = 10.0f;
+
+    [Header("Spawn Points")]
+    [SerializeField] private Transform spawnPointsRoot;
+    [SerializeField] private List<Transform> spawnPoints = new();
+    [SerializeField] private bool shuffleSpawnPointsOnRoundStart = false;
+
+    [Header("Surface Align")]
+    [SerializeField] private Transform planetCenter;
+    [SerializeField] private bool alignToPlanetSurface = true;
+
+    private readonly Dictionary<int, NetworkObject> spawnedItems = new();
+    private readonly Dictionary<int, Coroutine> respawnCoroutines = new();
+
+    private int currentItemCount;
+
+    /// <summary>
+    /// 既存配置と再生成待ちを消去し、人数の半分（最低1個、地点数を上限）を配置する。
+    /// 実際のSpawnはサーバーだけで行う。
+    /// </summary>
+    public void SetupItemsForPlayerCount(int playerCount)
+    {
+        ClearAllItems();
+
+        if (!healthItemPrefab.IsValid)
+        {
+            Debug.LogError("[HealthItemSpawner] Health Item Prefab is not assigned.");
+            return;
+        }
+
+        List<Transform> availableSpawnPoints = GetAvailableSpawnPoints();
+
+        if (availableSpawnPoints.Count == 0)
+        {
+            Debug.LogWarning("[HealthItemSpawner] No health item spawn points assigned.");
+            return;
+        }
+
+        int itemCount = Mathf.Max(1, playerCount / 2);
+        itemCount = Mathf.Min(itemCount, availableSpawnPoints.Count);
+
+        currentItemCount = itemCount;
+
+        Debug.Log(
+            $"[HealthItemSpawner] Setup. " +
+            $"PlayerCount={playerCount}, ItemCount={itemCount}, SpawnPoints={availableSpawnPoints.Count}"
+        );
+
+        List<int> spawnIndices = Enumerable.Range(0, availableSpawnPoints.Count).ToList();
+
+        if (shuffleSpawnPointsOnRoundStart)
+        {
+            Shuffle(spawnIndices);
+        }
+
+        for (int i = 0; i < itemCount; i++)
+        {
+            int spawnIndex = spawnIndices[i];
+            SpawnItemAtIndex(spawnIndex);
+        }
+    }
+
+    /// <summary>
+    /// 取得済み地点の参照を外し、その地点の再生成待ちを1つだけ予約する。
+    /// HealthItemのStateAuthority側の取得成功経路から呼ぶ。
+    /// </summary>
+    public void NotifyItemPickedUp(int spawnIndex)
+    {
+        if (spawnedItems.ContainsKey(spawnIndex))
+        {
+            spawnedItems.Remove(spawnIndex);
+        }
+
+        if (respawnCoroutines.ContainsKey(spawnIndex))
+        {
+            StopCoroutine(respawnCoroutines[spawnIndex]);
+            respawnCoroutines.Remove(spawnIndex);
+        }
+
+        Coroutine coroutine = StartCoroutine(RespawnItemAfterDelay(spawnIndex));
+        respawnCoroutines[spawnIndex] = coroutine;
+    }
+
+    /// <summary>
+    /// 先に再生成コルーチンをすべて止め、サーバーでは生成済みアイテムもDespawnする。
+    /// ラウンド終了後に遅延生成が残らないよう、配置情報も消去する。
+    /// </summary>
+    public void ClearAllItems()
+    {
+        foreach (Coroutine coroutine in respawnCoroutines.Values)
+        {
+            if (coroutine != null)
+            {
+                StopCoroutine(coroutine);
+            }
+        }
+
+        respawnCoroutines.Clear();
+
+        NetworkRunner runner = FindFirstObjectByType<NetworkRunner>();
+
+        foreach (NetworkObject itemObject in spawnedItems.Values)
+        {
+            if (itemObject == null)
+            {
+                continue;
+            }
+
+            if (runner != null && runner.IsServer)
+            {
+                runner.Despawn(itemObject);
+            }
+        }
+
+        spawnedItems.Clear();
+        currentItemCount = 0;
+    }
+
+    private IEnumerator RespawnItemAfterDelay(int spawnIndex)
+    {
+        yield return new WaitForSeconds(respawnDelay);
+
+        respawnCoroutines.Remove(spawnIndex);
+
+        // 待機中に終了フェーズへ移っていれば再生成しない。RoundManager未配置時は生成を継続する。
+        if (RoundManager.Instance != null && !RoundManager.Instance.CanUseWeapons)
+        {
+            yield break;
+        }
+
+        if (spawnedItems.ContainsKey(spawnIndex))
+        {
+            yield break;
+        }
+
+        SpawnItemAtIndex(spawnIndex);
+    }
+
+    private void SpawnItemAtIndex(int spawnIndex)
+    {
+        NetworkRunner runner = FindFirstObjectByType<NetworkRunner>();
+
+        if (runner == null)
+        {
+            Debug.LogWarning("[HealthItemSpawner] NetworkRunner was not found.");
+            return;
+        }
+
+        if (!runner.IsServer)
+        {
+            return;
+        }
+
+        List<Transform> availableSpawnPoints = GetAvailableSpawnPoints();
+
+        if (spawnIndex < 0 || spawnIndex >= availableSpawnPoints.Count)
+        {
+            Debug.LogWarning($"[HealthItemSpawner] Invalid spawn index: {spawnIndex}");
+            return;
+        }
+
+        Transform spawnPoint = availableSpawnPoints[spawnIndex];
+
+        Quaternion spawnRotation = GetSurfaceAlignedRotation(spawnPoint);
+
+        NetworkSpawnStatus status = runner.TrySpawn(
+            healthItemPrefab, out NetworkObject itemObject, spawnPoint.position, spawnRotation, PlayerRef.None
+        );
+        if (status != NetworkSpawnStatus.Spawned || itemObject == null)
+        {
+            Debug.LogWarning($"[HealthItemSpawner] Item spawn failed: Index={spawnIndex}, Status={status}");
+            return;
+        }
+
+        HealthItem healthItem = itemObject.GetComponent<HealthItem>();
+
+        if (healthItem == null)
+        {
+            Debug.LogError("[HealthItemSpawner] Spawned item does not have HealthItem component.");
+            runner.Despawn(itemObject);
+            return;
+        }
+
+        healthItem.Initialize(this, spawnIndex, healAmount);
+
+        spawnedItems[spawnIndex] = itemObject;
+
+        Debug.Log(
+            $"[HealthItemSpawner] Spawned item. " +
+            $"Index={spawnIndex}, " +
+            $"SpawnPoint={spawnPoint.name}, " +
+            $"Position={spawnPoint.position}, " +
+            $"Rotation={spawnRotation.eulerAngles}, " +
+            $"HealAmount={healAmount}"
+        );
+    }
+
+    private Quaternion GetSurfaceAlignedRotation(Transform spawnPoint)
+    {
+        if (spawnPoint == null)
+        {
+            return Quaternion.identity;
+        }
+
+        if (!alignToPlanetSurface || planetCenter == null)
+        {
+            return spawnPoint.rotation;
+        }
+
+        Vector3 surfaceUp = spawnPoint.position - planetCenter.position;
+
+        if (surfaceUp.sqrMagnitude < 0.001f)
+        {
+            surfaceUp = spawnPoint.up;
+        }
+
+        surfaceUp.Normalize();
+
+        Vector3 forward = Vector3.ProjectOnPlane(spawnPoint.forward, surfaceUp);
+
+        if (forward.sqrMagnitude < 0.001f)
+        {
+            forward = Vector3.ProjectOnPlane(Vector3.forward, surfaceUp);
+        }
+
+        if (forward.sqrMagnitude < 0.001f)
+        {
+            forward = Vector3.Cross(Vector3.right, surfaceUp);
+        }
+
+        if (forward.sqrMagnitude < 0.001f)
+        {
+            forward = Vector3.Cross(Vector3.up, surfaceUp);
+        }
+
+        forward.Normalize();
+
+        return Quaternion.LookRotation(forward, surfaceUp);
+    }
+
+    private List<Transform> GetAvailableSpawnPoints()
+    {
+        List<Transform> result = spawnPoints
+            .Where(spawnPoint => spawnPoint != null)
+            .Distinct()
+            .ToList();
+
+        if (result.Count > 0)
+        {
+            return result;
+        }
+
+        if (spawnPointsRoot == null)
+        {
+            return result;
+        }
+
+        for (int i = 0; i < spawnPointsRoot.childCount; i++)
+        {
+            Transform child = spawnPointsRoot.GetChild(i);
+
+            if (child != null)
+            {
+                result.Add(child);
+            }
+        }
+
+        return result
+            .Where(spawnPoint => spawnPoint != null)
+            .Distinct()
+            .ToList();
+    }
+
+    private void Shuffle(List<int> list)
+    {
+        for (int i = 0; i < list.Count; i++)
+        {
+            int randomIndex = Random.Range(i, list.Count);
+
+            int temp = list[i];
+            list[i] = list[randomIndex];
+            list[randomIndex] = temp;
+        }
+    }
+}
