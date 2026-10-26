@@ -4,7 +4,7 @@ using UnityEngine;
 
 /// <summary>
 /// StateAuthorityで弾の移動・寿命・衝突ダメージを処理する。
-/// 通常弾と重力・爆発弾を扱い、着弾時は発射者へSE通知を送る。
+/// 通常弾と重力・爆発弾を扱い、着弾時は発射者へSE通知を送り、物理弾の着弾エフェクトも通知する。
 /// </summary>
 [RequireComponent(typeof(NetworkObject))]
 public class Projectile : NetworkBehaviour
@@ -97,7 +97,10 @@ public class Projectile : NetworkBehaviour
         SetupCollision();
     }
 
-    public void InitializeVisualOnly(Vector3 direction, float speed, float duration)
+    /// <summary>
+    /// 通常弾・ヘビー弾の見た目だけを移動する。発射者を衝突対象から除外し、ダメージや着弾演出はRaycast側に任せる。
+    /// </summary>
+    public void InitializeVisualOnly(Vector3 direction, float speed, float duration, PlayerHealth projectileOwner)
     {
         if (Object == null || !Object.HasStateAuthority)
         {
@@ -110,7 +113,7 @@ public class Projectile : NetworkBehaviour
         lifeTime = duration;
         timer = 0.0f;
 
-        owner = null;
+        owner = projectileOwner;
         damage = 0.0f;
         useGravity = false;
         gravityDirection = Vector3.down;
@@ -254,6 +257,15 @@ public class Projectile : NetworkBehaviour
         {
             Runner.Despawn(Object);
             return;
+        }
+
+        if (owner != null)
+        {
+            PlayerWeapon weapon = owner.GetComponent<PlayerWeapon>();
+            if (weapon != null)
+            {
+                weapon.NotifyProjectileImpactEffect(impactPosition);
+            }
         }
 
         bool hasHitAliveEnemy;
