@@ -1,16 +1,16 @@
-using UnityEngine;
 using Fusion;
+using UnityEngine;
 
 /// <summary>
-/// StateAuthorityの移動・武器・死亡イベントをRPCで全端末へ通知する。
-/// 被弾音は各端末のHP変化から再生し、装填ループは同期された装填状態でも復元する。
+/// 移動・武器・死亡の効果音を全端末で再生し、着弾・スキルの効果音は本人だけに通知する。
+/// 装填ループとラウンド撃破通知は、同期状態の変化からも復元する。
 /// </summary>
 [RequireComponent(typeof(PlayerController))]
 [RequireComponent(typeof(AudioSource))]
 [RequireComponent(typeof(PlayerHealth))]
 public class PlayerSound : NetworkBehaviour
 {
-    [Header("サウンド設定（インスペクターで割り当ててください）")]
+    [Header("効果音設定 (3D / 既存互換)")]
     [SerializeField] private AudioClip jumpSE;
     [SerializeField] private AudioClip fireSE;
     [SerializeField] private AudioClip reloadingSE;
@@ -18,14 +18,30 @@ public class PlayerSound : NetworkBehaviour
     [SerializeField] private AudioClip tookDamageSE;
     [SerializeField] private AudioClip diedSE;
 
+    [Header("自分専用SEコンポーネント (未設定でも同オブジェクトから自動取得)")]
+    [SerializeField] private PlayerLocalSound playerLocalSound;
+
     private PlayerMove playerMove;
     private PlayerWeapon playerWeapon;
     private PlayerHealth playerHealth;
+    private PlayerSkillController playerSkillController;
+
     private AudioSource audioSource;
     private AudioSource reloadAudioSource;
 
     private bool hasInitializedHealth;
     private float previousHealth;
+    private bool wasDead;
+
+    private enum SoundEvent : byte
+    {
+        Jump,
+        Fire,
+        ReloadStarted,
+        ReloadCanceled,
+        ReloadCompleted,
+        Died
+    }
 
     private void Awake()
     {
@@ -33,26 +49,35 @@ public class PlayerSound : NetworkBehaviour
         playerMove = GetComponent<PlayerMove>();
         playerWeapon = GetComponent<PlayerWeapon>();
         playerHealth = GetComponent<PlayerHealth>();
+        playerSkillController = GetComponent<PlayerSkillController>();
+
+        if (playerLocalSound == null)
+        {
+            playerLocalSound = GetComponent<PlayerLocalSound>();
+            if (playerLocalSound == null)
+            {
+                playerLocalSound = gameObject.AddComponent<PlayerLocalSound>();
+            }
+        }
 
         if (audioSource != null)
         {
             audioSource.playOnAwake = false;
         }
 
-        // 装填のループだけを停止できるよう、単発効果音とはAudioSourceを分ける。
+        // 装填のループだけを止められるよう、単発効果音とAudioSourceを分ける。
         reloadAudioSource = gameObject.AddComponent<AudioSource>();
         reloadAudioSource.playOnAwake = false;
-        // メインのAudioSourceと同じ3D設定（空間音響）を引き継ぐ
         reloadAudioSource.spatialBlend = audioSource != null ? audioSource.spatialBlend : 1f;
     }
 
     public override void Spawned()
     {
         hasInitializedHealth = true;
-
         if (playerHealth != null)
         {
             previousHealth = playerHealth.CurrentHealth;
+            wasDead = playerHealth.IsDead;
         }
 
         if (playerMove != null)
@@ -64,8 +89,8 @@ public class PlayerSound : NetworkBehaviour
         {
             playerWeapon.OnShot += NotifyFireSound;
             playerWeapon.OnReloadStarted += NotifyReloadStartedSound;
-            playerWeapon.OnReloadCanceled += NotifyReloadStopped;
-            playerWeapon.OnReloaded += NotifyReloadStopped;
+            playerWeapon.OnReloadCanceled += NotifyReloadCanceledSound;
+            playerWeapon.OnReloaded += NotifyReloadCompletedSound;
         }
 
         if (playerHealth != null)
@@ -73,11 +98,17 @@ public class PlayerSound : NetworkBehaviour
             playerHealth.OnHealthChanged += PlayDamageSound;
             playerHealth.OnDied += NotifyDiedSound;
         }
+
+        if (playerSkillController != null)
+        {
+            playerSkillController.OnSkillActivated += HandleServerSkillActivated;
+        }
     }
 
     public override void Despawned(NetworkRunner runner, bool hasState)
     {
         StopReloadingSound();
+
         if (playerMove != null)
         {
             playerMove.OnJumped -= NotifyJumpSound;
@@ -87,8 +118,8 @@ public class PlayerSound : NetworkBehaviour
         {
             playerWeapon.OnShot -= NotifyFireSound;
             playerWeapon.OnReloadStarted -= NotifyReloadStartedSound;
-            playerWeapon.OnReloadCanceled -= NotifyReloadStopped;
-            playerWeapon.OnReloaded -= NotifyReloadStopped;
+            playerWeapon.OnReloadCanceled -= NotifyReloadCanceledSound;
+            playerWeapon.OnReloaded -= NotifyReloadCompletedSound;
         }
 
         if (playerHealth != null)
@@ -96,30 +127,81 @@ public class PlayerSound : NetworkBehaviour
             playerHealth.OnHealthChanged -= PlayDamageSound;
             playerHealth.OnDied -= NotifyDiedSound;
         }
+
+        if (playerSkillController != null)
+        {
+            playerSkillController.OnSkillActivated -= HandleServerSkillActivated;
+        }
     }
 
-    private enum SoundEvent : byte
+    public override void Render()
     {
-        Jump,
-        Fire,
-        ReloadStarted,
-        ReloadStopped,
-        Died
+        UpdateReloadLoop();
+        NotifyRoundSeOnDeath();
+    }
+
+    private void UpdateReloadLoop()
+    {
+        if (playerWeapon == null || reloadAudioSource == null)
+        {
+            return;
+        }
+
+        bool isPlayerAlive = playerHealth != null && !playerHealth.IsDead;
+        if (playerWeapon.IsReloading && isPlayerAlive)
+        {
+            // 途中参加では過去のRPCを受信できないため、同期状態から装填ループを復元する。
+            if (!reloadAudioSource.isPlaying)
+            {
+                PlayReloadingSound();
+            }
+            return;
+        }
+
+        StopReloadingSound();
+    }
+
+    private void NotifyRoundSeOnDeath()
+    {
+        if (playerHealth == null || Object == null || !Object.IsValid)
+        {
+            return;
+        }
+
+        bool isCurrentlyDead = playerHealth.IsDead;
+        if (isCurrentlyDead == wasDead)
+        {
+            return;
+        }
+
+        wasDead = isCurrentlyDead;
+        if (!isCurrentlyDead)
+        {
+            return;
+        }
+
+        // 個別の死亡SEはStateAuthorityからのRPCで再生するため、ここでは重複再生しない。
+        if (RoundSeManager.Instance != null)
+        {
+            RoundSeManager.Instance.NotifyPlayerDefeated(playerHealth);
+        }
     }
 
     private void NotifyJumpSound() => NotifySound(SoundEvent.Jump);
     private void NotifyFireSound() => NotifySound(SoundEvent.Fire);
     private void NotifyReloadStartedSound() => NotifySound(SoundEvent.ReloadStarted);
-    private void NotifyReloadStopped() => NotifySound(SoundEvent.ReloadStopped);
-    private void NotifyDiedSound(PlayerHealth target) => NotifySound(SoundEvent.Died);
+    private void NotifyReloadCanceledSound() => NotifySound(SoundEvent.ReloadCanceled);
+    private void NotifyReloadCompletedSound() => NotifySound(SoundEvent.ReloadCompleted);
+    private void NotifyDiedSound(PlayerHealth deadPlayer) => NotifySound(SoundEvent.Died);
 
     private void NotifySound(SoundEvent soundEvent)
     {
-        if (Object != null && Object.IsValid && Object.HasStateAuthority)
+        if (Object == null || !Object.IsValid || !Object.HasStateAuthority)
         {
-            // InputAuthority側では重ねて再生せず、送信元を含む全端末でRPCを1回再生する。
-            RPC_PlaySound(soundEvent);
+            return;
         }
+
+        RPC_PlaySound(soundEvent);
     }
 
     [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
@@ -127,35 +209,68 @@ public class PlayerSound : NetworkBehaviour
     {
         switch (soundEvent)
         {
-            case SoundEvent.Jump: PlayJumpSound(); break;
-            case SoundEvent.Fire: PlayFireSound(); break;
-            case SoundEvent.ReloadStarted: PlayReloadStartedSound(); break;
-            case SoundEvent.ReloadStopped: StopReloadingSound(); break;
-            case SoundEvent.Died:
+            case SoundEvent.Jump:
+                PlayJumpSound();
+                break;
+
+            case SoundEvent.Fire:
+                PlayFireSound();
+                break;
+
+            case SoundEvent.ReloadStarted:
+                PlayReloadingSound();
+                break;
+
+            case SoundEvent.ReloadCanceled:
                 StopReloadingSound();
-                PlayDiedSound(playerHealth);
+                break;
+
+            case SoundEvent.ReloadCompleted:
+                PlayReloadSound();
+                break;
+
+            case SoundEvent.Died:
+                PlayDiedSound();
                 break;
         }
     }
 
-    public override void Render()
+    // ProjectileからStateAuthority上で呼ばれ、着弾した本人だけへ送信する。
+    public void NotifyProjectileHitFromServer(bool hitEnemy, Vector3 hitPosition)
     {
-        if (playerWeapon == null || reloadAudioSource == null)
+        if (Object == null || !Object.IsValid || !Object.HasStateAuthority)
         {
             return;
         }
 
-        // 途中参加では過去の開始RPCが届かないため、ループだけを同期状態から復元する。
-        if (playerWeapon.IsReloading && playerHealth != null && !playerHealth.IsDead)
+        RPC_NotifyProjectileHitToOwner(hitEnemy, hitPosition);
+    }
+
+    [Rpc(RpcSources.StateAuthority, RpcTargets.InputAuthority)]
+    private void RPC_NotifyProjectileHitToOwner(NetworkBool hitEnemy, Vector3 hitPosition)
+    {
+        if (playerLocalSound != null)
         {
-            if (!reloadAudioSource.isPlaying)
-            {
-                PlayReloadingSound();
-            }
+            playerLocalSound.PlayProjectileHitSe(hitEnemy, hitPosition);
         }
-        else
+    }
+
+    private void HandleServerSkillActivated(PlayerSkillType skillType)
+    {
+        if (Object == null || !Object.IsValid || !Object.HasStateAuthority)
         {
-            StopReloadingSound();
+            return;
+        }
+
+        RPC_NotifySkillActivatedToOwner(skillType);
+    }
+
+    [Rpc(RpcSources.StateAuthority, RpcTargets.InputAuthority)]
+    private void RPC_NotifySkillActivatedToOwner(PlayerSkillType skillType)
+    {
+        if (playerLocalSound != null)
+        {
+            playerLocalSound.PlaySkillActivatedSe(skillType);
         }
     }
 
@@ -177,19 +292,17 @@ public class PlayerSound : NetworkBehaviour
 
     private void PlayReloadingSound()
     {
-        if(reloadingSE != null && audioSource != null)
+        if (reloadingSE == null || reloadAudioSource == null)
         {
-            reloadAudioSource.pitch = Random.Range(0.9f, 1.1f); // 0.9倍 〜 1.1倍
-            reloadAudioSource.volume = Random.Range(1.2f, 1.3f); // 120% 〜 130%の音量
-
-            reloadAudioSource.clip = reloadingSE;
-            reloadAudioSource.loop = true;
-
-            // 装填音の反復感を減らすため、ループの開始位置を毎回変える。
-            reloadAudioSource.time = Random.Range(0f, reloadingSE.length);
-
-            reloadAudioSource.Play();
+            return;
         }
+
+        reloadAudioSource.pitch = Random.Range(0.9f, 1.1f);
+        reloadAudioSource.volume = Random.Range(1.2f, 1.3f);
+        reloadAudioSource.clip = reloadingSE;
+        reloadAudioSource.loop = true;
+        reloadAudioSource.time = Random.Range(0f, reloadingSE.length);
+        reloadAudioSource.Play();
     }
 
     private void StopReloadingSound()
@@ -200,7 +313,7 @@ public class PlayerSound : NetworkBehaviour
         }
     }
 
-    private void PlayReloadStartedSound()
+    private void PlayReloadSound()
     {
         StopReloadingSound();
 
@@ -208,36 +321,30 @@ public class PlayerSound : NetworkBehaviour
         {
             audioSource.PlayOneShot(reloadSE);
         }
-
-        PlayReloadingSound();
     }
 
-    private void PlayDamageSound(float current, float max)
+    private void PlayDamageSound(float currentHealth, float maxHealth)
     {
         if (!hasInitializedHealth)
         {
-            previousHealth = current;
+            previousHealth = currentHealth;
             hasInitializedHealth = true;
             return;
         }
 
-        bool tookDamage = current < previousHealth;
+        bool hasTakenDamage = currentHealth < previousHealth;
+        previousHealth = currentHealth;
 
-        previousHealth = current;
-
-        if (!tookDamage)
-        {
-            return;
-        }
-
-        if (tookDamageSE != null && audioSource != null)
+        if (hasTakenDamage && tookDamageSE != null && audioSource != null)
         {
             audioSource.PlayOneShot(tookDamageSE);
         }
     }
 
-    private void PlayDiedSound(PlayerHealth target)
+    private void PlayDiedSound()
     {
+        StopReloadingSound();
+
         if (diedSE != null && audioSource != null)
         {
             audioSource.PlayOneShot(diedSE);

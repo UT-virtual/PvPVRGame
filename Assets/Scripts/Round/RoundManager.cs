@@ -87,6 +87,10 @@ public class RoundManager : NetworkBehaviour
         ? RoundStartDeadline.RemainingTime(Runner) ?? 0f
         : 0f;
 
+    public event Action<GamePhase> OnPhaseChanged;   // 追加
+    public event Action<int, bool> OnRoundEnded;     // 追加
+    public event Action<int> OnAllRoundsEnded;       // 追加
+
     [Networked]
     private GamePhase phase { get; set; }
 
@@ -283,6 +287,7 @@ public class RoundManager : NetworkBehaviour
         ApplyUIForPhase(phase, enteredRoundStarting);
 
         lastAppliedUIPhase = phase;
+        OnPhaseChanged?.Invoke(phase); // 追加
     }
 
     private void InitializeControllers()
@@ -649,6 +654,8 @@ public class RoundManager : NetworkBehaviour
             greenWins,
             yellowWins
         );
+
+        OnRoundEnded?.Invoke(roundNumber, roundNumber >= maxRoundCount); // 追加
     }
 
     [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
@@ -661,6 +668,7 @@ public class RoundManager : NetworkBehaviour
     private void RPC_ShowFinalResultUI(int winnerTeamMask)
     {
         uiController.ShowFinalResultUI(winnerTeamMask);
+        OnAllRoundsEnded?.Invoke(winnerTeamMask); // 追加
     }
 
     [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
