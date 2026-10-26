@@ -4,6 +4,10 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
+/// <summary>
+/// 同期する試合フェーズと、準備・スキル選択・戦闘・結果表示をつなぐ窓口を持つ。
+/// StateAuthority側の参加者管理と進行を各Controllerへ委譲し、各端末のUIは同期フェーズと結果通知RPCで更新する。
+/// </summary>
 public class RoundManager : NetworkBehaviour
 {
     public static RoundManager Instance { get; private set; }
@@ -88,10 +92,27 @@ public class RoundManager : NetworkBehaviour
     [Header("Debug Spectator Dummy")]
     [SerializeField] private bool countDebugSpectatorDummiesAsAlive = false;
 
-    [SerializeField]
-    private RoundEffectUI roundEffectUI; 
+    [Header("Round Effect UI")]
+    [SerializeField] private RoundEffectUI roundEffectUI;
 
-    public int CurrentRound { get; private set; } = 1;
+    // 接続者の一覧と役割はキャラクターの有無と分け、観戦者も全端末の待機一覧へ載せる。
+    [Networked, Capacity(NetworkSessionController.MaxConnectionCount)]
+    public NetworkDictionary<PlayerRef, ParticipantRole> ConnectedParticipants => default;
+
+    private NetworkLauncher participantLauncher;
+    private int lastParticipantRevision = -1;
+
+    [Networked] public int CurrentRound { get; private set; }
+    [Networked] public int SkillSelectionVersion { get; private set; }
+    [Networked] private TickTimer RoundStartDeadline { get; set; }
+
+    public float RoundStartRemainingSeconds => IsRoundStarting && Runner != null
+        ? RoundStartDeadline.RemainingTime(Runner) ?? 0f
+        : 0f;
+
+    public event Action<GamePhase> OnPhaseChanged;
+    public event Action<int, bool> OnRoundEnded;
+    public event Action<int> OnAllRoundsEnded;
 
     [Networked]
     private GamePhase phase { get; set; }
@@ -100,6 +121,7 @@ public class RoundManager : NetworkBehaviour
     private GamePhase lastAppliedUIPhase;
 
     private bool isSpawned;
+    private int requiredPlayersForCurrentMatch = 1;
 
     private RoundPlayerRegistry playerRegistry;
     private RoundReadyController readyController;
@@ -121,6 +143,7 @@ public class RoundManager : NetworkBehaviour
         TeamColor.Yellow
     };
 
+    // Spawn前とDespawn後は同期プロパティを読まず、操作・UIの許可を閉じる。
     private bool CanReadNetworkedPhase =>
         isSpawned && Object != null;
 
@@ -142,6 +165,9 @@ public class RoundManager : NetworkBehaviour
     public bool IsSkillSelecting =>
         CanReadNetworkedPhase &&
         phase == GamePhase.SkillSelecting;
+
+    public bool IsRoundStarting =>
+        CanReadNetworkedPhase && phase == GamePhase.RoundStarting;
 
     public bool IsRoundPlaying =>
         CanReadNetworkedPhase &&
@@ -288,6 +314,8 @@ public class RoundManager : NetworkBehaviour
 
         if (Object.HasStateAuthority)
         {
+            lastParticipantRevision = -1;
+            CurrentRound = 1;
             phase = GamePhase.WaitingForReady;
         }
 
@@ -305,6 +333,7 @@ public class RoundManager : NetworkBehaviour
 
     public override void Despawned(NetworkRunner runner, bool hasState)
     {
+        flowController?.StopProgression();
         isSpawned = false;
     }
 
@@ -316,6 +345,29 @@ public class RoundManager : NetworkBehaviour
         }
 
         isSpawned = false;
+    }
+
+    public override void FixedUpdateNetwork()
+    {
+        if (!Object.HasStateAuthority)
+        {
+            return;
+        }
+        if (participantLauncher == null)
+        {
+            participantLauncher = FindFirstObjectByType<NetworkLauncher>();
+        }
+        if (participantLauncher == null || lastParticipantRevision == participantLauncher.ParticipantRevision)
+        {
+            return;
+        }
+
+        ConnectedParticipants.Clear();
+        foreach (var participant in participantLauncher.ParticipantRoles)
+        {
+            ConnectedParticipants.Add(participant.Key, participant.Value);
+        }
+        lastParticipantRevision = participantLauncher.ParticipantRevision;
     }
 
     public override void Render()
@@ -334,6 +386,7 @@ public class RoundManager : NetworkBehaviour
             return;
         }
 
+        // 同期フェーズへの進入時だけ開始演出を再生し、Renderごとの再起動を避ける。
         bool enteredRoundStarting =
             lastAppliedUIPhase != GamePhase.RoundStarting &&
             phase == GamePhase.RoundStarting;
@@ -341,6 +394,7 @@ public class RoundManager : NetworkBehaviour
         ApplyUIForPhase(phase, enteredRoundStarting);
 
         lastAppliedUIPhase = phase;
+        OnPhaseChanged?.Invoke(phase); // 追加
     }
 
     private void InitializeControllers()
@@ -372,22 +426,46 @@ public class RoundManager : NetworkBehaviour
         debugLogger = new RoundDebugLogger();
         projectileCleaner = new RoundProjectileCleaner();
 
+        InitializeRoundStartController();
+        InitializeSkillSelectionController();
+        InitializeFlowController();
+    }
+
+    private void InitializeRoundStartController()
+    {
         roundStartController = new RoundStartController(
             this,
             () => phase,
-            value => phase = value,
+            SetPhase,
             () => CurrentRound,
             GetValidPlayers,
             () => startAfterAllSkillsSelectedDelay,
             player => skillSelectionController.GetFirstSelectedSkill(player),
             player => skillSelectionController.GetSecondSelectedSkill(player),
-            healthItemController
+            healthItemController,
+            () => RoundStartDeadline.ExpiredOrNotRunning(Runner)
         );
+    }
 
+    private void SetPhase(GamePhase value)
+    {
+        if (value == GamePhase.SkillSelecting && phase != value)
+        {
+            SkillSelectionVersion++;
+        }
+
+        RoundStartDeadline = value == GamePhase.RoundStarting
+            ? TickTimer.CreateFromSeconds(Runner, Mathf.Max(0f, startAfterAllSkillsSelectedDelay))
+            : TickTimer.None;
+        phase = value;
+    }
+
+    private void InitializeSkillSelectionController()
+    {
         skillSelectionController = new RoundSkillSelectionController(
             this,
             () => phase,
-            value => phase = value,
+            SetPhase,
             () => CurrentRound,
             value => CurrentRound = value,
             GetValidPlayers,
@@ -402,16 +480,19 @@ public class RoundManager : NetworkBehaviour
             projectileCleaner,
             debugLogger,
             HideWaitingRoomUI,
-            RPC_NotifySkillSelectionProgress,
+            (player, count, step, first) => RPC_NotifySkillSelectionProgress(player, count, step, first, SkillSelectionVersion),
             RPC_SetSkillOptions,
             roundStartController.StartRoundAfterSkillSelection,
             roundStartController.StopStartRoundCoroutine
         );
+    }
 
+    private void InitializeFlowController()
+    {
         flowController = new RoundFlowController(
             this,
             () => phase,
-            value => phase = value,
+            SetPhase,
             () => CurrentRound,
             value => CurrentRound = value,
             GetValidPlayers,
@@ -436,6 +517,9 @@ public class RoundManager : NetworkBehaviour
         );
     }
 
+    /// <summary>
+    /// StateAuthorityでラウンド参加者を登録し、死亡購読・準備・得点・選択状態を初期化する。重複登録は無視する。
+    /// </summary>
     public void RegisterPlayer(PlayerHealth player)
     {
         if (player == null)
@@ -465,6 +549,10 @@ public class RoundManager : NetworkBehaviour
         );
     }
 
+    /// <summary>
+    /// 参加者の死亡購読と各管理状態を解除する。
+    /// StateAuthorityでは人数不足なら試合を中断し、それ以外は現在のフェーズの完了条件を再評価する。
+    /// </summary>
     public void UnregisterPlayer(PlayerHealth player)
     {
         if (player == null)
@@ -488,13 +576,19 @@ public class RoundManager : NetworkBehaviour
             $"Count={RegisteredPlayerCount}"
         );
 
-        if (!IsNetworkReady)
+        if (!IsNetworkReady || Runner == null || !Runner.IsRunning)
         {
             return;
         }
 
         if (Object == null || !Object.HasStateAuthority)
         {
+            return;
+        }
+
+        if (!IsWaitingForReady && RegisteredPlayerCount < requiredPlayersForCurrentMatch)
+        {
+            flowController.AbortMatchToWaiting();
             return;
         }
 
@@ -506,6 +600,10 @@ public class RoundManager : NetworkBehaviour
         {
             skillSelectionController.TryFinishSkillSelection();
         }
+        else if (IsRoundPlaying)
+        {
+            flowController.CheckRoundEnd();
+        }
     }
 
     public bool IsPlayerReady(PlayerHealth player)
@@ -513,6 +611,9 @@ public class RoundManager : NetworkBehaviour
         return readyController.IsPlayerReady(player);
     }
 
+    /// <summary>
+    /// StateAuthorityで待機中の登録済み参加者を準備完了にし、人数と全員の準備条件を再判定する。
+    /// </summary>
     public void SetPlayerReady(PlayerHealth player)
     {
         if (player == null)
@@ -547,25 +648,73 @@ public class RoundManager : NetworkBehaviour
         TryStartFirstRound();
     }
 
+    /// <summary>
+    /// 接続者本人の役割要求をStateAuthorityで検証する。観戦者はキャラクターもラウンド登録も持たない。
+    /// </summary>
+    [Rpc(RpcSources.All, RpcTargets.StateAuthority, HostMode = RpcHostMode.SourceIsHostPlayer)]
+    public void RPC_RequestParticipantRole(PlayerRef player, ParticipantRole role,
+        int requestId, bool initialAssignment, RpcInfo info = default)
+    {
+        if (info.Source == PlayerRef.None || info.Source != player)
+        {
+            return;
+        }
+
+        NetworkLauncher launcher = FindFirstObjectByType<NetworkLauncher>();
+        if (launcher == null)
+        {
+            return;
+        }
+
+        launcher.TryChangeParticipantRole(Runner, player, role, requestId, IsWaitingForReady, initialAssignment, out string message);
+        RPC_ParticipantRoleResult(player, requestId, launcher.GetParticipantRole(player), message);
+    }
+
+    [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+    private void RPC_ParticipantRoleResult(PlayerRef player, int requestId,
+        ParticipantRole role, string message)
+    {
+        NetworkLauncher launcher = FindFirstObjectByType<NetworkLauncher>();
+        if (launcher != null)
+        {
+            launcher.OnParticipantRoleResult(player, requestId, role, message);
+        }
+    }
+
     public void SelectSkillBySlot(PlayerHealth player, int slotIndex)
     {
         skillSelectionController.SelectSkillBySlot(player, slotIndex);
     }
 
-    [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
-    public void RPC_RequestSelectSkillBySlot(PlayerRef playerRef, int slotIndex)
+    /// <summary>
+    /// 選択スロットの要求をRoundManagerのStateAuthorityへ届ける。
+    /// 送信者・選択フェーズの世代・選択段階を照合し、再送や前の試合の遅延要求を重複受理しない。
+    /// </summary>
+    [Rpc(RpcSources.All, RpcTargets.StateAuthority, HostMode = RpcHostMode.SourceIsHostPlayer)]
+    public void RPC_RequestSelectSkillBySlot(PlayerRef playerRef, int slotIndex, int selectionVersion, int selectionStep, RpcInfo info = default)
     {
-        skillSelectionController.HandleRequestSelectSkillBySlot(playerRef, slotIndex);
+        if (info.Source == PlayerRef.None || info.Source != playerRef)
+        {
+            Debug.LogWarning("[RoundManager] Skill selection sender does not match the requested player.");
+            return;
+        }
+
+        if (selectionVersion != SkillSelectionVersion)
+        {
+            return;
+        }
+
+        skillSelectionController.HandleRequestSelectSkillBySlot(playerRef, slotIndex, selectionStep);
     }
 
     [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
-    private void RPC_NotifySkillSelectionProgress(PlayerRef playerRef, int selectedCount)
+    private void RPC_NotifySkillSelectionProgress(PlayerRef playerRef, int selectedCount, int requestStep, PlayerSkillType firstSkill, int selectionVersion)
     {
         NetworkLauncher launcher = FindFirstObjectByType<NetworkLauncher>();
 
         if (launcher != null)
         {
-            launcher.OnServerSkillSelectionProgress(playerRef, selectedCount);
+            launcher.OnServerSkillSelectionProgress(playerRef, selectedCount, requestStep, firstSkill, selectionVersion);
         }
     }
 
@@ -613,6 +762,8 @@ public class RoundManager : NetworkBehaviour
             greenWins,
             yellowWins
         );
+
+        OnRoundEnded?.Invoke(roundNumber, roundNumber >= maxRoundCount); // 追加
     }
 
     [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
@@ -625,6 +776,7 @@ public class RoundManager : NetworkBehaviour
     private void RPC_ShowFinalResultUI(int winnerTeamMask)
     {
         uiController.ShowFinalResultUI(winnerTeamMask);
+        OnAllRoundsEnded?.Invoke(winnerTeamMask); // 追加
     }
 
     [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
@@ -657,6 +809,8 @@ public class RoundManager : NetworkBehaviour
             return;
         }
 
+        // 1人開始の確認設定は維持するが、複数人で始めた試合は1人になったら中断する。
+        requiredPlayersForCurrentMatch = Mathf.Max(minPlayersToStart, validPlayers.Count > 1 ? 2 : 1);
         CurrentRound = 1;
         BeginRoundEffect();
     }

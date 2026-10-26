@@ -1,19 +1,23 @@
 using System;
 using UnityEngine;
 
+/// <summary>
+/// 検証済みのスキルを発動し、効果時間の開始と特殊弾装填・次弾強化などの一度限りの操作を行う。
+/// Authorityと発動可否は呼び出し元のPlayerSkillControllerが確認する。
+/// </summary>
 public sealed class PlayerSkillActivator
 {
     private readonly PlayerWeapon playerWeapon;
     private readonly PlayerSkillSettings settings;
     private readonly Func<string> getOwnerName;
-    private readonly Action<PlayerSkillType, float> beginActiveSkill;
+    private readonly Action<int, PlayerSkillType, float> beginActiveSkill;
     private readonly Action applySkillEffects;
 
     public PlayerSkillActivator(
         PlayerWeapon playerWeapon,
         PlayerSkillSettings settings,
         Func<string> getOwnerName,
-        Action<PlayerSkillType, float> beginActiveSkill,
+        Action<int, PlayerSkillType, float> beginActiveSkill,
         Action applySkillEffects
     )
     {
@@ -24,12 +28,17 @@ public sealed class PlayerSkillActivator
         this.applySkillEffects = applySkillEffects;
     }
 
-    public void Activate(PlayerSkillType skill)
+    /// <summary>
+    /// 呼び出し元で検証済みのスキルを発動する。
+    /// 特殊弾装填と次弾強化は一度だけ実行し、その残存状態は武器側が管理する。
+    /// </summary>
+    public void Activate(int slotIndex, PlayerSkillType skill)
     {
         switch (skill)
         {
             case PlayerSkillType.DoubleJump:
                 ActivateTimedSkill(
+                    slotIndex,
                     PlayerSkillType.DoubleJump,
                     settings.DoubleJumpDuration,
                     $"DoubleJump activated for {settings.DoubleJumpDuration} seconds."
@@ -38,6 +47,7 @@ public sealed class PlayerSkillActivator
 
             case PlayerSkillType.RapidFire:
                 ActivateTimedSkill(
+                    slotIndex,
                     PlayerSkillType.RapidFire,
                     settings.RapidFireDuration,
                     $"RapidFire activated for {settings.RapidFireDuration} seconds. " +
@@ -47,6 +57,7 @@ public sealed class PlayerSkillActivator
 
             case PlayerSkillType.BulletSpeedUp:
                 ActivateTimedSkill(
+                    slotIndex,
                     PlayerSkillType.BulletSpeedUp,
                     settings.BulletSpeedUpDuration,
                     $"BulletSpeedUp activated for {settings.BulletSpeedUpDuration} seconds. " +
@@ -56,6 +67,7 @@ public sealed class PlayerSkillActivator
 
             case PlayerSkillType.DamageReduction:
                 ActivateTimedSkill(
+                    slotIndex,
                     PlayerSkillType.DamageReduction,
                     settings.DamageReductionDuration,
                     $"DamageReduction activated for {settings.DamageReductionDuration} seconds. " +
@@ -65,6 +77,7 @@ public sealed class PlayerSkillActivator
 
             case PlayerSkillType.XRayVision:
                 ActivateTimedSkill(
+                    slotIndex,
                     PlayerSkillType.XRayVision,
                     settings.XRayVisionDuration,
                     $"XRayVision activated for {settings.XRayVisionDuration} seconds."
@@ -73,6 +86,7 @@ public sealed class PlayerSkillActivator
 
             case PlayerSkillType.MoveSpeedUp:
                 ActivateTimedSkill(
+                    slotIndex,
                     PlayerSkillType.MoveSpeedUp,
                     settings.MoveSpeedUpDuration,
                     $"MoveSpeedUp activated for {settings.MoveSpeedUpDuration} seconds. " +
@@ -82,6 +96,7 @@ public sealed class PlayerSkillActivator
 
             case PlayerSkillType.SlowFall:
                 ActivateTimedSkill(
+                    slotIndex,
                     PlayerSkillType.SlowFall,
                     settings.SlowFallDuration,
                     $"SlowFall activated for {settings.SlowFallDuration} seconds. " +
@@ -91,6 +106,7 @@ public sealed class PlayerSkillActivator
 
             case PlayerSkillType.Shrink:
                 ActivateTimedSkill(
+                    slotIndex,
                     PlayerSkillType.Shrink,
                     settings.ShrinkDuration,
                     $"Shrink activated for {settings.ShrinkDuration} seconds. " +
@@ -101,6 +117,7 @@ public sealed class PlayerSkillActivator
 
             case PlayerSkillType.DelayedDamageInvincible:
                 ActivateTimedSkill(
+                    slotIndex,
                     PlayerSkillType.DelayedDamageInvincible,
                     settings.DelayedDamageInvincibleDuration,
                     $"DelayedDamageInvincible activated for {settings.DelayedDamageInvincibleDuration} seconds."
@@ -109,6 +126,7 @@ public sealed class PlayerSkillActivator
 
             case PlayerSkillType.InstantReload:
                 ActivateTimedSkill(
+                    slotIndex,
                     PlayerSkillType.InstantReload,
                     settings.InstantReloadDuration,
                     $"InstantReload activated for {settings.InstantReloadDuration} seconds."
@@ -116,15 +134,15 @@ public sealed class PlayerSkillActivator
                 break;
 
             case PlayerSkillType.GravityBurstReload:
-                ActivateGravityBurstReload();
+                ActivateGravityBurstReload(slotIndex);
                 break;
 
             case PlayerSkillType.HeavyBulletReload:
-                ActivateHeavyBulletReload();
+                ActivateHeavyBulletReload(slotIndex);
                 break;
 
             case PlayerSkillType.NextShotDamageBoost:
-                ActivateNextShotDamageBoost();
+                ActivateNextShotDamageBoost(slotIndex);
                 break;
 
             default:
@@ -134,20 +152,22 @@ public sealed class PlayerSkillActivator
     }
 
     private void ActivateTimedSkill(
+        int slotIndex,
         PlayerSkillType skill,
         float duration,
         string logMessage
     )
     {
-        beginActiveSkill?.Invoke(skill, duration);
+        beginActiveSkill?.Invoke(slotIndex, skill, duration);
         applySkillEffects?.Invoke();
 
         Debug.Log($"[Skill] {GetOwnerName()}: {logMessage}");
     }
 
-    private void ActivateGravityBurstReload()
+    private void ActivateGravityBurstReload(int slotIndex)
     {
         beginActiveSkill?.Invoke(
+            slotIndex,
             PlayerSkillType.GravityBurstReload,
             settings.GravityBurstReloadDuration
         );
@@ -165,9 +185,10 @@ public sealed class PlayerSkillActivator
         );
     }
 
-    private void ActivateHeavyBulletReload()
+    private void ActivateHeavyBulletReload(int slotIndex)
     {
         beginActiveSkill?.Invoke(
+            slotIndex,
             PlayerSkillType.HeavyBulletReload,
             settings.HeavyBulletReloadDuration
         );
@@ -185,9 +206,10 @@ public sealed class PlayerSkillActivator
         );
     }
 
-    private void ActivateNextShotDamageBoost()
+    private void ActivateNextShotDamageBoost(int slotIndex)
     {
         beginActiveSkill?.Invoke(
+            slotIndex,
             PlayerSkillType.NextShotDamageBoost,
             settings.NextShotDamageBoostDuration
         );

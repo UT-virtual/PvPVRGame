@@ -2,6 +2,10 @@ using System.Collections.Generic;
 using Fusion;
 using UnityEngine;
 
+/// <summary>
+/// InputAuthorityを持つプレイヤーの透視スキルに応じ、この端末上の他の生存者のマテリアルを置き換える。
+/// 効果終了・死亡・無効化時には保存した元のマテリアルへ戻す。
+/// </summary>
 [RequireComponent(typeof(PlayerSkillController))]
 [RequireComponent(typeof(PlayerHealth))]
 public class XRayVisionController : NetworkBehaviour
@@ -13,6 +17,8 @@ public class XRayVisionController : NetworkBehaviour
     private PlayerHealth localHealth;
 
     private readonly Dictionary<Renderer, Material[]> originalMaterials = new();
+    private readonly HashSet<Renderer> currentTargets = new();
+    private readonly List<Renderer> restoreTargets = new();
     private bool isApplied;
 
     private void Awake()
@@ -47,7 +53,7 @@ public class XRayVisionController : NetworkBehaviour
         {
             RefreshXRayTargets();
         }
-        else
+        else if (isApplied)
         {
             ClearXRay();
         }
@@ -63,7 +69,7 @@ public class XRayVisionController : NetworkBehaviour
 
         isApplied = true;
 
-        HashSet<Renderer> currentTargets = new();
+        currentTargets.Clear();
 
         PlayerHealth[] players = FindObjectsByType<PlayerHealth>(FindObjectsSortMode.None);
 
@@ -90,20 +96,21 @@ public class XRayVisionController : NetworkBehaviour
 
                 currentTargets.Add(renderer);
 
-                if (!originalMaterials.ContainsKey(renderer))
+                if (originalMaterials.ContainsKey(renderer))
                 {
-                    originalMaterials[renderer] = renderer.materials;
+                    continue;
                 }
 
-                Material[] xRayMaterials = new Material[renderer.materials.Length];
-
+                // 対象に加わるときだけ配列を作る。以後は差し替え済みのマテリアルを維持する。
+                Material[] materials = renderer.sharedMaterials;
+                originalMaterials[renderer] = materials;
+                Material[] xRayMaterials = new Material[materials.Length];
                 for (int i = 0; i < xRayMaterials.Length; i++)
                 {
                     xRayMaterials[i] = xRayMaterial;
                 }
 
-                renderer.enabled = true;
-                renderer.materials = xRayMaterials;
+                renderer.sharedMaterials = xRayMaterials;
             }
         }
 
@@ -137,7 +144,7 @@ public class XRayVisionController : NetworkBehaviour
 
     private void RestoreRenderersNoLongerTargeted(HashSet<Renderer> currentTargets)
     {
-        List<Renderer> restoreTargets = new();
+        restoreTargets.Clear();
 
         foreach (Renderer renderer in originalMaterials.Keys)
         {
@@ -161,14 +168,17 @@ public class XRayVisionController : NetworkBehaviour
 
     private void ClearXRay()
     {
-        List<Renderer> renderers = new(originalMaterials.Keys);
+        restoreTargets.Clear();
+        restoreTargets.AddRange(originalMaterials.Keys);
 
-        foreach (Renderer renderer in renderers)
+        foreach (Renderer renderer in restoreTargets)
         {
             RestoreRenderer(renderer);
         }
 
         originalMaterials.Clear();
+        currentTargets.Clear();
+        restoreTargets.Clear();
         isApplied = false;
     }
 
@@ -185,7 +195,8 @@ public class XRayVisionController : NetworkBehaviour
             return;
         }
 
-        renderer.materials = materials;
+        // 表示可否は変更せず、死亡・観戦側の制御を維持する。
+        renderer.sharedMaterials = materials;
         originalMaterials.Remove(renderer);
     }
 

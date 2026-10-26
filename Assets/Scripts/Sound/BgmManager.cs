@@ -1,5 +1,9 @@
 using UnityEngine;
 
+/// <summary>
+/// RoundManagerの待機・戦闘フェーズに応じてBGMを切り替える。
+/// それ以外のフェーズでは現在の再生を維持する。
+/// </summary>
 [RequireComponent(typeof(AudioSource))]
 public class BgmManager : MonoBehaviour
 {
@@ -8,35 +12,148 @@ public class BgmManager : MonoBehaviour
     [SerializeField] private AudioClip waitingBgm;
     [SerializeField] private AudioClip battleBgm;
 
+    [Header("Climax (Last 2 Players) BGM")]
+    [Tooltip("プレイヤーが残り2人になった時に流す緊張感のあるBGM")]
+    [SerializeField] private AudioClip lastTwoPlayersBgm;
+    [Tooltip("ON: 3人以上で開始して残り2人に減った時のみ緊張BGMにする / OFF: 最初から2人の場合も緊張BGMにする")]
+    [SerializeField] private bool onlyWhenReducedFromThreeOrMore = false;
+    [Tooltip("緊張BGMに切り替わる生存プレイヤー数（デフォルト: 2）")]
+    [SerializeField] private int climaxPlayerCountThreshold = 2;
+
+    [Header("Volume Settings")]
+    [SerializeField, Range(0.0f, 1.0f)] private float waitingBgmVolume = 1.0f;
+    [SerializeField, Range(0.0f, 1.0f)] private float battleBgmVolume = 1.0f;
+    [SerializeField, Range(0.0f, 1.0f)] private float lastTwoPlayersBgmVolume = 1.0f;
+
+    private int maxAlivePlayersInCurrentRound = 0;
+    private bool wasRoundPlaying = false;
+    private bool isClimaxBgmTriggered = false;
+
+    private void Awake()
+    {
+        if (audioSource == null)
+        {
+            audioSource = GetComponent<AudioSource>();
+        }
+        if (audioSource != null)
+        {
+            audioSource.loop = true;
+        }
+    }
+
+    
     private void Update()
     {
-        // RoundManagerが存在しない場合は何もしない
-        if (RoundManager.Instance == null)
+        RoundManager roundManager = RoundManager.Instance;
+        if (roundManager == null || !roundManager.IsNetworkReady)
         {
             return;
         }
 
-        // 待機画面のBGM再生判定
-        if (RoundManager.Instance.IsWaitingForReady)
+        // 待機中は待機BGMに切り替える
+        if (roundManager.IsWaitingForReady)
         {
-            PlayBgm(waitingBgm);
+            ResetRoundTracking();
+            PlayBgm(waitingBgm, waitingBgmVolume);
+            return;
         }
-        // 戦闘画面のBGM再生判定
-        else if (RoundManager.Instance.IsRoundPlaying)
+
+        // 次のラウンドに向けて追跡状態をリセットする
+        if (roundManager.IsSkillSelecting || roundManager.IsRoundStarting)
         {
-            PlayBgm(battleBgm);
+            ResetRoundTracking();
+            return;
+        }
+
+        // 戦闘中は生存人数に応じてBGMを切り替える
+        if (roundManager.IsRoundPlaying)
+        {
+            UpdateBattleBgm();
         }
     }
 
-    private void PlayBgm(AudioClip newClip)
+
+    private void UpdateBattleBgm()
     {
-        // 既に指定されたBGMが再生中の場合は処理をスキップ（毎フレームの再生リセットを防止）
-        if (audioSource.clip == newClip)
+        int aliveCount = CountAliveBattlePlayers();
+
+        if (!wasRoundPlaying)
         {
+            wasRoundPlaying = true;
+            maxAlivePlayersInCurrentRound = aliveCount;
+            isClimaxBgmTriggered = false;
+        }
+        else if (aliveCount > maxAlivePlayersInCurrentRound)
+        {
+            maxAlivePlayersInCurrentRound = aliveCount;
+        }
+
+        bool canTriggerClimax = !onlyWhenReducedFromThreeOrMore || maxAlivePlayersInCurrentRound > climaxPlayerCountThreshold;
+
+        if (canTriggerClimax && aliveCount == climaxPlayerCountThreshold && lastTwoPlayersBgm != null)
+        {
+            isClimaxBgmTriggered = true;
+        }
+
+        if (isClimaxBgmTriggered && lastTwoPlayersBgm != null)
+        {
+            PlayBgm(lastTwoPlayersBgm, lastTwoPlayersBgmVolume);
+        }
+        else
+        {
+            PlayBgm(battleBgm, battleBgmVolume);
+        }
+    }
+
+    private int CountAliveBattlePlayers()
+    {
+        PlayerHealth[] players = FindObjectsByType<PlayerHealth>(FindObjectsSortMode.None);
+        int aliveCount = 0;
+
+        foreach (PlayerHealth player in players)
+        {
+            if (player == null || player.Object == null || !player.Object.IsValid)
+            {
+                continue;
+            }
+
+            // 試合に参加しているプレイヤー（チーム割当済み）のみをカウント
+            if (!player.HasTeamAssigned)
+            {
+                continue;
+            }
+
+            if (!player.IsDead)
+            {
+                aliveCount++;
+            }
+        }
+
+        return aliveCount;
+    }
+
+    private void ResetRoundTracking()
+    {
+        wasRoundPlaying = false;
+        maxAlivePlayersInCurrentRound = 0;
+        isClimaxBgmTriggered = false;
+    }
+
+    private void PlayBgm(AudioClip newClip, float volume = 1.0f)
+    {
+        if (audioSource == null || newClip == null)
+        {
+            return;
+        }
+
+        if (audioSource.clip == newClip && audioSource.isPlaying)
+        {
+            audioSource.volume = volume;
             return;
         }
 
         audioSource.clip = newClip;
+        audioSource.volume = volume;
         audioSource.Play();
     }
 }

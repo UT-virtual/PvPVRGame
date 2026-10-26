@@ -2,6 +2,10 @@ using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 
+/// <summary>
+/// 結果通知のチームマスクから最終勝者の一覧を生成する。
+/// 同率勝者の複数表示に対応し、閉じる際に生成した行を破棄する。
+/// </summary>
 public class FinalResultUI : MonoBehaviour
 {
     [Header("Root")]
@@ -21,6 +25,10 @@ public class FinalResultUI : MonoBehaviour
         Hide();
     }
 
+    /// <summary>
+    /// TeamColorをビット位置とする勝者マスクから一覧を作る。
+    /// 複数ビットなら同率勝者をすべて表示し、0なら勝者行を作らない。
+    /// </summary>
     public void ShowWinners(int winnerTeamMask)
     {
         SetVisible(true);

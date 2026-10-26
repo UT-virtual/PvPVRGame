@@ -2,16 +2,18 @@ using Fusion;
 using System;
 using UnityEngine;
 using UnityEngine.InputSystem;
-//wayo�ǋL
 using UnityEngine.InputSystem.Controls;
 
+/// <summary>
+/// スキル選択中のローカルカーソルと2段階の選択進行を管理し、RoundManagerへRPCで選択を要求する。
+/// StateAuthorityの受理通知で選択段階を進め、応答待ちの間は次の送信を抑止する。
+/// </summary>
 public sealed class LocalSkillSelectionInputController
 {
     private readonly InputActionReference moveAction;
     private readonly float skillSelectionStickThreshold;
 
     private readonly Func<NetworkRunner> getRunner;
-    private readonly Func<PlayerController> getLocalPlayerController;
 
     private int currentSkillSelectionSlot;
     private int localSkillSelectionStep;
@@ -20,7 +22,13 @@ public sealed class LocalSkillSelectionInputController
     private bool wasSkillSelecting;
     private bool skillSelectionMoveHeld;
     private bool localSkillSelectionConfirmed;
-    //wayo�ǋL
+    private bool selectionPending;
+    private const float SelectionRetryInterval = 1f;
+    private const int MaxSelectionRetries = 3;
+    private int pendingSlot;
+    private int selectionVersion;
+    private int retryCount;
+    private float retryAt;
     private bool wasLeftVrTriggerPressed;
     private bool wasRightVrTriggerPressed;
 
@@ -31,17 +39,19 @@ public sealed class LocalSkillSelectionInputController
     public LocalSkillSelectionInputController(
         InputActionReference moveAction,
         float skillSelectionStickThreshold,
-        Func<NetworkRunner> getRunner,
-        Func<PlayerController> getLocalPlayerController
+        Func<NetworkRunner> getRunner
     )
     {
         this.moveAction = moveAction;
         this.skillSelectionStickThreshold = skillSelectionStickThreshold;
 
         this.getRunner = getRunner;
-        this.getLocalPlayerController = getLocalPlayerController;
     }
 
+    /// <summary>
+    /// 選択フェーズならローカル選択UIの操作を処理し、通常のゲーム入力収集を止めるためtrueを返す。
+    /// フェーズ外ではローカルの選択進行をリセットする。
+    /// </summary>
     public bool UpdateIfSkillSelecting()
     {
         bool isSkillSelecting =
@@ -54,11 +64,19 @@ public sealed class LocalSkillSelectionInputController
             return false;
         }
 
+        if (wasSkillSelecting && selectionVersion != RoundManager.Instance.SkillSelectionVersion)
+        {
+            ResetSkillSelectionInputState();
+        }
+
         UpdateSkillSelectionInput();
         return true;
     }
 
-    public void OnServerSkillSelectionProgress(PlayerRef playerRef, int selectedCount)
+    /// <summary>
+    /// 自分宛ての選択進捗通知だけを受け、2つ受理された場合にローカルの完了表示を確定する。
+    /// </summary>
+    public void OnServerSkillSelectionProgress(PlayerRef playerRef, int selectedCount, int requestStep, PlayerSkillType firstSkill, int responseVersion)
     {
         NetworkRunner runner = getRunner();
 
@@ -77,10 +95,26 @@ public sealed class LocalSkillSelectionInputController
             $"PlayerRef={playerRef}, Count={selectedCount}/2"
         );
 
-        if (selectedCount >= 2)
+        if (!wasSkillSelecting || responseVersion != selectionVersion ||
+            requestStep != localSkillSelectionStep || selectedCount < localSkillSelectionStep)
         {
-            localSkillSelectionConfirmed = true;
+            return;
         }
+
+        if (selectedCount > localSkillSelectionStep)
+        {
+            if (localSkillSelectionStep == 0)
+            {
+                localFirstSelectedSkill = firstSkill;
+            }
+
+            currentSkillSelectionSlot = 0;
+            skillSelectionMoveHeld = true;
+        }
+
+        selectionPending = false;
+        localSkillSelectionStep = Mathf.Clamp(selectedCount, 0, 2);
+        localSkillSelectionConfirmed = selectedCount >= 2;
     }
 
     private void UpdateSkillSelectionInput()
@@ -94,12 +128,34 @@ public sealed class LocalSkillSelectionInputController
             localFirstSelectedSkill = PlayerSkillType.None;
             localSkillSelectionConfirmed = false;
 
+            // 画面を開く前から倒していたスティックを、そのまま最初のカーソル移動として扱わない。
             skillSelectionMoveHeld = IsSkillSelectionNavigateActive(navigateInput);
             wasSkillSelecting = true;
+            selectionVersion = RoundManager.Instance.SkillSelectionVersion;
 
-            //wayo�ǋL
             wasLeftVrTriggerPressed = IsXrTriggerHeld("<XRController>{LeftHand}");
             wasRightVrTriggerPressed = IsXrTriggerHeld("<XRController>{RightHand}");
+            return;
+        }
+
+        if (selectionPending)
+        {
+            if (Time.unscaledTime >= retryAt)
+            {
+                if (retryCount < MaxSelectionRetries)
+                {
+                    retryCount++;
+                    SendPendingSelection();
+                }
+                else
+                {
+                    // 未応答でも操作を永久に閉じない。遅延した要求はサーバーの選択段階で重複排除する。
+                    selectionPending = false;
+                    skillSelectionMoveHeld = IsSkillSelectionNavigateActive(navigateInput);
+                    wasLeftVrTriggerPressed = IsXrTriggerHeld("<XRController>{LeftHand}");
+                    wasRightVrTriggerPressed = IsXrTriggerHeld("<XRController>{RightHand}");
+                }
+            }
             return;
         }
 
@@ -124,8 +180,9 @@ public sealed class LocalSkillSelectionInputController
         }
     }
 
-    private void ResetSkillSelectionInputState()
+    public void ResetSkillSelectionInputState()
     {
+        selectionPending = false;
         wasSkillSelecting = false;
         skillSelectionMoveHeld = false;
         localSkillSelectionStep = 0;
@@ -246,15 +303,15 @@ public sealed class LocalSkillSelectionInputController
         return false;
     }
 
-    //wayo�ǋL
     private bool ReadVrTriggerConfirmPressed()
     {
         if (!UnityEngine.XR.XRSettings.isDeviceActive)
         {
             return false;
         }
-        return WasXrTriggerPressedThisFrame("<XRController>{LeftHand}", ref wasLeftVrTriggerPressed) ||
-               WasXrTriggerPressedThisFrame("<XRController>{RightHand}", ref wasRightVrTriggerPressed);
+        bool leftPressed = WasXrTriggerPressedThisFrame("<XRController>{LeftHand}", ref wasLeftVrTriggerPressed);
+        bool rightPressed = WasXrTriggerPressedThisFrame("<XRController>{RightHand}", ref wasRightVrTriggerPressed);
+        return leftPressed || rightPressed;
     }
     private static bool IsXrTriggerHeld(string handPath)
     {
@@ -273,67 +330,49 @@ public sealed class LocalSkillSelectionInputController
         return pressedThisFrame;
     }
 
+    /// <summary>
+    /// 選択をRPCへ送り、受理通知を待つ。同一フレームでHost側の応答が戻る場合も先に待機状態を設定する。
+    /// </summary>
     private void QueueSelectedSkillSlot()
     {
-        if (!CanConfirmCurrentSkillSelection())
+        if (selectionPending || !CanConfirmCurrentSkillSelection())
         {
             return;
         }
 
+        NetworkRunner runner = getRunner();
         RoundManager roundManager = RoundManager.Instance;
-
-        PlayerSkillType selectedSkill = roundManager != null
-            ? roundManager.GetSkillOption(currentSkillSelectionSlot, localSkillSelectionStep)
-            : PlayerSkillType.None;
-
-        int selectedSlot = currentSkillSelectionSlot;
-
-        SendSkillSelectionRpc(selectedSlot);
-
-        Debug.Log(
-            $"[LocalSkillSelectionInputController] Confirm skill slot by RPC: " +
-            $"{selectedSlot + 1}, " +
-            $"Step={localSkillSelectionStep + 1}, " +
-            $"Skill={selectedSkill}"
-        );
-
-        if (localSkillSelectionStep <= 0)
+        if (runner == null || !runner.IsRunning || roundManager == null || !roundManager.IsSkillSelecting)
         {
-            localFirstSelectedSkill = selectedSkill;
-            localSkillSelectionStep = 1;
-            currentSkillSelectionSlot = 0;
-            skillSelectionMoveHeld = true;
-            localSkillSelectionConfirmed = false;
-
-            //wayo�ǋL
-            IsXrTriggerHeld("<XRController>{LeftHand}");
-            IsXrTriggerHeld("<XRController>{RightHand}");
             return;
         }
 
-        localSkillSelectionConfirmed = true;
+        pendingSlot = currentSkillSelectionSlot;
+        retryCount = 0;
+        selectionPending = true;
+        SendPendingSelection();
     }
 
-    private void SendSkillSelectionRpc(int slotIndex)
+    private void SendPendingSelection()
     {
         NetworkRunner runner = getRunner();
-
-        if (runner == null)
+        RoundManager roundManager = RoundManager.Instance;
+        retryAt = Time.unscaledTime + SelectionRetryInterval;
+        if (runner == null || !runner.IsRunning || roundManager == null || !roundManager.IsSkillSelecting)
         {
-            Debug.LogWarning("[LocalSkillSelectionInputController] Cannot send skill RPC. runner is null.");
+            selectionPending = false;
             return;
         }
 
-        if (RoundManager.Instance == null)
+        try
         {
-            Debug.LogWarning("[LocalSkillSelectionInputController] Cannot send skill RPC. RoundManager.Instance is null.");
-            return;
+            roundManager.RPC_RequestSelectSkillBySlot(runner.LocalPlayer, pendingSlot, selectionVersion, localSkillSelectionStep);
         }
-
-        RoundManager.Instance.RPC_RequestSelectSkillBySlot(
-            runner.LocalPlayer,
-            slotIndex
-        );
+        catch (Exception exception)
+        {
+            selectionPending = false;
+            Debug.LogException(exception);
+        }
     }
 
     private bool CanConfirmCurrentSkillSelection()
@@ -364,24 +403,6 @@ public sealed class LocalSkillSelectionInputController
         {
             Debug.LogWarning(
                 $"[LocalSkillSelectionInputController] Cannot select same skill twice: {selectedSkill}"
-            );
-
-            return false;
-        }
-
-        PlayerController localPlayerController = getLocalPlayerController();
-
-        if (localPlayerController == null)
-        {
-            return true;
-        }
-
-        PlayerSkillController skillController = localPlayerController.GetComponent<PlayerSkillController>();
-
-        if (skillController != null && !skillController.CanSelectSkill(selectedSkill))
-        {
-            Debug.LogWarning(
-                $"[LocalSkillSelectionInputController] Cannot confirm skill because it cannot be selected: {selectedSkill}"
             );
 
             return false;

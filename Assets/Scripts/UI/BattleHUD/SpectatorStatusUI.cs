@@ -2,6 +2,9 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
+/// <summary>
+/// SpectatorCameraControllerの観戦状態と対象のチーム色を読み、観戦案内を表示する。
+/// </summary>
 public class SpectatorStatusUI : MonoBehaviour
 {
     [Header("References")]
@@ -41,7 +44,15 @@ public class SpectatorStatusUI : MonoBehaviour
 
         if (target == null)
         {
-            SetVisible(false);
+            SetVisible(true);
+            if (spectatorText != null) spectatorText.text = spectatorController.IsWaitingOverview
+                ? "対戦者の参加を待っています" : "次の観戦対象を待っています";
+            if (operationText != null) operationText.text = "";
+            if (targetColorIcon != null)
+            {
+                targetColorIcon.enabled = !spectatorController.IsWaitingOverview;
+                targetColorIcon.color = Color.gray;
+            }
             return;
         }
 
@@ -69,6 +80,8 @@ public class SpectatorStatusUI : MonoBehaviour
         {
             return;
         }
+
+        targetColorIcon.enabled = true;
 
         if (!target.HasTeamAssigned)
         {
@@ -102,9 +115,26 @@ public class SpectatorStatusUI : MonoBehaviour
 
     private void SetVisible(bool visible)
     {
-        if (root != null && root.activeSelf != visible)
+        GameObject targetRoot = root != null ? root : gameObject;
+
+        // 監視元まで無効にするとUpdateで復帰できないため、同一階層では表示だけを隠す。
+        if (transform.IsChildOf(targetRoot.transform))
         {
-            root.SetActive(visible);
+            CanvasGroup group = targetRoot.GetComponent<CanvasGroup>();
+            if (group == null)
+            {
+                group = targetRoot.AddComponent<CanvasGroup>();
+            }
+
+            group.alpha = visible ? 1.0f : 0.0f;
+            group.interactable = visible;
+            group.blocksRaycasts = visible;
+            return;
+        }
+
+        if (targetRoot.activeSelf != visible)
+        {
+            targetRoot.SetActive(visible);
         }
     }
 }

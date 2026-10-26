@@ -7,6 +7,10 @@ using UnityEngine.InputSystem;
 using TMPro;
 using UnityEngine.UI;
 
+/// <summary>
+/// 接続UI、セッション、プレイヤー生成、入力収集の窓口をまとめる。
+/// Updateでローカル入力を蓄積し、Fusionのコールバックを各担当Controllerへ振り分ける。
+/// </summary>
 public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
 {
     [Header("Network")]
@@ -67,6 +71,20 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
     private NetworkPlayerSpawner playerSpawner;
     private NetworkInputCollector inputCollector;
     private LocalSkillSelectionInputController skillSelectionInputController;
+    private NetworkParticipantRegistry participantRegistry;
+    private LocalParticipantRoleController participantRoleController;
+    private SpectatorCameraController spectatorController;
+
+    public int ParticipantRevision => participantRegistry.Revision;
+    public IReadOnlyDictionary<PlayerRef, ParticipantRole> ParticipantRoles => participantRegistry.Roles;
+
+    public ParticipantRole LocalRole => participantRoleController.LocalRole;
+    public bool IsConnected => participantRoleController.IsConnected;
+    public bool IsLocalCombatant => participantRoleController.IsLocalCombatant;
+    public bool IsDedicatedSpectator => participantRoleController.IsDedicatedSpectator;
+    public bool CanChooseRole => participantRoleController.CanChooseRole;
+    public bool IsRoleRequestPending => participantRoleController.IsRoleRequestPending;
+    public string RoleStatus => participantRoleController.RoleStatus;
 
     public int CurrentSkillSelectionSlot =>
         skillSelectionInputController != null
@@ -124,26 +142,50 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
     private void OnDestroy()
     {
         connectionUIController?.DisposeButtons();
+        sessionController?.Dispose();
     }
 
     private void Update()
     {
+        UpdateRoleSelection();
+        if (sessionController.CanReconnectFromWaitingRoom() && inputCollector.ReadReconnectPressed())
+        {
+            ReconnectAsClient();
+            return;
+        }
+
+        if (!IsLocalCombatant || IsRoleRequestPending)
+        {
+            inputCollector.ClearPendingInput();
+            skillSelectionInputController.ResetSkillSelectionInputState();
+            return;
+        }
+
         inputCollector.UpdateHmdAndLook();
-
-        if (skillSelectionInputController.UpdateIfSkillSelecting())
+        if (!skillSelectionInputController.UpdateIfSkillSelecting())
         {
-            return;
+            inputCollector.QueueGameplayButtons();
         }
-
-        if (sessionController.CanReconnectFromWaitingRoom() &&
-            inputCollector.ReadReconnectPressed())
-        {
-            sessionController.ReconnectAsClient();
-            return;
-        }
-
-        inputCollector.QueueGameplayButtons();
     }
+
+    private void UpdateRoleSelection()
+    {
+        participantRoleController.Update();
+        bool lockCursor = IsConnected;
+        Cursor.lockState = lockCursor ? CursorLockMode.Locked : CursorLockMode.None;
+        Cursor.visible = !lockCursor;
+    }
+
+    public void RequestRole(ParticipantRole role) => participantRoleController.RequestRole(role);
+
+    public bool TryChangeParticipantRole(NetworkRunner runner, PlayerRef player,
+        ParticipantRole role, int requestId, bool isWaiting, bool initialAssignment, out string message) =>
+        participantRegistry.TryChangeRole(runner, player, role, requestId, isWaiting, out message, initialAssignment);
+
+    public ParticipantRole GetParticipantRole(PlayerRef player) => participantRegistry.GetRole(player);
+
+    public void OnParticipantRoleResult(PlayerRef player, int requestId, ParticipantRole role, string message) =>
+        participantRoleController.OnResult(player, requestId, role, message);
 
     private void InitializeControllers()
     {
@@ -193,24 +235,55 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
             editorHmdRotationSpeed
         );
 
+        sessionController.ConnectionReset += ResetLocalSessionState;
+
         skillSelectionInputController = new LocalSkillSelectionInputController(
             moveAction,
             skillSelectionStickThreshold,
-            () => sessionController.Runner,
-            () => inputCollector.LocalPlayerController
+            () => sessionController.Runner
         );
+
+        participantRegistry = new NetworkParticipantRegistry(playerSpawner);
+        participantRoleController = new LocalParticipantRoleController(
+            () => sessionController.IsStartingGame || sessionController.IsReconnecting ? null : sessionController.Runner,
+            inputCollector.ClearPendingInput,
+            skillSelectionInputController.ResetSkillSelectionInputState
+        );
+        spectatorController = FindFirstObjectByType<SpectatorCameraController>();
+        if (spectatorController == null)
+        {
+            spectatorController = gameObject.AddComponent<SpectatorCameraController>();
+        }
     }
 
-    public void StartGame(GameMode gameMode)
+    public async void StartGame(GameMode gameMode)
     {
-        sessionController.StartGame(gameMode);
+        await sessionController.StartGameAsync(gameMode);
     }
 
-    public void OnServerSkillSelectionProgress(PlayerRef playerRef, int selectedCount)
+    private async void ReconnectAsClient()
     {
-        skillSelectionInputController.OnServerSkillSelectionProgress(playerRef, selectedCount);
+        await sessionController.ReconnectAsClientAsync();
     }
 
+    private void ResetLocalSessionState()
+    {
+        participantRoleController?.ResetSession();
+        participantRegistry?.ResetSession();
+        inputCollector.ResetLocalState();
+        skillSelectionInputController?.ResetSkillSelectionInputState();
+        playerSpawner.ResetSession();
+    }
+
+    public void OnServerSkillSelectionProgress(PlayerRef playerRef, int selectedCount, int requestStep, PlayerSkillType firstSkill, int selectionVersion)
+    {
+        skillSelectionInputController.OnServerSkillSelectionProgress(playerRef, selectedCount, requestStep, firstSkill, selectionVersion);
+    }
+
+    /// <summary>
+    /// ローカルプレイヤーの生成・復活を待機UIへ通知する。
+    /// この通知だけで待機フェーズに変更することはない。
+    /// </summary>
     public void NotifyLocalPlayerSpawnedOnWaitingPlanet()
     {
         Debug.Log("[NetworkLauncher] Local player spawned on waiting planet.");
@@ -253,23 +326,39 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
 
     public void OnPlayerJoined(NetworkRunner runner, PlayerRef player)
     {
-        playerSpawner.OnPlayerJoined(runner, player);
+        participantRegistry.RegisterConnection(runner, player);
     }
 
     public void OnPlayerLeft(NetworkRunner runner, PlayerRef player)
     {
-        playerSpawner.OnPlayerLeft(runner, player);
+        participantRegistry.UnregisterConnection(runner, player);
     }
 
+    /// <summary>
+    /// Fusionが入力を要求したタイミングで、Updateから蓄積したローカル入力を送信データへ移す。
+    /// </summary>
     public void OnInput(NetworkRunner runner, NetworkInput input)
     {
-        inputCollector.CollectInput(input);
+        if (IsLocalCombatant && !IsRoleRequestPending)
+        {
+            inputCollector.CollectInput(input);
+        }
+        else
+        {
+            input.Set(default(PlayerNetworkInput));
+        }
     }
 
     public void OnInputMissing(NetworkRunner runner, PlayerRef player, NetworkInput input) { }
-    public void OnShutdown(NetworkRunner runner, ShutdownReason shutdownReason) { }
+    public async void OnShutdown(NetworkRunner runner, ShutdownReason shutdownReason)
+    {
+        await sessionController.HandleDisconnectedAsync(runner, shutdownReason.ToString());
+    }
     public void OnConnectedToServer(NetworkRunner runner) { }
-    public void OnDisconnectedFromServer(NetworkRunner runner, NetDisconnectReason reason) { }
+    public async void OnDisconnectedFromServer(NetworkRunner runner, NetDisconnectReason reason)
+    {
+        await sessionController.HandleDisconnectedAsync(runner, reason.ToString());
+    }
     public void OnConnectRequest(NetworkRunner runner, NetworkRunnerCallbackArgs.ConnectRequest request, byte[] token) { request.Accept(); }
     public void OnConnectFailed(NetworkRunner runner, NetAddress remoteAddress, NetConnectFailedReason reason) { }
     public void OnUserSimulationMessage(NetworkRunner runner, SimulationMessagePtr message) { }

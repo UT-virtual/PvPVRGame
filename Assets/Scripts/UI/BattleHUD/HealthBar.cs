@@ -3,6 +3,10 @@ using UnityEngine;
 using UnityEngine.UI;
 using Fusion;
 
+/// <summary>
+/// 接続先のPlayerHealthの変更イベントからHPバーを更新し、表示値の補間と揺れを行う。
+/// ローカルプレイヤーの探索と、観戦先への接続切替に対応する。
+/// </summary>
 public class HealthBar : MonoBehaviour
 {
     [SerializeField] private float maxHealth = 10.0f;
@@ -81,6 +85,9 @@ public class HealthBar : MonoBehaviour
         findLocalPlayerCoroutine = null;
     }
 
+    /// <summary>
+    /// 以前のHP購読とローカル探索を解除し、新しい接続先の値を揺れなしで表示へ反映する。nullなら表示値を消去する。
+    /// </summary>
     public void SetupPlayerHealth(PlayerHealth health)
     {
         if (findLocalPlayerCoroutine != null)
@@ -98,6 +105,8 @@ public class HealthBar : MonoBehaviour
 
         if (playerHealth == null)
         {
+            currentHealth = displayHealth = 0f;
+            ApplySliderValue(0f);
             return;
         }
 

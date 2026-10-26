@@ -3,6 +3,10 @@ using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 
+/// <summary>
+/// ラウンド参加者の登録と死亡イベントの購読を管理し、既存参加者と重複しないチーム色を割り当てる。
+/// 得点・準備・スキルの状態はRoundManagerが別の担当へ登録する。
+/// </summary>
 public sealed class RoundPlayerRegistry
 {
     private readonly List<PlayerHealth> players = new();
@@ -95,11 +99,21 @@ public sealed class RoundPlayerRegistry
             return;
         }
 
-        int index = players.Count - 1;
-        TeamColor assignedColor = teamOrder[index % teamOrder.Length];
+        // 退出で空いた色だけを再利用し、残ったプレイヤーの色・得点の対応は変えない。
+        foreach (TeamColor color in teamOrder)
+        {
+            bool used = players.Any(other => other != null && other != player &&
+                other.HasTeamAssigned && other.Team == color);
+            if (used)
+            {
+                continue;
+            }
 
-        player.SetTeam(assignedColor);
+            player.SetTeam(color);
+            Debug.Log($"{player.gameObject.name} joined as {color}");
+            return;
+        }
 
-        Debug.Log($"{player.gameObject.name} joined as {assignedColor}");
+        Debug.LogWarning("[RoundPlayerRegistry] No unused team color is available.");
     }
 }
