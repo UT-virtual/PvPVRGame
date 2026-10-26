@@ -118,6 +118,8 @@ public sealed class RoundStartController
             yield break;
         }
 
+        RoundManager.Instance?.ApplyHealthOneEffect();
+
         setPhase(RoundManager.GamePhase.RoundPlaying);
         startRoundCoroutine = null;
 

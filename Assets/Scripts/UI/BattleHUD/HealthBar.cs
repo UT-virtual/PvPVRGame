@@ -127,6 +127,11 @@ public class HealthBar : MonoBehaviour
         {
             displayHealth = 0.0f;
         }
+        else if (currentHealth <= 1.0f)
+        {
+            // HPが1以下なら補間せず、正確な値を表示する
+            displayHealth = currentHealth;
+        }
         else
         {
             displayHealth = Mathf.Lerp(
@@ -171,9 +176,9 @@ public class HealthBar : MonoBehaviour
         maxHealth = max;
         currentHealth = Mathf.Clamp(current, 0.0f, maxHealth);
 
-        if (currentHealth <= 0.0f)
+        if (currentHealth <= 1.0f)
         {
-            displayHealth = 0.0f;
+            displayHealth = currentHealth;
         }
 
         ApplySliderValue(displayHealth);
@@ -183,12 +188,6 @@ public class HealthBar : MonoBehaviour
             shakeTimer = shakeDuration;
         }
 
-        Debug.Log(
-            $"[HealthBar] UpdateBar. " +
-            $"Target={(playerHealth != null ? playerHealth.name : "null")}, " +
-            $"HP={currentHealth}/{maxHealth}, " +
-            $"Slider={(HealthSlider != null ? HealthSlider.value.ToString() : "null")}"
-        );
     }
 
     private void OnDestroy()
@@ -211,8 +210,10 @@ public class HealthBar : MonoBehaviour
 
         if (HealthSlider != null)
         {
+            HealthSlider.minValue = 0f;
             HealthSlider.maxValue = maxHealth;
             HealthSlider.value = clampedValue;
+
         }
 
         if (fillImage != null)

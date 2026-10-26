@@ -1,5 +1,6 @@
 using Fusion;
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -14,6 +15,7 @@ public class RoundManager : NetworkBehaviour
     public enum GamePhase
     {
         WaitingForReady,
+        RoundEffect,
         SkillSelecting,
         RoundStarting,
         RoundPlaying,
@@ -21,10 +23,28 @@ public class RoundManager : NetworkBehaviour
         MatchFinished
     }
 
+    public enum RoundEffectType
+    {
+        None,
+        BanJump,
+        Health1,
+    }
+
     private const int SkillOptionSlotCountValue = 4;
 
     [Header("Ready")]
     [SerializeField] private int minPlayersToStart = 2;
+
+    [Header("Round Effect")]
+    [SerializeField] private float roundEffectDisplayDuration = 3.0f;
+
+    [Networked]
+    private RoundEffectType currentRoundEffect { get; set; }
+    public bool IsJumpProhibited =>
+    currentRoundEffect == RoundEffectType.BanJump;
+
+    public float CurrentMoveSpeedMultiplier =>
+        currentRoundEffect == RoundEffectType.BanJump ? 2.0f : 1.0f;
 
     [Header("Skill Selection")]
     [SerializeField] private float skillSelectionDuration = 10.0f;
@@ -72,6 +92,9 @@ public class RoundManager : NetworkBehaviour
     [Header("Debug Spectator Dummy")]
     [SerializeField] private bool countDebugSpectatorDummiesAsAlive = false;
 
+    [Header("Round Effect UI")]
+    [SerializeField] private RoundEffectUI roundEffectUI;
+
     // 接続者の一覧と役割はキャラクターの有無と分け、観戦者も全端末の待機一覧へ載せる。
     [Networked, Capacity(NetworkSessionController.MaxConnectionCount)]
     public NetworkDictionary<PlayerRef, ParticipantRole> ConnectedParticipants => default;
@@ -87,9 +110,9 @@ public class RoundManager : NetworkBehaviour
         ? RoundStartDeadline.RemainingTime(Runner) ?? 0f
         : 0f;
 
-    public event Action<GamePhase> OnPhaseChanged;   // 追加
-    public event Action<int, bool> OnRoundEnded;     // 追加
-    public event Action<int> OnAllRoundsEnded;       // 追加
+    public event Action<GamePhase> OnPhaseChanged;
+    public event Action<int, bool> OnRoundEnded;
+    public event Action<int> OnAllRoundsEnded;
 
     [Networked]
     private GamePhase phase { get; set; }
@@ -166,6 +189,90 @@ public class RoundManager : NetworkBehaviour
 
     public IReadOnlyList<PlayerHealth> Players =>
         playerRegistry != null ? playerRegistry.Players : Array.Empty<PlayerHealth>();
+
+
+    private void BeginRoundEffect()
+    {
+        if (Object == null || !Object.HasStateAuthority)
+        {
+            return;
+        }
+
+        // 5分の1の確率でラウンド効果を発生させる
+        bool effectOccurs = UnityEngine.Random.Range(0, 5) == 0;
+
+        if (effectOccurs)
+        {
+            // 効果が発生するときだけ、効果を抽選する
+            RoundEffectType[] effects =
+            {
+                RoundEffectType.BanJump,
+                RoundEffectType.Health1
+            };
+
+            currentRoundEffect = effects[
+                UnityEngine.Random.Range(0, effects.Length)
+            ];
+        }
+        else
+        {
+            // 効果が発生しない
+            currentRoundEffect = RoundEffectType.None;
+        }
+
+        phase = GamePhase.RoundEffect;
+
+        RPC_ShowRoundEffect(currentRoundEffect);
+
+        StartCoroutine(BeginSkillSelectionAfterEffect());
+    }
+
+
+    public void ApplyHealthOneEffect()
+    {
+        if (Object == null || !Object.HasStateAuthority)
+        {
+            return;
+        }
+
+        if (currentRoundEffect != RoundEffectType.Health1)
+        {
+            return;
+        }
+
+        foreach (PlayerHealth player in Players)
+        {
+            if (player == null || player.IsDead)
+            {
+                continue;
+            }
+
+            player.SetHealthToOne();
+        }
+    }
+
+    private IEnumerator BeginSkillSelectionAfterEffect()
+    {
+        yield return new WaitForSeconds(roundEffectDisplayDuration);
+
+        if (Object == null || !Object.HasStateAuthority)
+        {
+            yield break;
+        }
+
+        skillSelectionController.BeginSkillSelectionForRound(CurrentRound);
+    }
+
+    [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+    private void RPC_ShowRoundEffect(RoundEffectType effect)
+    {
+        Debug.Log($"[RoundManager] Round Effect: {effect}");
+        if (roundEffectUI != null)
+        {
+            roundEffectUI.ShowEffect(effect, 3.0f);
+        }
+        // ここでRoundEffect UIを表示
+    }
 
     public int SkillOptionSlotCount =>
         skillSelectionController != null
@@ -405,7 +512,8 @@ public class RoundManager : NetworkBehaviour
             RPC_ShowFinalResultUI,
             RPC_HideFinalResultUI,
             ShowWaitingRoomUI,
-            LogReadyStates
+            LogReadyStates,
+            BeginRoundEffect
         );
     }
 
@@ -704,7 +812,7 @@ public class RoundManager : NetworkBehaviour
         // 1人開始の確認設定は維持するが、複数人で始めた試合は1人になったら中断する。
         requiredPlayersForCurrentMatch = Mathf.Max(minPlayersToStart, validPlayers.Count > 1 ? 2 : 1);
         CurrentRound = 1;
-        skillSelectionController.BeginSkillSelectionForRound(CurrentRound);
+        BeginRoundEffect();
     }
 
     private List<PlayerHealth> GetValidPlayers()

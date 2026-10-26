@@ -189,6 +189,12 @@ public class PlayerController : NetworkBehaviour
 
         ApplyRemoteLookInput(input);
 
+        // ラウンド効果による速度倍率はStateAuthorityの移動処理に反映する。
+        float moveSpeedMultiplier = RoundManager.Instance != null
+            ? RoundManager.Instance.CurrentMoveSpeedMultiplier
+            : 1.0f;
+        playerMove.SetMoveSpeedMultiplier(moveSpeedMultiplier);
+
         if (input.IsVR)
         {
             playerMove.MoveOnSurfaceVR(moveInput, deltaTime, playerLook.ViewForward, playerMove.AimRight);
@@ -203,7 +209,10 @@ public class PlayerController : NetworkBehaviour
         playerMove.UpdateAimBasis();
 
         playerMove.AlignToSurface(deltaTime);
-        playerMove.ApplyGravityAndJump(jumpPressed, deltaTime);
+
+        // ジャンプ禁止中も重力は通常どおり適用する。
+        bool canJump = RoundManager.Instance == null || !RoundManager.Instance.IsJumpProhibited;
+        playerMove.ApplyGravityAndJump(jumpPressed && canJump, deltaTime);
     }
 
     private void ApplyRemoteLookInput(PlayerNetworkInput input)

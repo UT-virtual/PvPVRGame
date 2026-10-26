@@ -397,6 +397,24 @@ public class PlayerHealth : NetworkBehaviour
         return NetworkedCurrentHealth > beforeHealth;
     }
 
+    public void SetHealthToOne()
+    {
+        if (Object == null || !Object.HasStateAuthority)
+        {
+            return;
+        }
+
+        if (IsDead)
+        {
+            return;
+        }
+
+        NetworkedCurrentHealth = 1.0f;
+        NotifyHealthChanged();
+
+        Debug.Log($"{gameObject.name} HP set to 1");
+    }
+
     private void Die()
     {
         if (IsDead)
