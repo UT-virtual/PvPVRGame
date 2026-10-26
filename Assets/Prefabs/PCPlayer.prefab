@@ -1153,6 +1153,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 27dec7f931a8947ddb07b399d5b35dbb, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerWeapon
+  hitEffectPrefab: {fileID: 2772215153189503253, guid: 12673212336cdcd45954d0b53f60c383, type: 3}
   projectilePrefab:
     RawGuidValue: 656e6d695bfca498e95fd35ea032dbad
   projectileSpeed: 200

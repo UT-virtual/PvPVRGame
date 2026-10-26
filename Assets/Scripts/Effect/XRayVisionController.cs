@@ -3,7 +3,7 @@ using Fusion;
 using UnityEngine;
 
 /// <summary>
-/// InputAuthorityを持つプレイヤーの透視スキルに応じ、この端末上の他の生存者のマテリアルを置き換える。
+/// InputAuthorityを持つ生存者の透視スキルまたはサドンデスに応じ、他の生存者のマテリアルを置き換える。
 /// 効果終了・死亡・無効化時には保存した元のマテリアルへ戻す。
 /// </summary>
 [RequireComponent(typeof(PlayerSkillController))]
@@ -45,9 +45,9 @@ public class XRayVisionController : NetworkBehaviour
             return;
         }
 
-        bool shouldApply =
-            skillController != null &&
-            skillController.IsXRayVisionActive();
+        // スキル効果自体は延長せず、どちらかが有効な間だけ透視を維持する。
+        bool shouldApply = (skillController != null && skillController.IsXRayVisionActive()) ||
+            (RoundManager.Instance != null && RoundManager.Instance.IsSuddenDeath);
 
         if (shouldApply)
         {

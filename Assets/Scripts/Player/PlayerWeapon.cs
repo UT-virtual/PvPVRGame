@@ -20,6 +20,7 @@ public class PlayerWeapon : NetworkBehaviour
 
     [Header("Shoot")]
     [SerializeField] private NetworkPrefabRef projectilePrefab;
+    [SerializeField] private GameObject hitEffectPrefab;
     [SerializeField] private float projectileSpeed = 18.0f;
     [SerializeField] private float projectileLifeTime = 3.0f;
     [SerializeField] private float projectileDamage = 1.0f;
@@ -479,7 +480,8 @@ public class PlayerWeapon : NetworkBehaviour
             projectile.InitializeVisualOnly(
                 fireDirection,
                 currentSpeed,
-                projectileLifeTime
+                projectileLifeTime,
+                playerHealth
             );
 
             ApplyHitscan(spawnPosition, fireDirection, currentDamage);
@@ -515,8 +517,12 @@ public class PlayerWeapon : NetworkBehaviour
 
             if (targetHealth != null)
             {
-                targetHealth.TakeDamage(damage);
+                // サドンデス倍率と実効与ダメージの確定はHP側で統一し、特殊弾と二重適用しない。
+                targetHealth.TakeDamage(damage, Object.InputAuthority,
+                    RoundManager.Instance != null ? RoundManager.Instance.DamageRoundVersion : 0);
             }
+
+            NotifyProjectileImpactEffect(hit.point);
 
             PlayerSound playerSound = GetComponent<PlayerSound>();
             if (playerSound != null)
@@ -525,6 +531,29 @@ public class PlayerWeapon : NetworkBehaviour
             }
 
             return;
+        }
+    }
+
+    /// <summary>
+    /// StateAuthorityで確定した着弾位置を全端末へ通知する。弾の寿命切れやDespawnでは呼ばない。
+    /// </summary>
+    public void NotifyProjectileImpactEffect(Vector3 position)
+    {
+        if (Object == null || !Object.HasStateAuthority)
+        {
+            return;
+        }
+
+        RPC_ShowHitEffect(position);
+    }
+
+    [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+    private void RPC_ShowHitEffect(Vector3 position)
+    {
+        if (hitEffectPrefab != null)
+        {
+            // 弾の最終TransformがClientへ届く前にDespawnされても、通知された命中地点で再生する。
+            Instantiate(hitEffectPrefab, position, Quaternion.identity);
         }
     }
 

@@ -28,6 +28,7 @@ public class HealthItemSpawner : MonoBehaviour
     private readonly Dictionary<int, Coroutine> respawnCoroutines = new();
 
     private int currentItemCount;
+    private bool spawningEnabled;
 
     /// <summary>
     /// 既存配置と再生成待ちを消去し、人数の半分（最低1個、地点数を上限）を配置する。
@@ -55,6 +56,7 @@ public class HealthItemSpawner : MonoBehaviour
         itemCount = Mathf.Min(itemCount, availableSpawnPoints.Count);
 
         currentItemCount = itemCount;
+        spawningEnabled = true;
 
         Debug.Log(
             $"[HealthItemSpawner] Setup. " +
@@ -81,6 +83,7 @@ public class HealthItemSpawner : MonoBehaviour
     /// </summary>
     public void NotifyItemPickedUp(int spawnIndex)
     {
+        if (!spawningEnabled) return;
         if (spawnedItems.ContainsKey(spawnIndex))
         {
             spawnedItems.Remove(spawnIndex);
@@ -102,6 +105,7 @@ public class HealthItemSpawner : MonoBehaviour
     /// </summary>
     public void ClearAllItems()
     {
+        spawningEnabled = false;
         foreach (Coroutine coroutine in respawnCoroutines.Values)
         {
             if (coroutine != null)
@@ -138,7 +142,8 @@ public class HealthItemSpawner : MonoBehaviour
         respawnCoroutines.Remove(spawnIndex);
 
         // 待機中に終了フェーズへ移っていれば再生成しない。RoundManager未配置時は生成を継続する。
-        if (RoundManager.Instance != null && !RoundManager.Instance.CanUseWeapons)
+        if (!spawningEnabled || (RoundManager.Instance != null &&
+            (!RoundManager.Instance.CanUseWeapons || RoundManager.Instance.IsSuddenDeath)))
         {
             yield break;
         }
@@ -153,6 +158,7 @@ public class HealthItemSpawner : MonoBehaviour
 
     private void SpawnItemAtIndex(int spawnIndex)
     {
+        if (!spawningEnabled || (RoundManager.Instance != null && RoundManager.Instance.IsSuddenDeath)) return;
         NetworkRunner runner = FindFirstObjectByType<NetworkRunner>();
 
         if (runner == null)

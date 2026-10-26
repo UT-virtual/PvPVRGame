@@ -8,7 +8,7 @@ using UnityEngine;
 /// 同期する試合フェーズと、準備・スキル選択・戦闘・結果表示をつなぐ窓口を持つ。
 /// StateAuthority側の参加者管理と進行を各Controllerへ委譲し、各端末のUIは同期フェーズと結果通知RPCで更新する。
 /// </summary>
-public class RoundManager : NetworkBehaviour
+public class RoundManager : NetworkBehaviour, IAfterTick
 {
     public static RoundManager Instance { get; private set; }
 
@@ -31,6 +31,8 @@ public class RoundManager : NetworkBehaviour
     }
 
     private const int SkillOptionSlotCountValue = 4;
+    public const float RoundDurationSeconds = 90f;
+    public const float SuddenDeathRemainingSeconds = 30f;
 
     [Header("Ready")]
     [SerializeField] private int minPlayersToStart = 2;
@@ -103,8 +105,51 @@ public class RoundManager : NetworkBehaviour
     private int lastParticipantRevision = -1;
 
     [Networked] public int CurrentRound { get; private set; }
+    [Networked] public int TotalRoundCount { get; private set; }
     [Networked] public int SkillSelectionVersion { get; private set; }
     [Networked] private TickTimer RoundStartDeadline { get; set; }
+    [Networked] private TickTimer RoundDeadline { get; set; }
+    [Networked] private TickTimer SuddenDeathDeadline { get; set; }
+    [Networked] private NetworkBool suddenDeathActive { get; set; }
+    [Networked] public int DamageRoundVersion { get; private set; }
+    [Networked] public int DamageRoundNumber { get; private set; }
+    [Networked] public int DamageRevision { get; private set; }
+    [Networked] public int DamageEntryCount { get; private set; }
+    [Networked] public NetworkBool HasFinalDamageRanking { get; private set; }
+    [Networked, Capacity(NetworkSessionController.MaxCombatantCount)]
+    public NetworkArray<RoundDamageEntry> DamageEntries => default;
+
+    private readonly List<RoundDamageEntry> damageSnapshot = new(NetworkSessionController.MaxCombatantCount);
+    private Coroutine roundEffectCoroutine;
+
+    public float RoundRemainingSeconds => IsRoundPlaying && Runner != null
+        ? Mathf.Max(0f, RoundDeadline.RemainingTime(Runner) ?? 0f) : 0f;
+
+    // 同じTickの実行順に依存せず、60秒を境に命中と回復の扱いを切り替える。
+    public bool IsSuddenDeath => IsRoundPlaying &&
+        (suddenDeathActive || SuddenDeathDeadline.Expired(Runner));
+
+    /// <summary>
+    /// 命中した時点の倍率を返す。飛翔中にサドンデスへ入った特殊弾にも適用する。
+    /// </summary>
+    public float AttackDamageMultiplier => IsSuddenDeath ? 2f : 1f;
+
+    public bool CanApplyCombatDamage(int roundVersion) => IsRoundPlaying &&
+        roundVersion == DamageRoundVersion && !RoundDeadline.ExpiredOrNotRunning(Runner);
+
+    /// <summary>
+    /// HP減少と、その一撃による撃破を集計する。保留ダメージの前ラウンド分を持ち越さない。
+    /// </summary>
+    public void RecordEffectiveDamage(PlayerRef attacker, PlayerHealth victim, float damage, int roundVersion, bool lethal = false)
+    {
+        if (Object == null || !Object.HasStateAuthority || !CanApplyCombatDamage(roundVersion) ||
+            victim == null || victim.Object == null)
+        {
+            return;
+        }
+
+        scoreCalculator.RecordDamage(attacker, victim.Object.InputAuthority, damage, lethal);
+    }
 
     public float RoundStartRemainingSeconds => IsRoundStarting && Runner != null
         ? RoundStartDeadline.RemainingTime(Runner) ?? 0f
@@ -173,6 +218,8 @@ public class RoundManager : NetworkBehaviour
         CanReadNetworkedPhase &&
         phase == GamePhase.RoundPlaying;
 
+    public bool IsRoundEnding => CanReadNetworkedPhase && phase == GamePhase.RoundEnding;
+
     public bool IsMatchFinished =>
         CanReadNetworkedPhase &&
         phase == GamePhase.MatchFinished;
@@ -220,11 +267,11 @@ public class RoundManager : NetworkBehaviour
             currentRoundEffect = RoundEffectType.None;
         }
 
-        phase = GamePhase.RoundEffect;
+        SetPhase(GamePhase.RoundEffect);
 
         RPC_ShowRoundEffect(currentRoundEffect);
 
-        StartCoroutine(BeginSkillSelectionAfterEffect());
+        roundEffectCoroutine = StartCoroutine(BeginSkillSelectionAfterEffect());
     }
 
 
@@ -255,11 +302,12 @@ public class RoundManager : NetworkBehaviour
     {
         yield return new WaitForSeconds(roundEffectDisplayDuration);
 
-        if (Object == null || !Object.HasStateAuthority)
+        if (Object == null || !Object.HasStateAuthority || phase != GamePhase.RoundEffect)
         {
             yield break;
         }
 
+        roundEffectCoroutine = null;
         skillSelectionController.BeginSkillSelectionForRound(CurrentRound);
     }
 
@@ -304,6 +352,11 @@ public class RoundManager : NetworkBehaviour
         Instance = this;
 
         InitializeControllers();
+        RoundBattleStatusUI battleStatus = GetComponent<RoundBattleStatusUI>();
+        if (battleStatus == null) battleStatus = gameObject.AddComponent<RoundBattleStatusUI>();
+        WaitingRoomUI styleSource = waitingRoomUI != null ? waitingRoomUI : FindFirstObjectByType<WaitingRoomUI>(FindObjectsInactive.Include);
+        battleStatus.Initialize(this, styleSource != null ? styleSource.DisplayFont : null,
+            styleSource != null ? styleSource.ColorIconSprite : null);
 
         Debug.Log("[RoundManager] Awake");
     }
@@ -316,6 +369,7 @@ public class RoundManager : NetworkBehaviour
         {
             lastParticipantRevision = -1;
             CurrentRound = 1;
+            TotalRoundCount = Mathf.Max(1, maxRoundCount);
             phase = GamePhase.WaitingForReady;
         }
 
@@ -334,6 +388,7 @@ public class RoundManager : NetworkBehaviour
     public override void Despawned(NetworkRunner runner, bool hasState)
     {
         flowController?.StopProgression();
+        if (roundEffectCoroutine != null) StopCoroutine(roundEffectCoroutine);
         isSpawned = false;
     }
 
@@ -353,6 +408,13 @@ public class RoundManager : NetworkBehaviour
         {
             return;
         }
+
+        if (IsSuddenDeath && !suddenDeathActive)
+        {
+            suddenDeathActive = true;
+            // 再生成待ちも停止し、次ラウンドのSetupまで回復アイテムを復帰させない。
+            healthItemController.ClearHealthItems();
+        }
         if (participantLauncher == null)
         {
             participantLauncher = FindFirstObjectByType<NetworkLauncher>();
@@ -368,6 +430,47 @@ public class RoundManager : NetworkBehaviour
             ConnectedParticipants.Add(participant.Key, participant.Value);
         }
         lastParticipantRevision = participantLauncher.ParticipantRevision;
+    }
+
+    /// <summary>
+    /// 全NetworkBehaviourのTick処理後に終了を判定する。
+    /// 範囲攻撃で全員が死亡した場合も、途中の一人を勝者として先に確定しない。
+    /// </summary>
+    public void AfterTick()
+    {
+        if (!IsNetworkReady || !Object.HasStateAuthority || !IsRoundPlaying) return;
+
+        flowController.ResolvePendingDeaths();
+        if (!IsRoundPlaying) return;
+
+        if (RoundDeadline.ExpiredOrNotRunning(Runner))
+        {
+            flowController.EndRoundOnTimeout();
+        }
+        else
+        {
+            PublishDamageSnapshot();
+        }
+    }
+
+    private void PublishDamageSnapshot()
+    {
+        scoreCalculator.CopyRoundDamage(damageSnapshot);
+        bool changed = DamageEntryCount != damageSnapshot.Count;
+        DamageEntryCount = damageSnapshot.Count;
+        for (int i = 0; i < damageSnapshot.Count; i++)
+        {
+            RoundDamageEntry previous = DamageEntries[i];
+            RoundDamageEntry current = damageSnapshot[i];
+            if (previous.Player == current.Player && previous.Kills == current.Kills && previous.Damage == current.Damage &&
+                previous.MaxHealth == current.MaxHealth &&
+                previous.Health == current.Health && previous.TeamIndex == current.TeamIndex &&
+                previous.IsAlive == current.IsAlive) continue;
+            DamageEntries.Set(i, current);
+            changed = true;
+        }
+
+        if (changed) DamageRevision++;
     }
 
     public override void Render()
@@ -449,6 +552,42 @@ public class RoundManager : NetworkBehaviour
 
     private void SetPhase(GamePhase value)
     {
+        if (value == phase) return;
+
+        if (value == GamePhase.WaitingForReady && roundEffectCoroutine != null)
+        {
+            StopCoroutine(roundEffectCoroutine);
+            roundEffectCoroutine = null;
+        }
+
+        if (phase == GamePhase.RoundPlaying)
+        {
+            // 復活・スキル解除でHPが変わる前の値を結果として固定する。
+            PublishDamageSnapshot();
+            HasFinalDamageRanking = value == GamePhase.RoundEnding;
+            RoundDeadline = TickTimer.None;
+            SuddenDeathDeadline = TickTimer.None;
+            suddenDeathActive = false;
+        }
+
+        if (value == GamePhase.RoundPlaying)
+        {
+            // 端末ごとのScene設定ではなく、進行側の総ラウンド数をHUDへ伝える。
+            TotalRoundCount = Mathf.Max(1, maxRoundCount);
+            DamageRoundVersion++;
+            DamageRoundNumber = CurrentRound;
+            HasFinalDamageRanking = false;
+            suddenDeathActive = false;
+            scoreCalculator.BeginRoundDamage(GetValidPlayers());
+            RoundDeadline = TickTimer.CreateFromSeconds(Runner, RoundDurationSeconds);
+            SuddenDeathDeadline = TickTimer.CreateFromSeconds(Runner, RoundDurationSeconds - SuddenDeathRemainingSeconds);
+            PublishDamageSnapshot();
+        }
+        else if (value == GamePhase.WaitingForReady)
+        {
+            HasFinalDamageRanking = false;
+        }
+
         if (value == GamePhase.SkillSelecting && phase != value)
         {
             SkillSelectionVersion++;

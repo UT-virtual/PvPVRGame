@@ -4,7 +4,7 @@ using UnityEngine;
 
 /// <summary>
 /// StateAuthorityで弾の移動・寿命・衝突ダメージを処理する。
-/// 通常弾と重力・爆発弾を扱い、着弾時は発射者へSE通知を送る。
+/// 通常弾と重力・爆発弾を扱い、着弾時は発射者へSE通知を送り、物理弾の着弾エフェクトも通知する。
 /// </summary>
 [RequireComponent(typeof(NetworkObject))]
 public class Projectile : NetworkBehaviour
@@ -26,6 +26,8 @@ public class Projectile : NetworkBehaviour
     private bool hasImpacted;
 
     private PlayerHealth owner;
+    private PlayerRef attacker;
+    private int damageRoundVersion;
 
     public override void Spawned()
     {
@@ -82,6 +84,10 @@ public class Projectile : NetworkBehaviour
         timer = 0.0f;
         damage = projectileDamage;
         owner = projectileOwner;
+        attacker = owner != null && owner.Object != null ? owner.Object.InputAuthority : PlayerRef.None;
+        // 発射時の世代を保持し、退出・死亡後も攻撃者を特定する。次ラウンドのHPには命中させない。
+        damageRoundVersion = RoundManager.Instance != null && RoundManager.Instance.IsNetworkReady
+            ? RoundManager.Instance.DamageRoundVersion : 0;
 
         useGravity = projectileUsesGravity;
         gravityDirection = projectileGravityDirection.sqrMagnitude > 0.0001f
@@ -97,7 +103,10 @@ public class Projectile : NetworkBehaviour
         SetupCollision();
     }
 
-    public void InitializeVisualOnly(Vector3 direction, float speed, float duration)
+    /// <summary>
+    /// 通常弾・ヘビー弾の見た目だけを移動する。発射者を衝突対象から除外し、ダメージや着弾演出はRaycast側に任せる。
+    /// </summary>
+    public void InitializeVisualOnly(Vector3 direction, float speed, float duration, PlayerHealth projectileOwner)
     {
         if (Object == null || !Object.HasStateAuthority)
         {
@@ -110,7 +119,7 @@ public class Projectile : NetworkBehaviour
         lifeTime = duration;
         timer = 0.0f;
 
-        owner = null;
+        owner = projectileOwner;
         damage = 0.0f;
         useGravity = false;
         gravityDirection = Vector3.down;
@@ -256,6 +265,15 @@ public class Projectile : NetworkBehaviour
             return;
         }
 
+        if (owner != null)
+        {
+            PlayerWeapon weapon = owner.GetComponent<PlayerWeapon>();
+            if (weapon != null)
+            {
+                weapon.NotifyProjectileImpactEffect(impactPosition);
+            }
+        }
+
         bool hasHitAliveEnemy;
         if (explodeOnHit)
         {
@@ -300,7 +318,7 @@ public class Projectile : NetworkBehaviour
                 hasHitAliveEnemy = true;
             }
 
-            target.TakeDamage(damage);
+            target.TakeDamage(damage, attacker, damageRoundVersion);
         }
 
         return hasHitAliveEnemy;
@@ -341,7 +359,7 @@ public class Projectile : NetworkBehaviour
                 hasHitAliveEnemy = true;
             }
 
-            target.TakeDamage(explosionDamage);
+            target.TakeDamage(explosionDamage, attacker, damageRoundVersion);
         }
 
         return hasHitAliveEnemy;

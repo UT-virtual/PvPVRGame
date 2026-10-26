@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Fusion;
 using UnityEngine;
 
@@ -90,6 +91,14 @@ public class PlayerHealth : NetworkBehaviour
 
     private bool delayedDamageActive;
     private float delayedDamageTotal;
+    private readonly List<PendingDamage> pendingDamage = new();
+
+    private struct PendingDamage
+    {
+        public PlayerRef Attacker;
+        public int RoundVersion;
+        public float Amount;
+    }
 
     private Vector3 originalVisualRootScale = Vector3.one;
     private bool hasOriginalVisualRootScale;
@@ -153,6 +162,9 @@ public class PlayerHealth : NetworkBehaviour
             NetworkedIsReady = false;
             NetworkedTeamIndex = -1;
             damageTakenMultiplier = 1.0f;
+            delayedDamageActive = false;
+            delayedDamageTotal = 0f;
+            pendingDamage.Clear();
         }
 
         ApplyAliveState(!NetworkedIsDead);
@@ -239,20 +251,45 @@ public class PlayerHealth : NetworkBehaviour
 
     private void ApplyDelayedDamage()
     {
+        RoundManager roundManager = RoundManager.Instance;
+        if (roundManager != null && (!roundManager.IsNetworkReady ||
+            !roundManager.CanApplyCombatDamage(roundManager.DamageRoundVersion)))
+        {
+            // 結果確定後のスキル解除で死亡させず、保留分を次ラウンドにも持ち越さない。
+            delayedDamageTotal = 0f;
+            pendingDamage.Clear();
+            return;
+        }
+
         if (delayedDamageTotal <= 0.0f)
         {
             delayedDamageTotal = 0.0f;
+            pendingDamage.Clear();
             return;
         }
 
         if (IsDead)
         {
             delayedDamageTotal = 0.0f;
+            pendingDamage.Clear();
             return;
         }
 
         float damageToApply = delayedDamageTotal;
         delayedDamageTotal = 0.0f;
+
+        // 被弾順にHPを割り当て、実際に減る分だけ元の攻撃者へ加算する。
+        // 保留中は集計せず、解除後のオーバーキルや前ラウンド分も加算しない。
+        float remainingHealth = CurrentHealth;
+        foreach (PendingDamage hit in pendingDamage)
+        {
+            float effectiveDamage = Mathf.Min(remainingHealth, hit.Amount);
+            // HPを削り切った保留分の攻撃者へ撃破を付ける。後続のオーバーキルには付けない。
+            RoundManager.Instance?.RecordEffectiveDamage(hit.Attacker, this, effectiveDamage, hit.RoundVersion,
+                effectiveDamage > 0f && remainingHealth - effectiveDamage <= 0f);
+            remainingHealth -= effectiveDamage;
+        }
+        pendingDamage.Clear();
 
         ApplyDamageImmediately(
             damageToApply,
@@ -261,10 +298,15 @@ public class PlayerHealth : NetworkBehaviour
         );
     }
 
-    private void ApplyDamageImmediately(float actualDamage, float baseDamage, string reason)
+    private void ApplyDamageImmediately(float actualDamage, float baseDamage, string reason,
+        PlayerRef attacker = default, int roundVersion = 0)
     {
+        float healthBefore = CurrentHealth;
         NetworkedCurrentHealth -= actualDamage;
         NetworkedCurrentHealth = Mathf.Max(NetworkedCurrentHealth, 0.0f);
+
+        RoundManager.Instance?.RecordEffectiveDamage(attacker, this, healthBefore - CurrentHealth, roundVersion,
+            healthBefore > 0f && CurrentHealth <= 0f);
 
         NotifyHealthChanged();
 
@@ -304,10 +346,21 @@ public class PlayerHealth : NetworkBehaviour
     }
 
     /// <summary>
-    /// StateAuthority側で正のダメージに軽減倍率を掛け、HP減少または保留分への加算を行う。
+    /// 攻撃者を持たないダメージの入口。対戦中のHP減少に限り、軽減または保留を適用する。
     /// HPが尽きると死亡状態を通知し、ラウンド進行へ死亡イベントを送る。
     /// </summary>
     public void TakeDamage(float damage)
+    {
+        RoundManager roundManager = RoundManager.Instance;
+        TakeDamage(damage, PlayerRef.None,
+            roundManager != null && roundManager.IsNetworkReady ? roundManager.DamageRoundVersion : 0);
+    }
+
+    /// <summary>
+    /// StateAuthorityで命中時のサドンデス倍率と被ダメージ軽減を適用する。
+    /// HP減少が確定した分だけ攻撃者へ記録し、時間切れや前ラウンドの遅延命中は受け付けない。
+    /// </summary>
+    public void TakeDamage(float damage, PlayerRef attacker, int roundVersion)
     {
         if (Object != null && !Object.HasStateAuthority)
         {
@@ -324,7 +377,11 @@ public class PlayerHealth : NetworkBehaviour
             return;
         }
 
-        float actualDamage = damage * damageTakenMultiplier;
+        RoundManager roundManager = RoundManager.Instance;
+        if (roundManager != null && !roundManager.CanApplyCombatDamage(roundVersion)) return;
+
+        float actualDamage = damage * damageTakenMultiplier *
+            (roundManager != null ? roundManager.AttackDamageMultiplier : 1f);
         actualDamage = Mathf.Max(actualDamage, 0.0f);
 
         if (actualDamage <= 0.0f)
@@ -339,6 +396,7 @@ public class PlayerHealth : NetworkBehaviour
         if (delayedDamageActive)
         {
             delayedDamageTotal += actualDamage;
+            pendingDamage.Add(new PendingDamage { Attacker = attacker, RoundVersion = roundVersion, Amount = actualDamage });
 
             Debug.Log(
                 $"{gameObject.name} delayed damage stored. " +
@@ -352,7 +410,9 @@ public class PlayerHealth : NetworkBehaviour
         ApplyDamageImmediately(
             actualDamage,
             damage,
-            "TakeDamage"
+            "TakeDamage",
+            attacker,
+            roundVersion
         );
     }
 
@@ -457,6 +517,7 @@ public class PlayerHealth : NetworkBehaviour
         damageTakenMultiplier = 1.0f;
         delayedDamageActive = false;
         delayedDamageTotal = 0.0f;
+        pendingDamage.Clear();
 
         NotifyHealthChanged();
 

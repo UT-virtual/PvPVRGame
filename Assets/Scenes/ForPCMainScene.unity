@@ -2206,6 +2206,8 @@ MonoBehaviour:
   cinemachineCamera: {fileID: 1274254540}
   spectatorDelay: 3
   stickSwitchThreshold: 0.6
+  overviewCameraPoint: {fileID: 0}
+  defaultOverviewPosition: {x: 0, y: 20, z: -30}
 --- !u!4 &671480814
 Transform:
   m_ObjectHideFlags: 0
@@ -3820,6 +3822,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::RoundManager
   minPlayersToStart: 1
   roundEffectDisplayDuration: 3
+  _ConnectedParticipants:
+    _items: []
   skillSelectionDuration: 30
   startAfterAllSkillsSelectedDelay: 3
   selectableRoundSkills: 0100000002000000030000000400000005000000060000000700000008000000090000000a0000000c0000000d000000
@@ -3836,6 +3840,8 @@ MonoBehaviour:
   finalResultUI: {fileID: 2030716861}
   countDebugSpectatorDummiesAsAlive: 0
   roundEffectUI: {fileID: 1664597813}
+  _CurrentRound: 0
+  _SkillSelectionVersion: 0
 --- !u!114 &1056434496
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -7024,8 +7030,8 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 306900148}
   m_HandleRect: {fileID: 306900147}
   m_Direction: 0
-  m_Value: 1
-  m_Size: 0.99998105
+  m_Value: 0
+  m_Size: 0.999971
   m_NumberOfSteps: 0
   m_OnValueChanged:
     m_PersistentCalls:
@@ -8468,7 +8474,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 1}
   m_AnchorMax: {x: 1, y: 1}
-  m_AnchoredPosition: {x: 0.011257484, y: -0.003030488}
+  m_AnchoredPosition: {x: 0.007066496, y: -0.0007638076}
   m_SizeDelta: {x: -183, y: 0}
   m_Pivot: {x: 0, y: 1}
 --- !u!114 &2107111657
@@ -8593,8 +8599,8 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 587169065}
   m_HandleRect: {fileID: 587169064}
   m_Direction: 2
-  m_Value: 1
-  m_Size: 0.999997
+  m_Value: 0
+  m_Size: 0.9999933
   m_NumberOfSteps: 0
   m_OnValueChanged:
     m_PersistentCalls:
