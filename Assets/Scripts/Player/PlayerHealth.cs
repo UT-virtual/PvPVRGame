@@ -2,6 +2,10 @@ using System;
 using Fusion;
 using UnityEngine;
 
+/// <summary>
+/// StateAuthorityでHP・生死・準備・チームを管理し、同期プロパティとRPCを通じて表示へ反映する。
+/// 死亡をRoundManagerへ通知し、ラウンド復活時には移動状態・位置・弾薬も復旧する。
+/// </summary>
 [RequireComponent(typeof(NetworkObject))]
 [RequireComponent(typeof(NetworkTransform))]
 [RequireComponent(typeof(CharacterController))]
@@ -42,6 +46,9 @@ public class PlayerHealth : NetworkBehaviour
     public bool HasTeamAssigned => NetworkedTeamIndex >= 0;
     public TeamColor Team => (TeamColor)NetworkedTeamIndex;
 
+    /// <summary>
+    /// 準備状態の同期フラグを更新する。NetworkObjectがある場合はStateAuthorityに限る。
+    /// </summary>
     public void SetReadyState(bool ready)
     {
         if (Object != null && !Object.HasStateAuthority)
@@ -52,6 +59,9 @@ public class PlayerHealth : NetworkBehaviour
         NetworkedIsReady = ready;
     }
 
+    /// <summary>
+    /// 結果表示・待機UI・頭上アイコンのチーム色を同期する。NetworkObjectがある場合はStateAuthorityに限る。
+    /// </summary>
     public void SetTeam(TeamColor team)
     {
         if (Object != null && !Object.HasStateAuthority)
@@ -60,6 +70,11 @@ public class PlayerHealth : NetworkBehaviour
         }
 
         NetworkedTeamIndex = (int)team;
+        PlayerIdentity identity = GetComponent<PlayerIdentity>();
+        if (identity != null)
+        {
+            identity.SetIdentity(identity.PlayerNumber, NetworkedTeamIndex);
+        }
     }
 
     private NetworkTransform networkTransform;
@@ -140,7 +155,7 @@ public class PlayerHealth : NetworkBehaviour
             damageTakenMultiplier = 1.0f;
         }
 
-        ApplyAliveState(true);
+        ApplyAliveState(!NetworkedIsDead);
         NotifyHealthChanged();
 
         if (!Object.HasStateAuthority)
@@ -148,6 +163,7 @@ public class PlayerHealth : NetworkBehaviour
             return;
         }
 
+        // 観戦確認用ダミーなど操作所有者のないオブジェクトは通常のラウンド参加者へ登録しない。
         if (Object.InputAuthority == PlayerRef.None)
         {
             Debug.Log($"Skip round registration: {gameObject.name} has no InputAuthority");
@@ -164,7 +180,7 @@ public class PlayerHealth : NetworkBehaviour
         }
     }
 
-    private void OnDestroy()
+    public override void Despawned(NetworkRunner runner, bool hasState)
     {
         if (RoundManager.Instance != null)
         {
@@ -197,6 +213,10 @@ public class PlayerHealth : NetworkBehaviour
         damageTakenMultiplier = Mathf.Clamp(multiplier, 0.0f, 10.0f);
     }
 
+    /// <summary>
+    /// StateAuthority側で被ダメージを保留する状態を切り替える。
+    /// 解除時は軽減済みの蓄積値をまとめて適用するため、死亡が発生し得る。
+    /// </summary>
     public void SetDelayedDamageMode(bool active)
     {
         if (Object != null && !Object.HasStateAuthority)
@@ -262,6 +282,10 @@ public class PlayerHealth : NetworkBehaviour
         }
     }
 
+    /// <summary>
+    /// 保存した初期値を基準に、表示モデルとCharacterControllerの寸法を一緒に変更する。
+    /// Authorityによる制限は設けず、各端末のスキル効果反映から呼ばれる。
+    /// </summary>
     public void SetBodySizeMultiplier(float multiplier)
     {
         multiplier = Mathf.Clamp(multiplier, 0.2f, 2.0f);
@@ -279,6 +303,10 @@ public class PlayerHealth : NetworkBehaviour
         }
     }
 
+    /// <summary>
+    /// StateAuthority側で正のダメージに軽減倍率を掛け、HP減少または保留分への加算を行う。
+    /// HPが尽きると死亡状態を通知し、ラウンド進行へ死亡イベントを送る。
+    /// </summary>
     public void TakeDamage(float damage)
     {
         if (Object != null && !Object.HasStateAuthority)
@@ -328,6 +356,10 @@ public class PlayerHealth : NetworkBehaviour
         );
     }
 
+    /// <summary>
+    /// StateAuthority側で生存者のHPを上限まで回復する。
+    /// 回復不能またはHPが増えなかった場合はfalseを返し、回復アイテムの消費判定に使う。
+    /// </summary>
     public bool Heal(float amount)
     {
         if (Object != null && !Object.HasStateAuthority)
@@ -382,6 +414,10 @@ public class PlayerHealth : NetworkBehaviour
         OnDied?.Invoke(this);
     }
 
+    /// <summary>
+    /// StateAuthority側でHPと被ダメージ倍率を戻し、位置の確定・全端末の復活後処理・弾薬補充を行う。
+    /// spawnPointがnullなら現在の位置と回転を維持する。
+    /// </summary>
     public void RespawnForRound(Transform spawnPoint)
     {
         if (Object != null && !Object.HasStateAuthority)
@@ -401,6 +437,8 @@ public class PlayerHealth : NetworkBehaviour
         NetworkedCurrentHealth = maxHealth;
         NetworkedIsDead = false;
         damageTakenMultiplier = 1.0f;
+        delayedDamageActive = false;
+        delayedDamageTotal = 0.0f;
 
         NotifyHealthChanged();
 
@@ -422,6 +460,10 @@ public class PlayerHealth : NetworkBehaviour
         Debug.Log($"{gameObject.name} respawned. HP: {NetworkedCurrentHealth:0.00}/{maxHealth:0.00}");
     }
 
+    /// <summary>
+    /// CharacterControllerを一時停止し、NetworkTransform.Teleportで復活位置を確定する。
+    /// NetworkTransformがない場合のみTransformを直接設定する。
+    /// </summary>
     private void ApplyAuthoritativeTeleport(Vector3 position, Quaternion rotation)
     {
         if (!Object.HasStateAuthority)
@@ -459,6 +501,10 @@ public class PlayerHealth : NetworkBehaviour
         );
     }
 
+    /// <summary>
+    /// StateAuthorityから全端末へ復活後処理を通知する。
+    /// 生存表示を戻して移動座標系を再構築し、InputAuthority側ではカメラと待機UIも更新する。
+    /// </summary>
     [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
     private void RPC_AfterRespawn(Vector3 position, Quaternion rotation)
     {
@@ -538,6 +584,7 @@ public class PlayerHealth : NetworkBehaviour
 
     private void ApplyAliveState(bool alive)
     {
+        // 生存中でも自分の一人称モデルと頭上アイコンは隠す。武器は別の表示規則を使う。
         bool shouldShowBodyModel = alive && !Object.HasInputAuthority;
         bool shouldShowWeapon = alive;
         bool shouldShowOverheadIcon = alive && !Object.HasInputAuthority;

@@ -2,6 +2,10 @@ using System.Collections.Generic;
 using Fusion;
 using UnityEngine;
 
+/// <summary>
+/// StateAuthorityで弾の移動・寿命・衝突ダメージを処理する。
+/// 通常の直進弾に加え、初期化時に指定された固定方向への重力と着弾時の範囲ダメージを扱う。
+/// </summary>
 [RequireComponent(typeof(NetworkObject))]
 public class Projectile : NetworkBehaviour
 {
@@ -52,6 +56,10 @@ public class Projectile : NetworkBehaviour
         );
     }
 
+    /// <summary>
+    /// Spawn後、StateAuthorityで速度・寿命・所有者・重力・爆発設定を初期化する。
+    /// これらの通常フィールドは同期せず、他端末で同じ弾道計算を実行する入力には使わない。
+    /// </summary>
     public void Initialize(
         Vector3 direction,
         float speed,
@@ -188,6 +196,7 @@ public class Projectile : NetworkBehaviour
             QueryTriggerInteraction.Collide
         );
 
+        // 体に複数のColliderがあっても、1回の爆発で同じプレイヤーへ重複して加害しない。
         HashSet<PlayerHealth> damagedTargets = new();
 
         foreach (Collider hitCollider in hitColliders)

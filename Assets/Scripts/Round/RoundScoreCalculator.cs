@@ -2,6 +2,10 @@ using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 
+/// <summary>
+/// 進行側でプレイヤー別の勝利数を保持し、結果UI向けのチーム合計と勝者マスクを算出する。
+/// ネットワーク通知はRoundFlowControllerとRoundManagerに委ねる。
+/// </summary>
 public sealed class RoundScoreCalculator
 {
     private readonly Dictionary<PlayerHealth, int> points = new();
@@ -116,6 +120,10 @@ public sealed class RoundScoreCalculator
         return mask;
     }
 
+    /// <summary>
+    /// 参加中のチームの合計勝利数を比較し、最多の全チームをビットマスクで返す。
+    /// ビット位置はTeamColorの数値で、対象チームがなければ0を返す。
+    /// </summary>
     public int CreateFinalWinnerTeamMask(IEnumerable<PlayerHealth> players)
     {
         List<PlayerHealth> validPlayers = players

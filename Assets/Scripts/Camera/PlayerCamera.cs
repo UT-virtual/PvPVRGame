@@ -1,6 +1,10 @@
 using UnityEngine;
 using Unity.Cinemachine;
 
+/// <summary>
+/// 地表基準の目の位置とPlayerLookの視線からカメラ追従先を更新する。
+/// ローカルカメラの割り当てはNetworkPlayer、観戦時の切替はSpectatorCameraControllerが呼び出す。
+/// </summary>
 [RequireComponent(typeof(PlayerMove))]
 [RequireComponent(typeof(PlayerLook))]
 public class PlayerCamera : MonoBehaviour
@@ -26,6 +30,10 @@ public class PlayerCamera : MonoBehaviour
         playerLook = GetComponent<PlayerLook>();
     }
 
+    /// <summary>
+    /// シーンのCinemachineCameraをこのプレイヤーの追従先へ接続する。
+    /// カメラを奪い合わないよう、ローカルプレイヤーの設定経路から呼ぶ。
+    /// </summary>
     public void SetupLocalCamera()
     {
         if (cameraTarget == null)

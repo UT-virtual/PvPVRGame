@@ -1,6 +1,10 @@
 using TMPro;
 using UnityEngine;
 
+/// <summary>
+/// 同期された選択フェーズと候補、ローカルの選択段階・カーソルをカードUIへ反映する。
+/// 残り時間は表示開始からの端末内の目安で、時間切れの確定は進行側が行う。
+/// </summary>
 public class SkillSelectUI : MonoBehaviour
 {
     [SerializeField] private GameObject panelRoot;
@@ -22,7 +26,9 @@ public class SkillSelectUI : MonoBehaviour
     {
         RoundManager roundManager = RoundManager.Instance;
 
+        EnsureNetworkLauncher();
         bool shouldShow =
+            networkLauncher != null && networkLauncher.IsLocalCombatant &&
             roundManager != null &&
             roundManager.IsSkillSelecting;
 

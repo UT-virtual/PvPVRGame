@@ -2,6 +2,10 @@ using System;
 using Fusion;
 using UnityEngine;
 
+/// <summary>
+/// StateAuthorityで射撃間隔、装填、弾薬消費とProjectile生成を管理する。
+/// 弾薬・装填中フラグは同期し、特殊弾と次弾強化の消費はこのコンポーネント内で扱う。
+/// </summary>
 [RequireComponent(typeof(PlayerHealth))]
 [RequireComponent(typeof(PlayerLook))]
 [RequireComponent(typeof(PlayerCamera))]
@@ -49,6 +53,7 @@ public class PlayerWeapon : NetworkBehaviour
 
     private float fireTimer;
     private float reloadTimer;
+    private int reloadStartAmmo;
 
     private float fireIntervalMultiplier = 1.0f;
     private float projectileSpeedMultiplier = 1.0f;
@@ -120,6 +125,9 @@ public class PlayerWeapon : NetworkBehaviour
         OnAmmoChanged?.Invoke(NetworkedCurrentAmmo, maxAmmo);
     }
 
+    /// <summary>
+    /// PlayerControllerのネットワークTickから呼び、StateAuthorityで射撃待ちと装填時間を進める。
+    /// </summary>
     public void Tick(float deltaTime)
     {
         if (!Object.HasStateAuthority)
@@ -137,14 +145,33 @@ public class PlayerWeapon : NetworkBehaviour
             return;
         }
 
-        reloadTimer -= deltaTime;
+        reloadTimer += deltaTime;
 
-        if (reloadTimer > 0.0f)
+        // 全体の前半は待機し、後半で補充する。3秒設定では1.5秒待機・1.5秒補充になる。
+        float reloadWait = Mathf.Max(0.0f, reloadDuration) * 0.5f;
+        if (reloadTimer < reloadWait)
         {
             return;
         }
 
-        CompleteReload();
+        int missingAmmo = maxAmmo - reloadStartAmmo;
+        float progress = reloadWait > 0.0f
+            ? Mathf.Clamp01((reloadTimer - reloadWait) / reloadWait)
+            : 1.0f;
+
+        // 待機が終わったTickで最初の1発を補充し、残りを装填時間内で均等に増やす。
+        int restoredAmmo = 1 + Mathf.FloorToInt(Mathf.Max(0, missingAmmo - 1) * progress);
+        int nextAmmo = Mathf.Min(maxAmmo, reloadStartAmmo + restoredAmmo);
+        if (nextAmmo != NetworkedCurrentAmmo)
+        {
+            NetworkedCurrentAmmo = nextAmmo;
+            NotifyAmmoChanged();
+        }
+
+        if (NetworkedCurrentAmmo >= maxAmmo)
+        {
+            CompleteReload();
+        }
     }
 
     public void SetFireIntervalMultiplier(float multiplier)
@@ -214,6 +241,10 @@ public class PlayerWeapon : NetworkBehaviour
         }
     }
 
+    /// <summary>
+    /// StateAuthorityで通常弾の逐次装填を予約し、装填済みの特殊弾を解除する。
+    /// 待機後は射撃可能な残弾を1発ずつ増やす。即時装填効果中は待たず補充する。
+    /// </summary>
     public void ReloadAmmo()
     {
         if (!Object.HasStateAuthority)
@@ -241,16 +272,9 @@ public class PlayerWeapon : NetworkBehaviour
             return;
         }
 
-        if (instantReloadEnabled)
-        {
-            RefillAmmoImmediately();
-
-            Debug.Log("Instant reload activated.");
-            return;
-        }
-
         NetworkedIsReloading = true;
-        reloadTimer = reloadDuration;
+        reloadTimer = 0.0f;
+        reloadStartAmmo = NetworkedCurrentAmmo;
 
         OnReloadStarted?.Invoke();
 
@@ -259,6 +283,10 @@ public class PlayerWeapon : NetworkBehaviour
         Debug.Log($"Reload started. Duration={reloadDuration} seconds.");
     }
 
+    /// <summary>
+    /// StateAuthorityで装填を終了し、通常弾を満タンに戻す。
+    /// 特殊弾と未消費の次弾強化も解除する。
+    /// </summary>
     public void RefillAmmoImmediately()
     {
         if (!Object.HasStateAuthority)
@@ -266,6 +294,7 @@ public class PlayerWeapon : NetworkBehaviour
             return;
         }
 
+        CancelReload();
         NetworkedIsReloading = false;
         reloadTimer = 0.0f;
         NetworkedCurrentAmmo = maxAmmo;
@@ -297,6 +326,9 @@ public class PlayerWeapon : NetworkBehaviour
         Debug.Log($"Reload completed: {NetworkedCurrentAmmo}/{maxAmmo}");
     }
 
+    /// <summary>
+    /// StateAuthorityで進行中の装填を中止し、中止イベントを通知する。弾薬は補充しない。
+    /// </summary>
     public void CancelReload()
     {
         if (!Object.HasStateAuthority)
@@ -319,16 +351,14 @@ public class PlayerWeapon : NetworkBehaviour
         Debug.Log("Reload canceled.");
     }
 
+    /// <summary>
+    /// StateAuthorityで射撃間隔と残弾を確認し、生成成功時だけ弾薬と特殊弾を消費する。
+    /// 弾切れで自動装填を開始する。装填途中で撃つと補充を終了し、残弾がある間は自動再開しない。
+    /// </summary>
     public void TryFireProjectile()
     {
         if (!Object.HasStateAuthority)
         {
-            return;
-        }
-
-        if (NetworkedIsReloading)
-        {
-            Debug.Log("Cannot fire while reloading.");
             return;
         }
 
@@ -341,11 +371,13 @@ public class PlayerWeapon : NetworkBehaviour
 
         if (NetworkedCurrentAmmo <= 0)
         {
-            Debug.Log("No ammo. Press K or ZL to reload.");
+            // 射撃を押し続けても、予約済みの装填タイマーはリセットしない。
+            if (!NetworkedIsReloading)
+            {
+                OnDryFire?.Invoke();
+            }
 
-            fireTimer = currentFireInterval;
-            OnDryFire?.Invoke();
-
+            ReloadAmmo();
             return;
         }
 
@@ -360,8 +392,18 @@ public class PlayerWeapon : NetworkBehaviour
         ConsumeLoadedSpecialAmmo();
         fireTimer = currentFireInterval;
 
+        if (NetworkedIsReloading)
+        {
+            CancelReload();
+        }
+
         OnShot?.Invoke();
         NotifyAmmoChanged();
+
+        if (NetworkedCurrentAmmo <= 0)
+        {
+            ReloadAmmo();
+        }
 
         Debug.Log(
             $"Ammo: {NetworkedCurrentAmmo}/{maxAmmo}, " +
@@ -373,6 +415,10 @@ public class PlayerWeapon : NetworkBehaviour
         );
     }
 
+    /// <summary>
+    /// 銃口があればその向き、未設定ならカメラの視線で弾を生成・初期化する。
+    /// Prefab不正またはProjectile欠落時は失敗し、次弾強化を消費しない。
+    /// </summary>
     private bool FireProjectile(ProjectileShotKind shotKind)
     {
         if (!projectilePrefab.IsValid)
@@ -398,12 +444,14 @@ public class PlayerWeapon : NetworkBehaviour
             spawnRotation = Quaternion.LookRotation(fireDirection, playerLook.ViewUp);
         }
 
-        NetworkObject projectileObject = Runner.Spawn(
-            projectilePrefab,
-            spawnPosition,
-            spawnRotation,
-            Object.InputAuthority
+        NetworkSpawnStatus status = Runner.TrySpawn(
+            projectilePrefab, out NetworkObject projectileObject, spawnPosition, spawnRotation, Object.InputAuthority
         );
+        if (status != NetworkSpawnStatus.Spawned || projectileObject == null)
+        {
+            Debug.LogWarning($"{name}: Projectile spawn failed: {status}");
+            return false;
+        }
 
         Projectile projectile = projectileObject.GetComponent<Projectile>();
         if (projectile == null)
@@ -459,6 +507,10 @@ public class PlayerWeapon : NetworkBehaviour
         LoadSpecialAmmo(ProjectileShotKind.Heavy, ammoCount);
     }
 
+    /// <summary>
+    /// StateAuthorityで次に生成する1発分のダメージ倍率を保持する。
+    /// 発動時間が切れても残り、発射成功時または即時補充時に解除される。
+    /// </summary>
     public void SetNextShotDamageMultiplier(float multiplier)
     {
         if (Object == null || !Object.HasStateAuthority)
@@ -469,6 +521,9 @@ public class PlayerWeapon : NetworkBehaviour
         pendingNextShotDamageMultiplier = Mathf.Clamp(multiplier, 1.0f, 10.0f);
     }
 
+    /// <summary>
+    /// StateAuthorityで装填中状態を終了し、弾種と残弾を指定した特殊弾へ置き換える。通常弾への追加ではない。
+    /// </summary>
     private void LoadSpecialAmmo(ProjectileShotKind shotKind, int ammoCount)
     {
         if (Object == null || !Object.HasStateAuthority)
@@ -478,6 +533,7 @@ public class PlayerWeapon : NetworkBehaviour
 
         int clampedAmmoCount = Mathf.Clamp(ammoCount, 1, maxAmmo);
 
+        CancelReload();
         NetworkedIsReloading = false;
         reloadTimer = 0.0f;
         loadedShotKind = shotKind;

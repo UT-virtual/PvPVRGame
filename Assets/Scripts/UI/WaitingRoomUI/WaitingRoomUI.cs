@@ -5,6 +5,10 @@ using UnityEngine;
 using UnityEngine.UI;
 using static RoundManager;
 
+/// <summary>
+/// 接続状態と同期フェーズから、キャラクターのない観戦者にも待機一覧を表示する。
+/// 端末内のPlayerHealthを列挙し、同期されたチーム色と準備状態を表示する。
+/// </summary>
 public class WaitingRoomUI : MonoBehaviour
 {
     [Header("UI References")]
@@ -14,8 +18,13 @@ public class WaitingRoomUI : MonoBehaviour
     [SerializeField] private GameObject waitingRoomPanel;
 
     private bool localPlayerSpawned = false;
+    private NetworkLauncher networkLauncher;
 
+    private const float RefreshInterval = 0.1f;
+    private float nextRefreshTime;
+    private readonly List<(PlayerRef player, int team, bool ready, bool local, ParticipantRole role)> nextPlayers = new();
     private readonly List<GameObject> currentEntries = new();
+    private readonly List<(PlayerRef player, int team, bool ready, bool local, ParticipantRole role)> displayedPlayers = new();
 
     private void Awake()
     {
@@ -28,6 +37,9 @@ public class WaitingRoomUI : MonoBehaviour
         // 実際に表示するかどうかは Update() で判定する
     }
 
+    /// <summary>
+    /// 現在の一覧とパネルを隠す。次のUpdateではローカルプレイヤーの存在とフェーズから表示を再判定する。
+    /// </summary>
     public void HideRoomUI()
     {
         ClearEntries();
@@ -37,6 +49,7 @@ public class WaitingRoomUI : MonoBehaviour
     public void SetLocalPlayerSpawned(bool spawned)
     {
         localPlayerSpawned = spawned;
+        nextRefreshTime = 0f;
 
         Debug.Log($"[WaitingRoomUI] LocalPlayerSpawned={localPlayerSpawned}");
 
@@ -49,11 +62,18 @@ public class WaitingRoomUI : MonoBehaviour
 
     private void Update()
     {
-        bool hasLocalPlayer = localPlayerSpawned || HasLocalInputAuthorityPlayer();
-
-        if (hasLocalPlayer && !localPlayerSpawned)
+        if (Time.unscaledTime < nextRefreshTime)
         {
-            localPlayerSpawned = true;
+            return;
+        }
+
+        nextRefreshTime = Time.unscaledTime + RefreshInterval;
+        PlayerHealth[] players = FindObjectsByType<PlayerHealth>(FindObjectsSortMode.InstanceID);
+        bool hasLocalPlayer = HasLocalInputAuthorityPlayer(players);
+
+        if (hasLocalPlayer != localPlayerSpawned)
+        {
+            localPlayerSpawned = hasLocalPlayer;
             Debug.Log("[WaitingRoomUI] Local player detected automatically.");
         }
 
@@ -64,31 +84,28 @@ public class WaitingRoomUI : MonoBehaviour
             roundManager.IsNetworkReady &&
             roundManager.CanShowWaitingRoomUI;
 
+        // ローカル生成とRoundManagerのSpawn順は固定せず、同期フェーズが読めるまで待機表示を許可する。
         bool roundManagerNotReadyYet =
             roundManager == null ||
             !roundManager.IsNetworkReady;
 
+        if (networkLauncher == null)
+        {
+            networkLauncher = FindFirstObjectByType<NetworkLauncher>();
+        }
+        bool connected = networkLauncher != null && networkLauncher.IsConnected;
         bool shouldShow =
-            hasLocalPlayer &&
+            (connected || hasLocalPlayer) &&
             (
                 canShowByRoundManager ||
                 roundManagerNotReadyYet
             );
 
-        Debug.Log(
-            $"[WaitingRoomUI] Update. " +
-            $"hasLocalPlayer={hasLocalPlayer}, " +
-            $"roundManagerExists={roundManager != null}, " +
-            $"roundManagerReady={(roundManager != null && roundManager.IsNetworkReady)}, " +
-            $"canShowByRoundManager={canShowByRoundManager}, " +
-            $"shouldShow={shouldShow}"
-        );
-
         SetPanelVisible(shouldShow);
 
         if (shouldShow)
         {
-            RefreshPlayerList();
+            RefreshPlayerList(players);
         }
         else
         {
@@ -96,11 +113,8 @@ public class WaitingRoomUI : MonoBehaviour
         }
     }
 
-    private bool HasLocalInputAuthorityPlayer()
+    private bool HasLocalInputAuthorityPlayer(PlayerHealth[] players)
     {
-        PlayerHealth[] players = FindObjectsByType<PlayerHealth>(
-            FindObjectsSortMode.None
-        );
 
         foreach (PlayerHealth player in players)
         {
@@ -116,7 +130,7 @@ public class WaitingRoomUI : MonoBehaviour
                 continue;
             }
 
-            if (networkObject.HasInputAuthority)
+            if (networkObject.IsValid && networkObject.HasInputAuthority)
             {
                 return true;
             }
@@ -154,33 +168,76 @@ public class WaitingRoomUI : MonoBehaviour
         }
 
         currentEntries.Clear();
+        displayedPlayers.Clear();
 
         if (playerCountText != null)
         {
-            playerCountText.text = "参加プレイヤー : 0人";
+            playerCountText.text = "接続 : 0人（対戦 0人・観戦 0人）";
         }
     }
 
-    private void RefreshPlayerList()
+    private void RefreshPlayerList(PlayerHealth[] players)
     {
-        ClearEntries();
+        nextPlayers.Clear();
+        RoundManager manager = RoundManager.Instance;
+        if (manager == null || !manager.IsNetworkReady)
+        {
+            return;
+        }
 
-        PlayerHealth[] players = FindObjectsByType<PlayerHealth>(
-            FindObjectsSortMode.None
-        );
+        // 観戦者はPlayerHealthを持たないため、一覧の基準は同期された接続者のPlayerRefにする。
+        foreach (var participant in manager.ConnectedParticipants)
+        {
+            PlayerHealth health = null;
+            foreach (PlayerHealth candidate in players)
+            {
+                if (candidate != null && candidate.Object != null && candidate.Object.IsValid &&
+                    candidate.Object.InputAuthority == participant.Key)
+                {
+                    health = candidate;
+                    break;
+                }
+            }
+            nextPlayers.Add((participant.Key, health != null ? health.NetworkedTeamIndex : -1,
+                health != null && health.IsReady, participant.Key == manager.Runner.LocalPlayer, participant.Value));
+        }
+        nextPlayers.Sort((a, b) => a.player.PlayerId.CompareTo(b.player.PlayerId));
+
+        bool changed = nextPlayers.Count != displayedPlayers.Count;
+        for (int i = 0; !changed && i < nextPlayers.Count; i++)
+        {
+            changed = !nextPlayers[i].Equals(displayedPlayers[i]);
+        }
+
+        if (!changed)
+        {
+            return;
+        }
+
+        ClearEntries();
+        displayedPlayers.AddRange(nextPlayers);
 
         if (playerCountText != null)
         {
-            playerCountText.text = $"参加プレイヤー : {players.Length}人";
+            int combatants = 0;
+            int spectators = 0;
+            foreach (var participant in nextPlayers)
+            {
+                if (participant.role == ParticipantRole.Combatant)
+                {
+                    combatants++;
+                }
+                else if (participant.role == ParticipantRole.Spectator)
+                {
+                    spectators++;
+                }
+            }
+            playerCountText.text = $"接続 : {nextPlayers.Count}/{NetworkSessionController.MaxConnectionCount}人\n" +
+                $"対戦 : {combatants}/{NetworkSessionController.MaxCombatantCount}人　観戦 : {spectators}人";
         }
 
-        foreach (PlayerHealth player in players)
+        foreach (var state in nextPlayers)
         {
-            if (player == null)
-            {
-                continue;
-            }
-
             if (playerEntryPrefab == null || contentRoot == null)
             {
                 Debug.LogWarning("[WaitingRoomUI] playerEntryPrefab or contentRoot is null.");
@@ -207,35 +264,27 @@ public class WaitingRoomUI : MonoBehaviour
 
             if (readyText != null)
             {
-                bool isReady = player.IsReady;
-
-                NetworkObject networkObject = player.GetComponent<NetworkObject>();
-                bool isLocalPlayer =
-                    networkObject != null &&
-                    networkObject.HasInputAuthority;
-
-                string readyLabel = isReady
-                    ? "準備完了"
-                    : "準備中";
-
-                readyText.text = isLocalPlayer
-                    ? $"{readyLabel}（あなた）"
-                    : readyLabel;
-
-                readyText.color = isReady
-                    ? new Color32(0, 255, 200, 255)
-                    : new Color32(255, 80, 120, 255);
+                string label = state.role switch
+                {
+                    ParticipantRole.Spectator => "観戦中",
+                    ParticipantRole.Unselected => "参加処理中",
+                    _ => state.ready ? "準備完了" : "準備中"
+                };
+                readyText.text = state.local ? $"{label}（あなた）" : label;
+                readyText.color = state.role == ParticipantRole.Spectator
+                    ? new Color32(77, 171, 247, 255)
+                    : state.ready ? new Color32(0, 255, 200, 255) : new Color32(255, 80, 120, 255);
             }
 
             if (teamColorImage != null)
             {
-                if (!player.HasTeamAssigned)
+                if (state.role != ParticipantRole.Combatant || state.team < 0)
                 {
                     teamColorImage.color = Color.gray;
                     continue;
                 }
 
-                switch (player.Team)
+                switch ((TeamColor)state.team)
                 {
                     case TeamColor.Red:
                         teamColorImage.color = new Color32(255, 77, 109, 255);

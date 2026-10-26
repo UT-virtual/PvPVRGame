@@ -2,6 +2,9 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
+/// <summary>
+/// 接続先のPlayerSkillControllerから選択中のスキルと残りクールダウンを読み、使用可否を表示する。
+/// </summary>
 public class SkillHudUI : MonoBehaviour
 {
     [System.Serializable]
@@ -100,6 +103,21 @@ public class SkillHudUI : MonoBehaviour
     private void SetRootVisible(bool visible)
     {
         GameObject targetRoot = root != null ? root : gameObject;
+
+        // 監視元まで無効にするとUpdateで復帰できないため、同一階層では表示だけを隠す。
+        if (transform.IsChildOf(targetRoot.transform))
+        {
+            CanvasGroup group = targetRoot.GetComponent<CanvasGroup>();
+            if (group == null)
+            {
+                group = targetRoot.AddComponent<CanvasGroup>();
+            }
+
+            group.alpha = visible ? 1.0f : 0.0f;
+            group.interactable = visible;
+            group.blocksRaycasts = visible;
+            return;
+        }
 
         if (targetRoot.activeSelf != visible)
         {

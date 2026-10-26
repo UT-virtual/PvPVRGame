@@ -1,6 +1,10 @@
 using Fusion;
 using UnityEngine;
 
+/// <summary>
+/// StateAuthorityで接触相手を回復し、HPが実際に増えた場合だけ取得を確定する。
+/// 生成元へ再配置を通知してから、自身をDespawnする。
+/// </summary>
 [RequireComponent(typeof(NetworkObject))]
 [RequireComponent(typeof(Collider))]
 [RequireComponent(typeof(Rigidbody))]

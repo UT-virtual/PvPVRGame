@@ -2,6 +2,10 @@ using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 
+/// <summary>
+/// ラウンド復活時のスポーン地点を列挙・割り当てし、PlayerHealthへ復活を依頼する。
+/// 地点不足時は再利用し、地点未設定時はRoundManagerのTransformを代用する。
+/// </summary>
 public sealed class RoundSpawnController
 {
     private readonly Transform fallbackTransform;
@@ -22,6 +26,10 @@ public sealed class RoundSpawnController
         this.shuffleSpawnPointsEachRound = shuffleSpawnPointsEachRound;
     }
 
+    /// <summary>
+    /// 進行側から各参加者へ復活地点を順番に割り当てる。
+    /// 地点が不足すると剰余で再利用するため、重なり回避には人数分の離れた地点の設定が必要になる。
+    /// </summary>
     public void RespawnAllPlayersWithoutOverlap(List<PlayerHealth> validPlayers)
     {
         List<Transform> availableSpawnPoints = GetAvailableSpawnPoints();
