@@ -26,6 +26,9 @@ public class RoundSeManager : MonoBehaviour
     [Tooltip("ラウンドスタートSE（Round X Start!）")]
     [SerializeField] private SoundCue roundStartSe;
 
+    [Header("Sudden Death SE (全体)")]
+    [SerializeField] private SoundCue suddenDeathSe;
+
     [Header("Player Defeated SE (全体)")]
     [Tooltip("プレイヤーが撃破された時に全体に流れるSE")]
     [SerializeField] private SoundCue playerDefeatedSe;
@@ -44,6 +47,15 @@ public class RoundSeManager : MonoBehaviour
 
     private bool isSubscribedToBattleStartUI;
     private bool isSubscribedToRoundManager;
+
+    /// <summary>
+    /// この端末でサドンデスへ入ったときに一度だけ呼ぶ。専用音が未設定なら既存のカウントダウン音を使う。
+    /// </summary>
+    public void NotifySuddenDeath()
+    {
+        SoundCue cue = suddenDeathSe != null && suddenDeathSe.IsValid ? suddenDeathSe : countdownSe;
+        cue?.PlayOneShot(seAudioSource);
+    }
 
     private void Awake()
     {

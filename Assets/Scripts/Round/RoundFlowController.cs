@@ -5,7 +5,7 @@ using System.Linq;
 using UnityEngine;
 
 /// <summary>
-/// 死亡通知からラウンド終了を判定し、得点確定、結果通知、次の選択または試合終了後の待機復帰を進める。
+/// 生存人数または時間切れでラウンドを終了し、得点確定、結果通知、次の選択または待機復帰を進める。
 /// RoundManagerのStateAuthority側の進行経路から使用し、終了処理の重複を抑止する。
 /// </summary>
 public sealed class RoundFlowController
@@ -54,6 +54,7 @@ public sealed class RoundFlowController
     private readonly Action beginRoundEffect;
 
     private bool isRoundEnding;
+    private bool roundEndCheckPending;
     private Coroutine roundEndCoroutine;
 
     public RoundFlowController(
@@ -118,8 +119,7 @@ public sealed class RoundFlowController
     }
 
     /// <summary>
-    /// 戦闘中の死亡を受け、生存人数が1以下なら終了フェーズへ移る。
-    /// 終了フラグをコルーチン開始前に立て、同じラウンドの得点加算と結果通知の重複を防ぐ。
+    /// 戦闘中の死亡を通知する。爆発で複数人が死亡する途中では勝者を確定せず、Tick末尾で再判定する。
     /// </summary>
     public void HandlePlayerDied(PlayerHealth deadPlayer)
     {
@@ -130,7 +130,26 @@ public sealed class RoundFlowController
 
         Debug.Log($"[RoundFlowController] HandlePlayerDied: {deadPlayer.gameObject.name}");
 
+        roundEndCheckPending = true;
+    }
+
+    /// <summary>
+    /// RoundManagerのシミュレーション後処理から呼び、同一Tickの死亡をまとめて判定する。
+    /// </summary>
+    public void ResolvePendingDeaths()
+    {
+        if (!roundEndCheckPending) return;
+        roundEndCheckPending = false;
         CheckRoundEnd();
+    }
+
+    /// <summary>
+    /// 制限時間に達したとき、生存者の撃破数、与ダメージ、残りHPで結果を確定する。
+    /// 死亡側と同じ終了経路を通し、すでに確定済みなら何もしない。
+    /// </summary>
+    public void EndRoundOnTimeout()
+    {
+        EndRound(scoreCalculator.GetTimeoutWinner());
     }
 
     /// <summary>
@@ -180,6 +199,13 @@ public sealed class RoundFlowController
 
         PlayerHealth roundWinner = alivePlayers.Count == 1 ? alivePlayers[0] : null;
 
+        EndRound(roundWinner);
+    }
+
+    private void EndRound(PlayerHealth roundWinner)
+    {
+        // 死亡と時間切れが同じTickでも、得点加算と結果通知を一度だけ実行する。
+        if (isRoundEnding || getPhase() != RoundManager.GamePhase.RoundPlaying) return;
         isRoundEnding = true;
         setPhase(RoundManager.GamePhase.RoundEnding);
 
@@ -269,6 +295,7 @@ public sealed class RoundFlowController
     /// </summary>
     public void StopProgression()
     {
+        roundEndCheckPending = false;
         if (roundEndCoroutine != null)
         {
             coroutineRunner.StopCoroutine(roundEndCoroutine);

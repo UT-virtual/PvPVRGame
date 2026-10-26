@@ -26,6 +26,8 @@ public class Projectile : NetworkBehaviour
     private bool hasImpacted;
 
     private PlayerHealth owner;
+    private PlayerRef attacker;
+    private int damageRoundVersion;
 
     public override void Spawned()
     {
@@ -82,6 +84,10 @@ public class Projectile : NetworkBehaviour
         timer = 0.0f;
         damage = projectileDamage;
         owner = projectileOwner;
+        attacker = owner != null && owner.Object != null ? owner.Object.InputAuthority : PlayerRef.None;
+        // 発射時の世代を保持し、退出・死亡後も攻撃者を特定する。次ラウンドのHPには命中させない。
+        damageRoundVersion = RoundManager.Instance != null && RoundManager.Instance.IsNetworkReady
+            ? RoundManager.Instance.DamageRoundVersion : 0;
 
         useGravity = projectileUsesGravity;
         gravityDirection = projectileGravityDirection.sqrMagnitude > 0.0001f
@@ -312,7 +318,7 @@ public class Projectile : NetworkBehaviour
                 hasHitAliveEnemy = true;
             }
 
-            target.TakeDamage(damage);
+            target.TakeDamage(damage, attacker, damageRoundVersion);
         }
 
         return hasHitAliveEnemy;
@@ -353,7 +359,7 @@ public class Projectile : NetworkBehaviour
                 hasHitAliveEnemy = true;
             }
 
-            target.TakeDamage(explosionDamage);
+            target.TakeDamage(explosionDamage, attacker, damageRoundVersion);
         }
 
         return hasHitAliveEnemy;

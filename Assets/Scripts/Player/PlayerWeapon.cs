@@ -517,7 +517,9 @@ public class PlayerWeapon : NetworkBehaviour
 
             if (targetHealth != null)
             {
-                targetHealth.TakeDamage(damage);
+                // サドンデス倍率と実効与ダメージの確定はHP側で統一し、特殊弾と二重適用しない。
+                targetHealth.TakeDamage(damage, Object.InputAuthority,
+                    RoundManager.Instance != null ? RoundManager.Instance.DamageRoundVersion : 0);
             }
 
             NotifyProjectileImpactEffect(hit.point);

@@ -17,6 +17,10 @@ public class WaitingRoomUI : MonoBehaviour
     [SerializeField] private TMP_Text playerCountText;
     [SerializeField] private GameObject waitingRoomPanel;
 
+    public TMP_FontAsset DisplayFont => playerCountText != null ? playerCountText.font : null;
+    public Sprite ColorIconSprite => playerEntryPrefab != null
+        ? playerEntryPrefab.transform.Find("PlayerColor")?.GetComponent<Image>()?.sprite : null;
+
     private bool localPlayerSpawned = false;
     private NetworkLauncher networkLauncher;
 
