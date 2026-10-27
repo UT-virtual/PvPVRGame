@@ -435,17 +435,10 @@ public class SpectatorCameraController : MonoBehaviour
 
         if (Gamepad.current != null)
         {
-            float stickX = Gamepad.current.leftStick.ReadValue().x;
-
-            if (stickX <= -stickSwitchThreshold)
-            {
-                return -1;
-            }
-
-            if (stickX >= stickSwitchThreshold)
-            {
-                return 1;
-            }
+            RoundManager manager = RoundManager.Instance;
+            bool voting = manager != null && manager.IsLocalDedicatedSpectator && manager.IsHappeningVotingOpen;
+            return SpectatorHappeningInputController.GetPrimaryStickDirection(
+                Gamepad.current.leftStick.ReadValue(), stickSwitchThreshold, voting).x;
         }
 
         return 0;

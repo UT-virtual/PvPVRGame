@@ -189,12 +189,6 @@ public class PlayerController : NetworkBehaviour
 
         ApplyRemoteLookInput(input);
 
-        // ラウンド効果による速度倍率はStateAuthorityの移動処理に反映する。
-        float moveSpeedMultiplier = RoundManager.Instance != null
-            ? RoundManager.Instance.CurrentMoveSpeedMultiplier
-            : 1.0f;
-        playerMove.SetMoveSpeedMultiplier(moveSpeedMultiplier);
-
         if (input.IsVR)
         {
             playerMove.MoveOnSurfaceVR(moveInput, deltaTime, playerLook.ViewForward, playerMove.AimRight);
