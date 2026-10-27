@@ -1520,6 +1520,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::BattleHudManager
   battleHudRoot: {fileID: 1877386710}
+  showInWaitingRoom: 1
 --- !u!1 &218232129
 GameObject:
   m_ObjectHideFlags: 0
@@ -1570,6 +1571,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::RoundManager
   minPlayersToStart: 1
+  allowWeaponsInWaitingRoom: 1
   skillSelectionDuration: 30
   startAfterAllSkillsSelectedDelay: 3
   selectableRoundSkills: 0100000002000000030000000400000005000000060000000700000008000000090000000a0000000c0000000d000000
@@ -1634,7 +1636,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 1}
   m_AnchorMax: {x: 1, y: 1}
-  m_AnchoredPosition: {x: 0.0025372528, y: -0.008513984}
+  m_AnchoredPosition: {x: 0.011246336, y: -0.0030318159}
   m_SizeDelta: {x: -183, y: 0}
   m_Pivot: {x: 0, y: 1}
 --- !u!114 &223972608
@@ -3029,6 +3031,66 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &670017545
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 670017547}
+  - component: {fileID: 670017546}
+  m_Layer: 0
+  m_Name: PracticeTargetSpawner
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &670017546
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 670017545}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b6624d48fdf6812468080fca7ad12951, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PracticeTargetSpawner
+  practiceTargetPrefab:
+    RawGuidValue: c9039c02a39d2f2459e2a855c89f08a7
+  totalTargetCount: 14
+  movingTargetRatio: 0.25
+  planetCenter: {fileID: 5110394550287685901, guid: 6efab54670793466cb5125952d5cd355, type: 3}
+  planetLayer:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  raycastStartRadius: 50
+  sphereCastRadius: 0.3
+  fallbackPlanetRadius: 15
+  surfaceHeightOffset: 3
+  jitterAngleDegrees: 10
+  minDistanceBetweenTargets: 2.5
+  moveDistance: 2.5
+  moveSpeed: 2
+--- !u!4 &670017547
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 670017545}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 16.70261, y: 21.86242, z: 12.54268}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -7638,7 +7700,7 @@ MonoBehaviour:
   m_HandleRect: {fileID: 1320048002}
   m_Direction: 0
   m_Value: 1
-  m_Size: 0.99998105
+  m_Size: 0.99996626
   m_NumberOfSteps: 0
   m_OnValueChanged:
     m_PersistentCalls:
@@ -8712,3 +8774,4 @@ SceneRoots:
   - {fileID: 350687576}
   - {fileID: 1718978782}
   - {fileID: 1281971649}
+  - {fileID: 670017547}

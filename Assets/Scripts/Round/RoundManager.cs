@@ -21,6 +21,7 @@ public class RoundManager : NetworkBehaviour
 
     [Header("Ready")]
     [SerializeField] private int minPlayersToStart = 2;
+    [SerializeField] private bool allowWeaponsInWaitingRoom = true; // 追加：待機中の試し撃ち許可
 
     [Header("Skill Selection")]
     [SerializeField] private float skillSelectionDuration = 10.0f;
@@ -107,7 +108,10 @@ public class RoundManager : NetworkBehaviour
 
     public bool CanUseWeapons =>
         CanReadNetworkedPhase &&
-        phase == GamePhase.RoundPlaying;
+        (
+        phase == GamePhase.RoundPlaying ||
+        (allowWeaponsInWaitingRoom && phase == GamePhase.WaitingForReady)
+    );
 
     public bool CanControlPlayers =>
         CanReadNetworkedPhase &&

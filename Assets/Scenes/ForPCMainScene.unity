@@ -2142,6 +2142,66 @@ MonoBehaviour:
   m_hasFontAssetChanged: 0
   m_baseMaterial: {fileID: 0}
   m_maskOffset: {x: 0, y: 0, z: 0, w: 0}
+--- !u!1 &614341167
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 614341169}
+  - component: {fileID: 614341168}
+  m_Layer: 0
+  m_Name: PracticeTargetSpawner
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &614341168
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 614341167}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b6624d48fdf6812468080fca7ad12951, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PracticeTargetSpawner
+  practiceTargetPrefab:
+    RawGuidValue: c9039c02a39d2f2459e2a855c89f08a7
+  totalTargetCount: 14
+  movingTargetRatio: 0.25
+  planetCenter: {fileID: 5110394550287685901, guid: 6efab54670793466cb5125952d5cd355, type: 3}
+  planetLayer:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  raycastStartRadius: 50
+  sphereCastRadius: 0.3
+  fallbackPlanetRadius: 15
+  surfaceHeightOffset: 3
+  jitterAngleDegrees: 10
+  minDistanceBetweenTargets: 2.5
+  moveDistance: 2.5
+  moveSpeed: 2
+--- !u!4 &614341169
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 614341167}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 16.70261, y: 21.86242, z: 12.54268}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &616755023 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: 5514129879276577408, guid: b2981534d2ac4244fafb153e0cb4c9c2, type: 3}
@@ -3819,6 +3879,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::RoundManager
   minPlayersToStart: 1
+  allowWeaponsInWaitingRoom: 1
   skillSelectionDuration: 30
   startAfterAllSkillsSelectedDelay: 3
   selectableRoundSkills: 0100000002000000030000000400000005000000060000000700000008000000090000000a0000000c0000000d000000
@@ -6380,6 +6441,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::BattleHudManager
   battleHudRoot: {fileID: 942002205}
+  showInWaitingRoom: 1
 --- !u!1 &1664597805
 GameObject:
   m_ObjectHideFlags: 0
@@ -8373,7 +8435,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 1}
   m_AnchorMax: {x: 1, y: 1}
-  m_AnchoredPosition: {x: 0.011257484, y: -0.003030488}
+  m_AnchoredPosition: {x: 0.011069144, y: -0.012355313}
   m_SizeDelta: {x: -183, y: 0}
   m_Pivot: {x: 0, y: 1}
 --- !u!114 &2107111657
@@ -8560,3 +8622,4 @@ SceneRoots:
   - {fileID: 1664597812}
   - {fileID: 1077052513}
   - {fileID: 60190890}
+  - {fileID: 614341169}

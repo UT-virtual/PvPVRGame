@@ -4,6 +4,7 @@ using Fusion;
 public class BattleHudManager : MonoBehaviour
 {
     [SerializeField] private GameObject battleHudRoot;
+    [SerializeField] private bool showInWaitingRoom = true; // 追加
 
     private NetworkObject networkObject;
 
@@ -20,12 +21,16 @@ public class BattleHudManager : MonoBehaviour
     private void Update()
     {
         bool isLocalPlayer =
-            networkObject == null || networkObject.HasInputAuthority;
+        networkObject == null || networkObject.HasInputAuthority;
+        
+        bool isTargetPhase =
+        RoundManager.Instance != null &&
+        (
+            RoundManager.Instance.IsRoundPlaying ||
+            (showInWaitingRoom && RoundManager.Instance.IsWaitingForReady)
+        );
 
-        bool shouldShow =
-            isLocalPlayer &&
-            RoundManager.Instance != null &&
-            RoundManager.Instance.IsRoundPlaying;
+        bool shouldShow = isLocalPlayer && isTargetPhase;
 
         SetVisible(shouldShow);
     }

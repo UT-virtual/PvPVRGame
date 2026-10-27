@@ -155,26 +155,48 @@ public class Projectile : NetworkBehaviour
             return;
         }
 
+        PracticeTarget targetDecoy = other.GetComponentInParent<PracticeTarget>();
+        if (targetDecoy != null && !targetDecoy.CanReceiveDamage)
+        {
+            targetDecoy = null;
+        }
+
+        bool canDamagePlayers =
+            RoundManager.Instance == null ||
+            RoundManager.Instance.IsRoundPlaying;
+
         if (explodeOnHit)
         {
-            bool hitByExplosion = ApplyExplosionDamage(transform.position); // 変更（戻り値を受け取る）
-            bool hitEnemy = (targetHealth != null && !targetHealth.IsDead) || hitByExplosion; // 追加
+            bool hitByExplosion = ApplyExplosionDamage(transform.position, canDamagePlayers); // 変更（戻り値を受け取る）
+            bool hitEnemy = 
+                (canDamagePlayers && targetHealth != null && !targetHealth.IsDead) ||
+                (targetDecoy != null) ||
+                hitByExplosion; // 変更
             NotifyOwnerProjectileHit(hitEnemy, transform.position); // 追加
             Runner.Despawn(Object);
             return;
         }
 
-        bool isEnemyHit = targetHealth != null && !targetHealth.IsDead; // 追加
-        if (targetHealth != null)
+        bool isEnemyHit = false;    //変更
+        // プレイヤーへのダメージ（戦闘中のみ有効）
+        if (canDamagePlayers && targetHealth != null && !targetHealth.IsDead)
         {
             targetHealth.TakeDamage(damage);
+            isEnemyHit = true;
+        }
+
+        // 追加：練習用ターゲット（デコイ）へのダメージ
+        else if (targetDecoy != null)
+        {
+            targetDecoy.TakeDamage(damage);
+            isEnemyHit = true;
         }
 
         NotifyOwnerProjectileHit(isEnemyHit, transform.position); // 追加
         Runner.Despawn(Object);
     }
 
-    private bool ApplyExplosionDamage(Vector3 explosionPosition)
+    private bool ApplyExplosionDamage(Vector3 explosionPosition, bool canDamagePlayers)
     {
         if (explosionRadius <= 0.0f || explosionDamage <= 0.0f)
         {
@@ -188,7 +210,8 @@ public class Projectile : NetworkBehaviour
             QueryTriggerInteraction.Collide
         );
 
-        HashSet<PlayerHealth> damagedTargets = new();
+        HashSet<PlayerHealth> damagedPlayers = new();
+        HashSet<PracticeTarget> damagedDecoys = new();
 
         foreach (Collider hitCollider in hitColliders)
         {
@@ -197,26 +220,29 @@ public class Projectile : NetworkBehaviour
                 continue;
             }
 
-            PlayerHealth targetHealth = hitCollider.GetComponentInParent<PlayerHealth>();
-
-            if (targetHealth == null)
+            if (canDamagePlayers)
             {
-                continue;
+                PlayerHealth targetHealth = hitCollider.GetComponentInParent<PlayerHealth>();
+                if (targetHealth != null && targetHealth != owner && !targetHealth.IsDead)
+                {
+                    if (damagedPlayers.Add(targetHealth))
+                    {
+                        targetHealth.TakeDamage(explosionDamage);
+                    }
+                }
             }
 
-            if (targetHealth == owner)
+            // ★追加：爆発範囲内の練習用ターゲットにもダメージを与える
+            PracticeTarget targetDecoy = hitCollider.GetComponentInParent<PracticeTarget>();
+            if (targetDecoy != null && targetDecoy.CanReceiveDamage)
             {
-                continue;
+                if (damagedDecoys.Add(targetDecoy))
+                {
+                    targetDecoy.TakeDamage(explosionDamage);
+                }
             }
-
-            if (!damagedTargets.Add(targetHealth))
-            {
-                continue;
-            }
-
-            targetHealth.TakeDamage(explosionDamage);
         }
-        return damagedTargets.Count > 0; //追加
+        return damagedPlayers.Count > 0 || damagedDecoys.Count > 0; //変更
     }
 
     private void SetupCollision()

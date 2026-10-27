@@ -63,6 +63,11 @@ public class PlayerSkillController : NetworkBehaviour
     [Header("Debug")]
     [SerializeField] private bool allowSameSkillConsecutiveForDebug = false;
 
+    [Header("Waiting Room Skills")]
+    [SerializeField] private bool enableWaitingRoomSkills = true;
+    [SerializeField] private PlayerSkillType waitingRoomFirstSkill = PlayerSkillType.MoveSpeedUp;
+    [SerializeField] private PlayerSkillType waitingRoomSecondSkill = PlayerSkillType.NextShotDamageBoost;
+
     private PlayerMove playerMove;
     private PlayerWeapon playerWeapon;
     private PlayerHealth playerHealth;
@@ -70,6 +75,7 @@ public class PlayerSkillController : NetworkBehaviour
     private PlayerSkillSettings skillSettings;
     private PlayerSkillEffectApplier effectApplier;
     private PlayerSkillActivator skillActivator;
+    private bool hasAppliedWaitingRoomSkills = false;
 
     public event Action<PlayerSkillType> OnSkillActivated;
 
@@ -142,6 +148,7 @@ public class PlayerSkillController : NetworkBehaviour
             return;
         }
 
+        UpdateWaitingRoomSkillAssignment();
         UpdateSkillState();
     }
 
@@ -579,5 +586,56 @@ public class PlayerSkillController : NetworkBehaviour
         return slotIndex <= 0
             ? CurrentRoundSkill
             : CurrentRoundSecondSkill;
+    }
+
+    private void UpdateWaitingRoomSkillAssignment()
+    {
+        if (!enableWaitingRoomSkills)
+        {
+            return;
+        }
+
+        bool isWaitingPhase =
+            RoundManager.Instance == null ||
+            !RoundManager.Instance.IsNetworkReady ||
+            RoundManager.Instance.IsWaitingForReady;
+
+        if (isWaitingPhase)
+        {
+            if (!hasAppliedWaitingRoomSkills ||
+                (CurrentRoundSkill == PlayerSkillType.None && CurrentRoundSecondSkill == PlayerSkillType.None))
+            {
+                EquipWaitingRoomSkills();
+                hasAppliedWaitingRoomSkills = true;
+            }
+        }
+        else if (hasAppliedWaitingRoomSkills)
+        {
+            // スキル選択フェーズ等に移行した瞬間に待機用スキルの効果とクールダウンをリセット
+            hasAppliedWaitingRoomSkills = false;
+            if (RoundManager.Instance != null && RoundManager.Instance.IsSkillSelecting)
+            {
+                ClearSkillState();
+            }
+        }
+    }
+
+    public void EquipWaitingRoomSkills()
+    {
+        if (Object == null || !Object.HasStateAuthority)
+        {
+            return;
+        }
+
+        ResetActiveAndCooldownState();
+        CurrentRoundSkill = waitingRoomFirstSkill;
+        CurrentRoundSecondSkill = waitingRoomSecondSkill;
+        CurrentSelectedSkillIndex = GetInitialSelectedSkillIndex();
+        ApplySkillEffects();
+
+        Debug.Log(
+            $"[Skill] {gameObject.name}: Equipped waiting room skills. " +
+            $"Skill1={CurrentRoundSkill}, Skill2={CurrentRoundSecondSkill}"
+        );
     }
 }

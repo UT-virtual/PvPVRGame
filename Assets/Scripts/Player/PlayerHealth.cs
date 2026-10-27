@@ -286,6 +286,12 @@ public class PlayerHealth : NetworkBehaviour
             return;
         }
 
+        // 追加：ラウンド戦闘中以外はプレイヤーへのダメージを無効化
+        if (RoundManager.Instance != null && !RoundManager.Instance.IsRoundPlaying)
+        {
+            return;
+        }
+
         if (IsDead)
         {
             return;

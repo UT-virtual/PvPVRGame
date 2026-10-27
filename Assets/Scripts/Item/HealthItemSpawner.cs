@@ -121,7 +121,7 @@ public class HealthItemSpawner : MonoBehaviour
 
         respawnCoroutines.Remove(spawnIndex);
 
-        if (RoundManager.Instance != null && !RoundManager.Instance.CanUseWeapons)
+        if (RoundManager.Instance != null && !RoundManager.Instance.IsRoundPlaying)
         {
             yield break;
         }
