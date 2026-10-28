@@ -2,28 +2,32 @@ using System.Collections.Generic;
 using Fusion;
 using UnityEngine;
 
+/// <summary>
+/// StateAuthorityで弾の移動・寿命・衝突ダメージを処理する。
+/// 通常弾と重力・爆発弾を扱い、着弾時は発射者へSE通知を送り、物理弾の着弾エフェクトも通知する。
+/// </summary>
 [RequireComponent(typeof(NetworkObject))]
 public class Projectile : NetworkBehaviour
 {
-    private Vector3 moveDirection;
     private Vector3 velocity;
     private Vector3 gravityDirection = Vector3.down;
 
-    private float moveSpeed;
     private float lifeTime;
     private float timer;
     private float damage;
-
     private float gravityAcceleration;
-    private bool useGravity;
-
-    private bool explodeOnHit;
     private float explosionRadius;
     private float explosionDamage;
+
+    private bool useGravity;
+    private bool explodeOnHit;
+    private bool initialized;
+    private bool visualOnly;
     private bool hasImpacted;
 
     private PlayerHealth owner;
-    private bool initialized;
+    private PlayerRef attacker;
+    private int damageRoundVersion;
 
     public override void Spawned()
     {
@@ -52,6 +56,9 @@ public class Projectile : NetworkBehaviour
         );
     }
 
+    /// <summary>
+    /// Spawn後にStateAuthority側で設定する。弾道を進めるのもStateAuthorityだけとする。
+    /// </summary>
     public void Initialize(
         Vector3 direction,
         float speed,
@@ -65,18 +72,22 @@ public class Projectile : NetworkBehaviour
         float projectileExplosionRadius,
         float projectileExplosionDamage)
     {
-        if (!Object.HasStateAuthority)
+        if (Object == null || !Object.HasStateAuthority)
         {
             return;
         }
 
-        moveDirection = direction.normalized;
-        moveSpeed = speed;
-        velocity = moveDirection * moveSpeed;
-
+        visualOnly = false;
+        hasImpacted = false;
+        velocity = direction.normalized * speed;
         lifeTime = duration;
+        timer = 0.0f;
         damage = projectileDamage;
         owner = projectileOwner;
+        attacker = owner != null && owner.Object != null ? owner.Object.InputAuthority : PlayerRef.None;
+        // 発射時の世代を保持し、退出・死亡後も攻撃者を特定する。次ラウンドのHPには命中させない。
+        damageRoundVersion = RoundManager.Instance != null && RoundManager.Instance.IsNetworkReady
+            ? RoundManager.Instance.DamageRoundVersion : 0;
 
         useGravity = projectileUsesGravity;
         gravityDirection = projectileGravityDirection.sqrMagnitude > 0.0001f
@@ -88,20 +99,42 @@ public class Projectile : NetworkBehaviour
         explosionRadius = Mathf.Max(0.0f, projectileExplosionRadius);
         explosionDamage = Mathf.Max(0.0f, projectileExplosionDamage);
 
-        timer = 0.0f;
         initialized = true;
+        SetupCollision();
+    }
 
+    /// <summary>
+    /// 通常弾・ヘビー弾の見た目だけを移動する。発射者を衝突対象から除外し、ダメージや着弾演出はRaycast側に任せる。
+    /// </summary>
+    public void InitializeVisualOnly(Vector3 direction, float speed, float duration, PlayerHealth projectileOwner)
+    {
+        if (Object == null || !Object.HasStateAuthority)
+        {
+            return;
+        }
+
+        visualOnly = true;
+        hasImpacted = false;
+        velocity = direction.normalized * speed;
+        lifeTime = duration;
+        timer = 0.0f;
+
+        owner = projectileOwner;
+        damage = 0.0f;
+        useGravity = false;
+        gravityDirection = Vector3.down;
+        gravityAcceleration = 0.0f;
+        explodeOnHit = false;
+        explosionRadius = 0.0f;
+        explosionDamage = 0.0f;
+
+        initialized = true;
         SetupCollision();
     }
 
     public override void FixedUpdateNetwork()
     {
-        if (!Object.HasStateAuthority)
-        {
-            return;
-        }
-
-        if (!initialized)
+        if (Object == null || !Object.HasStateAuthority || !initialized || hasImpacted)
         {
             return;
         }
@@ -113,7 +146,51 @@ public class Projectile : NetworkBehaviour
             velocity += gravityDirection * gravityAcceleration * deltaTime;
         }
 
-        transform.position += velocity * deltaTime;
+        Vector3 startPosition = transform.position;
+        Vector3 displacement = velocity * deltaTime;
+        float distance = displacement.magnitude;
+
+        if (distance > 0.0001f)
+        {
+            Vector3 direction = displacement / distance;
+            float radius = GetWorldSphereRadius();
+
+            RaycastHit[] hits = Physics.SphereCastAll(
+                startPosition,
+                radius,
+                direction,
+                distance,
+                Physics.DefaultRaycastLayers,
+                QueryTriggerInteraction.Collide
+            );
+
+            System.Array.Sort(hits, (first, second) => first.distance.CompareTo(second.distance));
+
+            foreach (RaycastHit hit in hits)
+            {
+                if (hit.collider == null)
+                {
+                    continue;
+                }
+
+                if (hit.collider.transform.root == transform.root)
+                {
+                    continue;
+                }
+
+                PlayerHealth target = hit.collider.GetComponentInParent<PlayerHealth>();
+                if (target != null && target == owner)
+                {
+                    continue;
+                }
+
+                transform.position = hit.point;
+                HandleImpact(hit.point);
+                return;
+            }
+        }
+
+        transform.position = startPosition + displacement;
 
         if (velocity.sqrMagnitude > 0.0001f)
         {
@@ -129,126 +206,185 @@ public class Projectile : NetworkBehaviour
         }
 
         timer += deltaTime;
-
         if (timer >= lifeTime)
         {
             Runner.Despawn(Object);
         }
     }
 
+    private float GetWorldSphereRadius()
+    {
+        SphereCollider sphereCollider = GetComponent<SphereCollider>();
+        if (sphereCollider == null)
+        {
+            return 0.05f;
+        }
+
+        Vector3 scale = transform.lossyScale;
+        return sphereCollider.radius * Mathf.Max(
+            Mathf.Abs(scale.x),
+            Mathf.Abs(scale.y),
+            Mathf.Abs(scale.z)
+        );
+    }
+
     private void OnTriggerEnter(Collider other)
     {
-        if (Object == null || !Object.HasStateAuthority)
+        if (Object == null || !Object.HasStateAuthority || !initialized || hasImpacted || other == null)
         {
             return;
         }
 
-        if (!initialized)
+        if (other.transform.root == transform.root)
         {
             return;
         }
 
-        PlayerHealth targetHealth = other.GetComponentInParent<PlayerHealth>();
-
-        if (targetHealth == owner)
+        PlayerHealth target = other.GetComponentInParent<PlayerHealth>();
+        if (target != null && target == owner)
         {
             return;
         }
 
-        PracticeTarget targetDecoy = other.GetComponentInParent<PracticeTarget>();
-        if (targetDecoy != null && !targetDecoy.CanReceiveDamage)
+        HandleImpact(transform.position);
+    }
+
+    private void HandleImpact(Vector3 impactPosition)
+    {
+        if (Object == null || !Object.HasStateAuthority || !initialized || hasImpacted)
         {
-            targetDecoy = null;
+            return;
         }
 
-        bool canDamagePlayers =
-            RoundManager.Instance == null ||
-            RoundManager.Instance.IsRoundPlaying;
+        // SphereCastとTriggerが同じ着弾を検出しても、一度しかダメージ・SEを処理しない。
+        hasImpacted = true;
 
-        if (explodeOnHit)
+        if (visualOnly)
         {
-            bool hitByExplosion = ApplyExplosionDamage(transform.position, canDamagePlayers); // 変更（戻り値を受け取る）
-            bool hitEnemy = 
-                (canDamagePlayers && targetHealth != null && !targetHealth.IsDead) ||
-                (targetDecoy != null) ||
-                hitByExplosion; // 変更
-            NotifyOwnerProjectileHit(hitEnemy, transform.position); // 追加
             Runner.Despawn(Object);
             return;
         }
 
-        bool isEnemyHit = false;    //変更
-        // プレイヤーへのダメージ（戦闘中のみ有効）
-        if (canDamagePlayers && targetHealth != null && !targetHealth.IsDead)
+        if (owner != null)
         {
-            targetHealth.TakeDamage(damage);
-            isEnemyHit = true;
+            PlayerWeapon weapon = owner.GetComponent<PlayerWeapon>();
+            if (weapon != null)
+            {
+                weapon.NotifyProjectileImpactEffect(impactPosition);
+            }
         }
 
-        // 追加：練習用ターゲット（デコイ）へのダメージ
-        else if (targetDecoy != null)
+        bool hasHitAliveEnemy;
+        if (explodeOnHit)
         {
-            targetDecoy.TakeDamage(damage);
-            isEnemyHit = true;
+            hasHitAliveEnemy = ApplyExplosionDamage(impactPosition);
+        }
+        else
+        {
+            hasHitAliveEnemy = ApplyDirectHitDamage(impactPosition);
         }
 
-        NotifyOwnerProjectileHit(isEnemyHit, transform.position); // 追加
+        NotifyOwnerProjectileHit(hasHitAliveEnemy, impactPosition);
         Runner.Despawn(Object);
     }
 
-    private bool ApplyExplosionDamage(Vector3 explosionPosition, bool canDamagePlayers)
+    private bool ApplyDirectHitDamage(Vector3 impactPosition)
     {
-        if (explosionRadius <= 0.0f || explosionDamage <= 0.0f)
-        {
-            return false;   //変更
-        }
-
-        Collider[] hitColliders = Physics.OverlapSphere(
-            explosionPosition,
-            explosionRadius,
-            ~0,
+        Collider[] colliders = Physics.OverlapSphere(
+            impactPosition,
+            GetWorldSphereRadius(),
+            Physics.DefaultRaycastLayers,
             QueryTriggerInteraction.Collide
         );
 
-        HashSet<PlayerHealth> damagedPlayers = new();
-        HashSet<PracticeTarget> damagedDecoys = new();
+        HashSet<PlayerHealth> damagedTargets = new();
+        bool hasHitAliveEnemy = false;
 
-        foreach (Collider hitCollider in hitColliders)
+        foreach (Collider hitCollider in colliders)
         {
             if (hitCollider == null)
             {
                 continue;
             }
 
-            if (canDamagePlayers)
+            PlayerHealth target = hitCollider.GetComponentInParent<PlayerHealth>();
+            if (target == null || target == owner || !damagedTargets.Add(target))
             {
-                PlayerHealth targetHealth = hitCollider.GetComponentInParent<PlayerHealth>();
-                if (targetHealth != null && targetHealth != owner && !targetHealth.IsDead)
-                {
-                    if (damagedPlayers.Add(targetHealth))
-                    {
-                        targetHealth.TakeDamage(explosionDamage);
-                    }
-                }
+                continue;
             }
 
-            // ★追加：爆発範囲内の練習用ターゲットにもダメージを与える
-            PracticeTarget targetDecoy = hitCollider.GetComponentInParent<PracticeTarget>();
-            if (targetDecoy != null && targetDecoy.CanReceiveDamage)
+            if (!target.IsDead)
             {
-                if (damagedDecoys.Add(targetDecoy))
-                {
-                    targetDecoy.TakeDamage(explosionDamage);
-                }
+                hasHitAliveEnemy = true;
             }
+
+            target.TakeDamage(damage, attacker, damageRoundVersion);
         }
-        return damagedPlayers.Count > 0 || damagedDecoys.Count > 0; //変更
+
+        return ApplyPracticeTargetDamage(colliders, damage) || hasHitAliveEnemy;
+    }
+
+    private bool ApplyExplosionDamage(Vector3 impactPosition)
+    {
+        if (explosionRadius <= 0.0f || explosionDamage <= 0.0f)
+        {
+            return false;
+        }
+
+        Collider[] colliders = Physics.OverlapSphere(
+            impactPosition,
+            explosionRadius,
+            Physics.DefaultRaycastLayers,
+            QueryTriggerInteraction.Collide
+        );
+
+        HashSet<PlayerHealth> damagedTargets = new();
+        bool hasHitAliveEnemy = false;
+
+        foreach (Collider hitCollider in colliders)
+        {
+            if (hitCollider == null)
+            {
+                continue;
+            }
+
+            PlayerHealth target = hitCollider.GetComponentInParent<PlayerHealth>();
+            if (target == null || target == owner || !damagedTargets.Add(target))
+            {
+                continue;
+            }
+
+            if (!target.IsDead)
+            {
+                hasHitAliveEnemy = true;
+            }
+
+            target.TakeDamage(explosionDamage, attacker, damageRoundVersion);
+        }
+
+        return ApplyPracticeTargetDamage(colliders, explosionDamage) || hasHitAliveEnemy;
+    }
+
+    private bool ApplyPracticeTargetDamage(Collider[] colliders, float targetDamage)
+    {
+        // 複数Colliderを持つ練習ターゲットも、一度の着弾につき一回だけ加害する。
+        HashSet<PracticeTarget> damagedTargets = new();
+        foreach (Collider hitCollider in colliders)
+        {
+            if (hitCollider == null) continue;
+
+            PracticeTarget target = hitCollider.GetComponentInParent<PracticeTarget>();
+            if (target == null || !target.CanReceiveDamage || !damagedTargets.Add(target)) continue;
+
+            target.TakeDamage(targetDamage);
+        }
+
+        return damagedTargets.Count > 0;
     }
 
     private void SetupCollision()
     {
         Collider projectileCollider = GetComponent<Collider>();
-
         if (projectileCollider == null)
         {
             projectileCollider = gameObject.AddComponent<SphereCollider>();
@@ -256,20 +392,18 @@ public class Projectile : NetworkBehaviour
 
         projectileCollider.isTrigger = true;
 
-        Rigidbody rb = GetComponent<Rigidbody>();
-
-        if (rb == null)
+        Rigidbody rigidbody = GetComponent<Rigidbody>();
+        if (rigidbody == null)
         {
-            rb = gameObject.AddComponent<Rigidbody>();
+            rigidbody = gameObject.AddComponent<Rigidbody>();
         }
 
-        rb.isKinematic = true;
-        rb.useGravity = false;
-        rb.collisionDetectionMode = CollisionDetectionMode.ContinuousSpeculative;
+        rigidbody.isKinematic = true;
+        rigidbody.useGravity = false;
+        rigidbody.collisionDetectionMode = CollisionDetectionMode.ContinuousSpeculative;
     }
 
-    // 追加
-    private void NotifyOwnerProjectileHit(bool hitEnemy, Vector3 hitPosition)
+    private void NotifyOwnerProjectileHit(bool hasHitAliveEnemy, Vector3 hitPosition)
     {
         if (owner == null)
         {
@@ -279,7 +413,7 @@ public class Projectile : NetworkBehaviour
         PlayerSound ownerSound = owner.GetComponent<PlayerSound>();
         if (ownerSound != null)
         {
-            ownerSound.NotifyProjectileHitFromServer(hitEnemy, hitPosition);
+            ownerSound.NotifyProjectileHitFromServer(hasHitAliveEnemy, hitPosition);
         }
     }
 }

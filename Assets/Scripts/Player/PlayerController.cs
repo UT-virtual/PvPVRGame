@@ -1,6 +1,10 @@
 using Fusion;
 using UnityEngine;
 
+/// <summary>
+/// 受信入力をStateAuthorityのネットワークTickで解釈し、移動・武器・スキル・準備操作を各コンポーネントへ振り分ける。
+/// InputAuthority側の視点は別途即時更新し、アニメーションと観戦用視点には同期状態を用いる。
+/// </summary>
 [RequireComponent(typeof(NetworkObject))]
 [RequireComponent(typeof(CharacterController))]
 [RequireComponent(typeof(PlayerHealth))]
@@ -93,17 +97,29 @@ public class PlayerController : NetworkBehaviour
         }
     }
 
+    /// <summary>
+    /// StateAuthorityで入力の押下差分を判定し、フェーズの許可に従って操作を実行する。
+    /// この実装ではInputAuthorityだけを持つ端末で移動・戦闘処理は実行しない。
+    /// </summary>
     public override void FixedUpdateNetwork()
+    {
+        if (!Object.HasStateAuthority)
+        {
+            return;
+        }
+
+        SimulatePlayer();
+        // 選択・開始待機・入力未到達でも復活先の視点を同期し、観戦カメラを古い位置に残さない。
+        UpdateNetworkedSpectatorView();
+    }
+
+    private void SimulatePlayer()
     {
         if (playerHealth != null && playerHealth.IsDead)
         {
-            if (Object.HasStateAuthority)
-            {
-                NetworkedIsRunning = false;
-                NetworkedMoveX = 0.0f;
-                NetworkedMoveY = 0.0f;
-            }
-
+            NetworkedIsRunning = false;
+            NetworkedMoveX = 0.0f;
+            NetworkedMoveY = 0.0f;
             return;
         }
 
@@ -114,24 +130,10 @@ public class PlayerController : NetworkBehaviour
 
         float deltaTime = Runner.DeltaTime;
 
-        if (!Object.HasStateAuthority)
-        {
-            return;
-        }
-
         NetworkButtons pressedButtons = input.Buttons.GetPressed(PreviousButtons);
         PreviousButtons = input.Buttons;
 
-        bool jumpPressed = pressedButtons.IsSet((int)PlayerInputButton.Jump);
-        bool reloadPressed = pressedButtons.IsSet((int)PlayerInputButton.Reload);
         bool readyPressed = pressedButtons.IsSet((int)PlayerInputButton.Ready);
-        bool skillPressed = pressedButtons.IsSet((int)PlayerInputButton.Skill);
-        bool switchSkillPressed = pressedButtons.IsSet((int)PlayerInputButton.SwitchSkill);
-        bool fireHeld = input.Buttons.IsSet((int)PlayerInputButton.Fire);
-
-        //wayo�ǋL
-        bool activateSkill1Pressed = pressedButtons.IsSet((int)PlayerInputButton.ActivateSkill1);
-        bool activateSkill2Pressed = pressedButtons.IsSet((int)PlayerInputButton.ActivateSkill2);
 
         if (readyPressed && RoundManager.Instance != null)
         {
@@ -140,6 +142,7 @@ public class PlayerController : NetworkBehaviour
 
         if (RoundManager.Instance != null && RoundManager.Instance.IsSkillSelecting)
         {
+            ApplyRemoteLookInput(input);
             HandleSkillSelectionInput(pressedButtons);
 
             NetworkedMoveX = 0.0f;
@@ -153,6 +156,8 @@ public class PlayerController : NetworkBehaviour
 
         if (!canControlPlayer)
         {
+            // 移動は止めても、リモート所有者の視線は観戦用に更新する。
+            ApplyRemoteLookInput(input);
             NetworkedMoveX = 0.0f;
             NetworkedMoveY = 0.0f;
             NetworkedIsRunning = false;
@@ -161,6 +166,13 @@ public class PlayerController : NetworkBehaviour
             return;
         }
 
+        playerWeapon.Tick(deltaTime);
+        ApplyMovementInput(input, pressedButtons.IsSet((int)PlayerInputButton.Jump), deltaTime);
+        ApplyCombatInput(input, pressedButtons);
+    }
+
+    private void ApplyMovementInput(PlayerNetworkInput input, bool jumpPressed, float deltaTime)
+    {
         Vector2 moveInput = input.MoveInput;
 
         if (moveInput.sqrMagnitude > 1.0f)
@@ -172,11 +184,34 @@ public class PlayerController : NetworkBehaviour
         NetworkedMoveY = moveInput.y;
         NetworkedIsRunning = moveInput.sqrMagnitude > 0.01f;
 
-        playerWeapon.Tick(deltaTime);
-
         playerMove.ProbeGround();
         playerMove.UpdateAimBasis();
 
+        ApplyRemoteLookInput(input);
+
+        if (input.IsVR)
+        {
+            playerMove.MoveOnSurfaceVR(moveInput, deltaTime, playerLook.ViewForward, playerMove.AimRight);
+        }
+        else
+        {
+            playerMove.MoveOnSurface(moveInput, deltaTime);
+        }
+
+        // 移動先で法線が変わるため、姿勢整列と重力の前に接地基準を再取得する。
+        playerMove.ProbeGround();
+        playerMove.UpdateAimBasis();
+
+        playerMove.AlignToSurface(deltaTime);
+
+        // ジャンプ禁止中も重力は通常どおり適用する。
+        bool canJump = RoundManager.Instance == null || !RoundManager.Instance.IsJumpProhibited;
+        playerMove.ApplyGravityAndJump(jumpPressed && canJump, deltaTime);
+    }
+
+    private void ApplyRemoteLookInput(PlayerNetworkInput input)
+    {
+        // ローカル視点は入力収集時に反映済み。StateAuthorityでリモート所有者の視線だけを復元する。
         if (!Object.HasInputAuthority)
         {
             if (input.IsVR)
@@ -196,24 +231,16 @@ public class PlayerController : NetworkBehaviour
                 }
             }
         }
+    }
 
-        //VR�ł�HMD�̌������Q�Ƃ���
-        if (input.IsVR)
-        {
-            playerMove.MoveOnSurfaceVR(moveInput, deltaTime, playerLook.ViewForward, playerMove.AimRight);
-        }
-        else
-        {
-            playerMove.MoveOnSurface(moveInput, deltaTime);
-        }
-
-        playerMove.ProbeGround();
-        playerMove.UpdateAimBasis();
-
-        playerMove.AlignToSurface(deltaTime);
-        playerMove.ApplyGravityAndJump(jumpPressed, deltaTime);
-
-        UpdateNetworkedSpectatorView();
+    private void ApplyCombatInput(PlayerNetworkInput input, NetworkButtons pressedButtons)
+    {
+        bool reloadPressed = pressedButtons.IsSet((int)PlayerInputButton.Reload);
+        bool skillPressed = pressedButtons.IsSet((int)PlayerInputButton.Skill);
+        bool switchSkillPressed = pressedButtons.IsSet((int)PlayerInputButton.SwitchSkill);
+        bool activateSkill1Pressed = pressedButtons.IsSet((int)PlayerInputButton.ActivateSkill1);
+        bool activateSkill2Pressed = pressedButtons.IsSet((int)PlayerInputButton.ActivateSkill2);
+        bool fireHeld = input.Buttons.IsSet((int)PlayerInputButton.Fire);
 
         bool canUseWeapon = RoundManager.Instance == null || RoundManager.Instance.CanUseWeapons;
 
@@ -227,7 +254,6 @@ public class PlayerController : NetworkBehaviour
             playerSkillController.SwitchCurrentSkill();
         }
 
-        //wayo�ǋL
         if (activateSkill1Pressed && playerSkillController != null)
         {
             playerSkillController.TryActivateSkillBySlot(0);
@@ -312,6 +338,10 @@ public class PlayerController : NetworkBehaviour
         NetworkedSpectatorViewUp = viewUp.normalized;
     }
 
+    /// <summary>
+    /// Tickで同期された移動状態をAnimatorへ反映する。
+    /// ここでは移動や射撃などのゲーム状態を進めない。
+    /// </summary>
     public override void Render()
     {
         if (animator == null)
@@ -360,6 +390,10 @@ public class PlayerController : NetworkBehaviour
         return playerLook.ViewForward;
     }
 
+    /// <summary>
+    /// 入力収集のフレームで視点だけを即時反映する。
+    /// StateAuthority側で同じ入力を扱う際は、InputAuthorityも持つ場合の二重適用を避ける。
+    /// </summary>
     public void ApplyLocalLook(Vector2 lookInput, bool isVR, Quaternion hmdRotation)
     {
         if (playerHealth != null && playerHealth.IsDead)

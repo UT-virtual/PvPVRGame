@@ -1,5 +1,9 @@
 using UnityEngine;
 
+/// <summary>
+/// RoundManagerの待機・戦闘フェーズに応じてBGMを切り替える。
+/// それ以外のフェーズでは現在の再生を維持する。
+/// </summary>
 [RequireComponent(typeof(AudioSource))]
 public class BgmManager : MonoBehaviour
 {
@@ -37,34 +41,37 @@ public class BgmManager : MonoBehaviour
         }
     }
 
+
     private void Update()
     {
-        if (RoundManager.Instance == null || !RoundManager.Instance.IsNetworkReady)
+        RoundManager roundManager = RoundManager.Instance;
+        if (roundManager == null || !roundManager.IsNetworkReady)
         {
             return;
         }
 
-        // 待機中
-        if (RoundManager.Instance.IsWaitingForReady)
+        // 待機中は待機BGMに切り替える
+        if (roundManager.IsWaitingForReady)
         {
             ResetRoundTracking();
             PlayBgm(waitingBgm, waitingBgmVolume);
             return;
         }
 
-        // スキル選択中・ラウンド開始演出中はラウンド追跡をリセット
-        if (RoundManager.Instance.IsSkillSelecting)
+        // 次のラウンドに向けて追跡状態をリセットする
+        if (roundManager.IsSkillSelecting || roundManager.IsRoundStarting)
         {
             ResetRoundTracking();
             return;
         }
 
-        // バトル進行中
-        if (RoundManager.Instance.IsRoundPlaying)
+        // 戦闘中は生存人数に応じてBGMを切り替える
+        if (roundManager.IsRoundPlaying)
         {
             UpdateBattleBgm();
         }
     }
+
 
     private void UpdateBattleBgm()
     {

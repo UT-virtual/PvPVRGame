@@ -2,6 +2,10 @@ using System;
 using Fusion;
 using UnityEngine;
 
+/// <summary>
+/// 2枠のスキル、発動時間、クールダウンをStateAuthorityで管理し、待機場では練習用スキルを割り当てる。
+/// 発動時の操作はPlayerSkillActivator、継続効果の反映はPlayerSkillEffectApplierへ委ねる。
+/// </summary>
 [RequireComponent(typeof(PlayerMove))]
 [RequireComponent(typeof(PlayerWeapon))]
 [RequireComponent(typeof(PlayerHealth))]
@@ -320,10 +324,13 @@ public class PlayerSkillController : NetworkBehaviour
             return;
         }
 
-        skillActivator.Activate(selectedSkill);
+        skillActivator.Activate(selectedSkill, slotIndex);
     }
 
-    //wayo追記
+    /// <summary>
+    /// 指定枠のスキルを発動し、その枠へ効果時間とクールダウンを記録する。
+    /// 現在の選択枠は切り替えず、発動中・クールダウン中の枠は受け付けない。
+    /// </summary>
     public void TryActivateSkillBySlot(int slotIndex)
     {
         if (Object == null || !Object.HasStateAuthority)
@@ -340,7 +347,7 @@ public class PlayerSkillController : NetworkBehaviour
         {
             return;
         }
-        skillActivator.Activate(selectedSkill);
+        skillActivator.Activate(selectedSkill, slotIndex);
     }
 
     public bool IsXRayVisionActive()
@@ -400,10 +407,9 @@ public class PlayerSkillController : NetworkBehaviour
         );
     }
 
-    private void BeginActiveSkill(PlayerSkillType skill, float duration)
+    private void BeginActiveSkill(int slotIndex, PlayerSkillType skill, float duration)
     {
-        int slotIndex = GetNormalizedCurrentSelectedSkillIndex();
-
+        // 直接発動した枠を使う。HUDで選択中の枠と一致するとは限らない。
         TickTimer activeTimer = TickTimer.CreateFromSeconds(Runner, duration);
 
         if (slotIndex <= 0)
