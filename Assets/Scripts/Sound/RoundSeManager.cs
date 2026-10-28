@@ -29,6 +29,10 @@ public class RoundSeManager : MonoBehaviour
     [Header("Sudden Death SE (全体)")]
     [SerializeField] private SoundCue suddenDeathSe;
 
+    [Header("Happening SE (全体)")]
+    [SerializeField] private SoundCue happeningStartSe;
+    [SerializeField] private SoundCue happeningEndSe;
+
     [Header("Player Defeated SE (全体)")]
     [Tooltip("プレイヤーが撃破された時に全体に流れるSE")]
     [SerializeField] private SoundCue playerDefeatedSe;
@@ -54,6 +58,21 @@ public class RoundSeManager : MonoBehaviour
     public void NotifySuddenDeath()
     {
         SoundCue cue = suddenDeathSe != null && suddenDeathSe.IsValid ? suddenDeathSe : countdownSe;
+        cue?.PlayOneShot(seAudioSource);
+    }
+
+    /// <summary>
+    /// 同期期間から発動を検出した端末で一度再生する。専用音が未設定ならラウンド開始音を使う。
+    /// </summary>
+    public void NotifyHappeningStarted()
+    {
+        SoundCue cue = happeningStartSe != null && happeningStartSe.IsValid ? happeningStartSe : roundStartSe;
+        cue?.PlayOneShot(seAudioSource);
+    }
+
+    public void NotifyHappeningEnded()
+    {
+        SoundCue cue = happeningEndSe != null && happeningEndSe.IsValid ? happeningEndSe : countdownSe;
         cue?.PlayOneShot(seAudioSource);
     }
 

@@ -1,10 +1,6 @@
 using Fusion;
 using UnityEngine;
 
-/// <summary>
-/// 同期されたPlayerIdentityの色を使い、他プレイヤーの頭上アイコンをローカルカメラへ向ける。
-/// 距離・視野角・遮蔽物を端末ごとに判定し、自分のアイコンは表示しない。
-/// </summary>
 [RequireComponent(typeof(PlayerIdentity))]
 public class PlayerHeadIcon : NetworkBehaviour
 {

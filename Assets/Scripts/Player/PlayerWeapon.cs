@@ -517,9 +517,19 @@ public class PlayerWeapon : NetworkBehaviour
 
             if (targetHealth != null)
             {
-                // サドンデス倍率と実効与ダメージの確定はHP側で統一し、特殊弾と二重適用しない。
+                // ハプニング・サドンデス倍率と実効与ダメージの確定はHP側で統一し、特殊弾と二重適用しない。
                 targetHealth.TakeDamage(damage, Object.InputAuthority,
                     RoundManager.Instance != null ? RoundManager.Instance.DamageRoundVersion : 0);
+            }
+            else
+            {
+                // 待機場の練習ターゲットも即時命中判定で扱い、見た目用の弾には加害させない。
+                PracticeTarget practiceTarget = hit.collider.GetComponentInParent<PracticeTarget>();
+                if (practiceTarget != null && practiceTarget.CanReceiveDamage)
+                {
+                    practiceTarget.TakeDamage(damage);
+                    isEnemyHit = true;
+                }
             }
 
             NotifyProjectileImpactEffect(hit.point);

@@ -113,6 +113,7 @@ public sealed class PlayerSkillEffectApplier
             return;
         }
 
+        // ここではスキル分だけを更新する。ハプニングとラウンド効果はPlayerMoveが移動時に合成する。
         playerMove.SetMoveSpeedMultiplier(
             IsActive(PlayerSkillType.MoveSpeedUp)
                 ? settings.MoveSpeedMultiplier

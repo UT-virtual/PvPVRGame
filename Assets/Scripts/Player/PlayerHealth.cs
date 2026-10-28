@@ -357,7 +357,7 @@ public class PlayerHealth : NetworkBehaviour
     }
 
     /// <summary>
-    /// StateAuthorityで命中時のサドンデス倍率と被ダメージ軽減を適用する。
+    /// StateAuthorityで命中時のハプニング・サドンデス倍率と被ダメージ軽減を適用する。
     /// HP減少が確定した分だけ攻撃者へ記録し、時間切れや前ラウンドの遅延命中は受け付けない。
     /// </summary>
     public void TakeDamage(float damage, PlayerRef attacker, int roundVersion)

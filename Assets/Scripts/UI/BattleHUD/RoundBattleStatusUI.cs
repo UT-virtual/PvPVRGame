@@ -5,20 +5,20 @@ using UnityEngine.XR;
 
 /// <summary>
 /// 同期されたラウンド数・タイマーと、撃破数優先のランキングを各端末の戦闘HUDへ表示する。
-/// 勝敗やサドンデス効果の確定は行わず、戦闘以外のフェーズでは表示を閉じる。
+/// 共通Canvasは観戦案内にも使い、戦闘用の表示だけをフェーズで切り替える。
 /// 観戦専用端末では最初から、対戦者はサドンデスからランキングを表示する。
 /// </summary>
 public sealed class RoundBattleStatusUI : MonoBehaviour
 {
-    private const float RankingWidth = 420f;
+    private const float RankingWidth = 300f;
     private RoundManager manager;
     private Canvas canvas;
     private RectTransform canvasRect;
     private GameObject timerRoot;
+    private GameObject battleRoot;
     private GameObject rankingRoot;
     private TMP_Text timerText;
     private TMP_Text roundProgressText;
-    private TMP_Text rankingTitle;
     private TMP_Text announcement;
     private RoundDamageRankingUI ranking;
     private VRWorldSpaceUIFollower follower;
@@ -48,44 +48,58 @@ public sealed class RoundBattleStatusUI : MonoBehaviour
         scaler.referenceResolution = new Vector2(1280f, 720f);
         scaler.matchWidthOrHeight = 0.5f;
         follower = canvasObject.AddComponent<VRWorldSpaceUIFollower>();
+        RectTransform battleRect = RoundDamageRankingUI.CreateRect("BattleWidgets", canvasRect,
+            Vector2.zero, Vector2.zero, Vector2.zero);
+        battleRect.anchorMin = Vector2.zero;
+        battleRect.anchorMax = Vector2.one;
+        battleRect.offsetMin = battleRect.offsetMax = Vector2.zero;
+        battleRoot = battleRect.gameObject;
+        RoundHappeningUI happeningUI = battleRoot.AddComponent<RoundHappeningUI>();
+        happeningUI.Initialize(manager, font);
+        SpectatorStatusUI spectatorStatus = canvasObject.AddComponent<SpectatorStatusUI>();
+        spectatorStatus.Initialize(manager, canvasRect, font, icon);
 
-        RectTransform progressRect = RoundDamageRankingUI.CreateRect("RoundProgress", canvasRect,
-            new Vector2(0f, 1f), new Vector2(24f, -20f), new Vector2(244f, 52f));
+        RectTransform progressRect = RoundDamageRankingUI.CreateRect("RoundProgress", battleRect,
+            new Vector2(0f, 1f), new Vector2(16f, -14f), new Vector2(172f, 40f));
         Image progressBackground = progressRect.gameObject.AddComponent<Image>();
-        progressBackground.color = new Color(0.02f, 0.04f, 0.08f, 0.85f);
+        progressBackground.color = new Color(0.02f, 0.04f, 0.08f, 0.6f);
         progressBackground.raycastTarget = false;
-        roundProgressText = RoundDamageRankingUI.CreateText("Round", progressRect, font, 28f,
+        roundProgressText = RoundDamageRankingUI.CreateText("Round", progressRect, font, 20f,
             Vector2.zero, progressRect.sizeDelta);
         roundProgressText.alignment = TextAlignmentOptions.Center;
 
-        RectTransform timerRect = RoundDamageRankingUI.CreateRect("RoundTimer", canvasRect,
-            new Vector2(0.5f, 1f), new Vector2(-90f, -20f), new Vector2(180f, 52f));
+        RectTransform timerRect = RoundDamageRankingUI.CreateRect("RoundTimer", battleRect,
+            new Vector2(0.5f, 1f), new Vector2(-56f, -14f), new Vector2(112f, 40f));
         timerRoot = timerRect.gameObject;
         Image timerBackground = timerRoot.AddComponent<Image>();
-        timerBackground.color = new Color(0.02f, 0.04f, 0.08f, 0.85f);
+        timerBackground.color = new Color(0.02f, 0.04f, 0.08f, 0.6f);
         timerBackground.raycastTarget = false;
-        timerText = RoundDamageRankingUI.CreateText("Time", timerRect, font, 36f, Vector2.zero, timerRect.sizeDelta);
+        timerText = RoundDamageRankingUI.CreateText("Time", timerRect, font, 26f, Vector2.zero, timerRect.sizeDelta);
         timerText.alignment = TextAlignmentOptions.Center;
 
-        RectTransform rankingRect = RoundDamageRankingUI.CreateRect("RankingPanel", canvasRect,
-            new Vector2(1f, 1f), new Vector2(-RankingWidth - 24f, -84f), new Vector2(RankingWidth, RoundDamageRankingUI.PreferredHeight + 34f));
+        RectTransform rankingRect = RoundDamageRankingUI.CreateRect("RankingPanel", battleRect,
+            new Vector2(1f, 1f), new Vector2(-RankingWidth - 16f, -60f),
+            new Vector2(RankingWidth, RoundDamageRankingUI.GetPreferredHeight(NetworkSessionController.MaxCombatantCount, compact: true) + 24f));
         rankingRoot = rankingRect.gameObject;
-        rankingTitle = RoundDamageRankingUI.CreateText("RankingTitle", rankingRect, font, 20f,
-            Vector2.zero, new Vector2(RankingWidth, 32f));
-        ranking = RoundDamageRankingUI.Create(rankingRect, font, icon, RankingWidth);
+        TMP_Text rankingTitle = RoundDamageRankingUI.CreateText("RankingTitle", rankingRect, font, 16f,
+            Vector2.zero, new Vector2(RankingWidth, 24f));
+        rankingTitle.text = "ランキング";
+        ranking = RoundDamageRankingUI.Create(rankingRect, font, icon, RankingWidth, compact: true);
         RectTransform rankingRows = (RectTransform)ranking.transform;
         rankingRows.anchorMin = rankingRows.anchorMax = new Vector2(0f, 1f);
         rankingRows.pivot = new Vector2(0f, 1f);
-        rankingRows.anchoredPosition = new Vector2(0f, -34f);
+        rankingRows.anchoredPosition = new Vector2(0f, -24f);
 
-        announcement = RoundDamageRankingUI.CreateText("SuddenDeath", canvasRect, font, 24f,
-            Vector2.zero, new Vector2(420f, 84f));
+        // 常設の説明パネルは置かず、開始時だけ短い通知を表示する。
+        announcement = RoundDamageRankingUI.CreateText("SuddenDeath", battleRect, font, 22f,
+            Vector2.zero, new Vector2(360f, 64f));
         RectTransform announcementRect = announcement.rectTransform;
         announcementRect.anchorMin = announcementRect.anchorMax = new Vector2(0.5f, 1f);
-        announcementRect.anchoredPosition = new Vector2(-270f, -84f);
+        announcementRect.anchoredPosition = new Vector2(-180f, -64f);
         announcement.alignment = TextAlignmentOptions.Center;
-        announcement.text = "サドンデス！\n攻撃力2倍・全員透視・回復なし";
+        announcement.text = "サドンデス！\n<size=16>攻撃力2倍・全員透視・回復なし</size>";
         announcement.color = new Color32(255, 110, 70, 255);
+        announcement.gameObject.SetActive(false);
         canvas.enabled = false;
     }
 
@@ -98,11 +112,11 @@ public sealed class RoundBattleStatusUI : MonoBehaviour
         }
 
         bool playing = manager.IsRoundPlaying;
-        // 確定記録は保持しても、このHUDを結果・スキル選択フェーズへ持ち越さない。
-        canvas.enabled = playing;
-        if (!canvas.enabled) return;
-
+        // 観戦案内は待機中も使う。戦闘用の子ルートだけを切り替え、タイマーや順位を持ち越さない。
+        canvas.enabled = true;
         ConfigureCanvas();
+        battleRoot.SetActive(playing);
+        if (!playing) return;
         timerRoot.SetActive(playing);
         bool suddenDeath = manager.IsSuddenDeath;
         if (playing)
@@ -122,7 +136,6 @@ public sealed class RoundBattleStatusUI : MonoBehaviour
         if (displayedRound != manager.CurrentRound || displayedTotalRounds != manager.TotalRoundCount)
         {
             roundProgressText.text = $"ラウンド {manager.CurrentRound}/{manager.TotalRoundCount}";
-            rankingTitle.text = $"ROUND {manager.CurrentRound}　ランキング";
             displayedRound = manager.CurrentRound;
             displayedTotalRounds = manager.TotalRoundCount;
         }

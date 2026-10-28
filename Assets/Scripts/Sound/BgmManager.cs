@@ -41,7 +41,7 @@ public class BgmManager : MonoBehaviour
         }
     }
 
-    
+
     private void Update()
     {
         RoundManager roundManager = RoundManager.Instance;

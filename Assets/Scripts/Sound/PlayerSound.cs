@@ -218,6 +218,7 @@ public class PlayerSound : NetworkBehaviour
                 break;
 
             case SoundEvent.ReloadStarted:
+                PlayReloadStartSound();
                 PlayReloadingSound();
                 break;
 
@@ -226,7 +227,7 @@ public class PlayerSound : NetworkBehaviour
                 break;
 
             case SoundEvent.ReloadCompleted:
-                PlayReloadSound();
+                StopReloadingSound();
                 break;
 
             case SoundEvent.Died:
@@ -313,8 +314,9 @@ public class PlayerSound : NetworkBehaviour
         }
     }
 
-    private void PlayReloadSound()
+    private void PlayReloadStartSound()
     {
+        // 既存の単発SEを開始通知に使い、逐次補充の完了時にはループ停止だけを行う。
         StopReloadingSound();
 
         if (reloadSE != null && audioSource != null)

@@ -321,7 +321,7 @@ public class Projectile : NetworkBehaviour
             target.TakeDamage(damage, attacker, damageRoundVersion);
         }
 
-        return hasHitAliveEnemy;
+        return ApplyPracticeTargetDamage(colliders, damage) || hasHitAliveEnemy;
     }
 
     private bool ApplyExplosionDamage(Vector3 impactPosition)
@@ -362,7 +362,24 @@ public class Projectile : NetworkBehaviour
             target.TakeDamage(explosionDamage, attacker, damageRoundVersion);
         }
 
-        return hasHitAliveEnemy;
+        return ApplyPracticeTargetDamage(colliders, explosionDamage) || hasHitAliveEnemy;
+    }
+
+    private bool ApplyPracticeTargetDamage(Collider[] colliders, float targetDamage)
+    {
+        // 複数Colliderを持つ練習ターゲットも、一度の着弾につき一回だけ加害する。
+        HashSet<PracticeTarget> damagedTargets = new();
+        foreach (Collider hitCollider in colliders)
+        {
+            if (hitCollider == null) continue;
+
+            PracticeTarget target = hitCollider.GetComponentInParent<PracticeTarget>();
+            if (target == null || !target.CanReceiveDamage || !damagedTargets.Add(target)) continue;
+
+            target.TakeDamage(targetDamage);
+        }
+
+        return damagedTargets.Count > 0;
     }
 
     private void SetupCollision()

@@ -1,10 +1,6 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
 
-/// <summary>
-/// キーボードとゲームパッドの入力を、明示的なReadInput呼び出しで読み取る。
-/// Fusionへ送る入力の蓄積・送信はNetworkInputCollectorが別途担当する。
-/// </summary>
 public class PlayerInput : MonoBehaviour
 {
     [Header("Look")]

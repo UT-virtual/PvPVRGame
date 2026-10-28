@@ -1,10 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-/// <summary>
-/// RoundManagerから渡された準備・選択状況とスポーン設定をログへ整形する。
-/// 進行状態の変更は行わない。
-/// </summary>
 public sealed class RoundDebugLogger
 {
     public void LogReadyStates(

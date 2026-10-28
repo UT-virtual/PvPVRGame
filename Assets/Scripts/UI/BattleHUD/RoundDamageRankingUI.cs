@@ -11,6 +11,7 @@ using UnityEngine.UI;
 public sealed class RoundDamageRankingUI : MonoBehaviour
 {
     private const float RowSpacing = 64f;
+    private const float CompactRowSpacing = 48f;
     public const float PreferredHeight = NetworkSessionController.MaxCombatantCount * RowSpacing;
 
     private sealed class Row
@@ -25,14 +26,16 @@ public sealed class RoundDamageRankingUI : MonoBehaviour
 
     private readonly List<RoundDamageEntry> entries = new(NetworkSessionController.MaxCombatantCount);
     private readonly List<Row> rows = new(NetworkSessionController.MaxCombatantCount);
+    private bool compactLayout;
 
-    public static float GetPreferredHeight(int rowCount, float contentScale = 1f)
+    public static float GetPreferredHeight(int rowCount, float contentScale = 1f, bool compact = false)
     {
-        return Mathf.Clamp(rowCount, 1, NetworkSessionController.MaxCombatantCount) * RowSpacing * contentScale;
+        float spacing = compact ? CompactRowSpacing : RowSpacing;
+        return Mathf.Clamp(rowCount, 1, NetworkSessionController.MaxCombatantCount) * spacing * contentScale;
     }
 
     public static RoundDamageRankingUI Create(Transform parent, TMP_FontAsset font, Sprite icon, float width,
-        float contentScale = 1f, int rowCount = NetworkSessionController.MaxCombatantCount)
+        float contentScale = 1f, int rowCount = NetworkSessionController.MaxCombatantCount, bool compact = false)
     {
         GameObject root = new("DamageRanking", typeof(RectTransform), typeof(LayoutElement));
         root.transform.SetParent(parent, false);
@@ -41,38 +44,47 @@ public sealed class RoundDamageRankingUI : MonoBehaviour
         rect.anchorMin = rect.anchorMax = new Vector2(0.5f, 1f);
         rect.pivot = new Vector2(0.5f, 1f);
         rect.anchoredPosition = Vector2.zero;
-        rect.sizeDelta = new Vector2(width, GetPreferredHeight(rowCount, contentScale));
+        rect.sizeDelta = new Vector2(width, GetPreferredHeight(rowCount, contentScale, compact));
         LayoutElement layout = root.GetComponent<LayoutElement>();
         layout.preferredWidth = width;
         layout.preferredHeight = rect.sizeDelta.y;
         RoundDamageRankingUI view = root.AddComponent<RoundDamageRankingUI>();
+        view.compactLayout = compact;
         view.BuildRows(font, icon, width, contentScale);
         return view;
     }
 
     private void BuildRows(TMP_FontAsset font, Sprite sprite, float width, float scale)
     {
+        // 戦闘中だけ行高と列間隔を詰め、結果画面の読みやすい大きさは維持する。
+        float spacing = compactLayout ? CompactRowSpacing : RowSpacing;
+        float height = compactLayout ? 44f : 60f;
+        float iconSize = compactLayout ? 16f : 24f;
         for (int i = 0; i < NetworkSessionController.MaxCombatantCount; i++)
         {
             RectTransform rect = CreateRect("RankRow", transform, new Vector2(0f, 1f),
-                new Vector2(0f, -i * RowSpacing * scale), new Vector2(width, 60f * scale));
+                new Vector2(0f, -i * spacing * scale), new Vector2(width, height * scale));
             Image background = rect.gameObject.AddComponent<Image>();
             background.raycastTarget = false;
-            TMP_Text rank = CreateText("Rank", rect, font, 20f * scale,
-                new Vector2(10f, 0f) * scale, new Vector2(43f, 60f) * scale);
+            TMP_Text rank = CreateText("Rank", rect, font, (compactLayout ? 16f : 20f) * scale,
+                new Vector2(compactLayout ? 6f : 10f, 0f) * scale,
+                new Vector2(compactLayout ? 32f : 43f, height) * scale);
             RectTransform iconRect = CreateRect("PlayerColor", rect, new Vector2(0f, 1f),
-                new Vector2(56f, -18f) * scale, new Vector2(24f, 24f) * scale);
+                new Vector2(compactLayout ? 40f : 56f, -(height - iconSize) * 0.5f) * scale,
+                new Vector2(iconSize, iconSize) * scale);
             Image image = iconRect.gameObject.AddComponent<Image>();
             image.sprite = sprite;
             image.raycastTarget = false;
-            TMP_Text kills = CreateText("Kills", rect, font, 24f * scale,
-                new Vector2(92f, 0f) * scale, new Vector2(76f, 60f) * scale);
+            TMP_Text kills = CreateText("Kills", rect, font, (compactLayout ? 17f : 24f) * scale,
+                new Vector2(compactLayout ? 64f : 92f, 0f) * scale,
+                new Vector2(compactLayout ? 58f : 76f, height) * scale);
             kills.fontStyle = FontStyles.Bold;
-            TMP_Text value = CreateText("Damage", rect, font, 20f * scale,
-                new Vector2(180f * scale, 0f), new Vector2(width - 190f * scale, 60f * scale));
+            float valueLeft = compactLayout ? 126f : 180f;
+            TMP_Text value = CreateText("Damage", rect, font, (compactLayout ? 15f : 20f) * scale,
+                new Vector2(valueLeft * scale, 0f), new Vector2(width - (valueLeft + 10f) * scale, height * scale));
             value.enableAutoSizing = true;
-            value.fontSizeMin = 18f * scale;
-            value.fontSizeMax = 20f * scale;
+            value.fontSizeMin = (compactLayout ? 14f : 18f) * scale;
+            value.fontSizeMax = (compactLayout ? 15f : 20f) * scale;
             value.overflowMode = TextOverflowModes.Ellipsis;
             rows.Add(new Row { Root = rect.gameObject, Background = background, Icon = image, Rank = rank, Kills = kills, Value = value });
         }
@@ -110,7 +122,9 @@ public sealed class RoundDamageRankingUI : MonoBehaviour
             // 死亡行はグレー表示にしつつ、誰の記録か分かるようアイコンの色味を薄く残す。
             Color teamColor = GetTeamColor(entry.TeamIndex);
             row.Icon.color = entry.IsAlive ? teamColor : Color.Lerp(teamColor, Color.gray, 0.65f);
-            row.Background.color = isLocal ? new Color(0.12f, 0.42f, 0.55f, 0.9f) : new Color(0.02f, 0.04f, 0.08f, 0.82f);
+            row.Background.color = isLocal
+                ? new Color(0.12f, 0.42f, 0.55f, compactLayout ? 0.65f : 0.9f)
+                : new Color(0.02f, 0.04f, 0.08f, compactLayout ? 0.55f : 0.82f);
         }
     }
 

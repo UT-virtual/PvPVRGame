@@ -1156,7 +1156,7 @@ MonoBehaviour:
   hitEffectPrefab: {fileID: 2772215153189503253, guid: 12673212336cdcd45954d0b53f60c383, type: 3}
   projectilePrefab:
     RawGuidValue: 656e6d695bfca498e95fd35ea032dbad
-  projectileSpeed: 200
+  projectileSpeed: 40
   projectileLifeTime: 3
   projectileDamage: 1
   projectileSpawnDistance: 0.8
@@ -1391,6 +1391,7 @@ MonoBehaviour:
   heavyBulletReloadAmmoCount: 5
   nextShotDamageBoostDuration: 0.1
   nextShotDamageBoostMultiplier: 1.5
+  allowSameSkillConsecutiveForDebug: 0
   _CurrentRoundSkill: 0
   _CurrentRoundSecondSkill: 0
   _LastRoundSkill: 0

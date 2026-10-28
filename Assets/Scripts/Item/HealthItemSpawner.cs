@@ -143,7 +143,7 @@ public class HealthItemSpawner : MonoBehaviour
 
         // 待機中に終了フェーズへ移っていれば再生成しない。RoundManager未配置時は生成を継続する。
         if (!spawningEnabled || (RoundManager.Instance != null &&
-            (!RoundManager.Instance.CanUseWeapons || RoundManager.Instance.IsSuddenDeath)))
+            (!RoundManager.Instance.IsRoundPlaying || RoundManager.Instance.IsSuddenDeath)))
         {
             yield break;
         }

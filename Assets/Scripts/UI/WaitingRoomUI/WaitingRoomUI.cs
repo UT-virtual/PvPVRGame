@@ -16,6 +16,7 @@ public class WaitingRoomUI : MonoBehaviour
     [SerializeField] private GameObject playerEntryPrefab;
     [SerializeField] private TMP_Text playerCountText;
     [SerializeField] private GameObject waitingRoomPanel;
+    [SerializeField] private TMP_Text readyOperationText;
 
     public TMP_FontAsset DisplayFont => playerCountText != null ? playerCountText.font : null;
     public Sprite ColorIconSprite => playerEntryPrefab != null
@@ -32,6 +33,13 @@ public class WaitingRoomUI : MonoBehaviour
 
     private void Awake()
     {
+        if (readyOperationText == null && waitingRoomPanel != null)
+        {
+            // 既存Sceneの固定案内も役割で制御する。スキル選択側の同名テキストは対象にしない。
+            Transform operation = waitingRoomPanel.transform.Find("OperationText");
+            if (operation != null) readyOperationText = operation.GetComponent<TMP_Text>();
+        }
+        SetReadyOperationVisible(false);
         ClearEntries();
         SetPanelVisible(false);
     }
@@ -46,6 +54,7 @@ public class WaitingRoomUI : MonoBehaviour
     /// </summary>
     public void HideRoomUI()
     {
+        SetReadyOperationVisible(false);
         ClearEntries();
         SetPanelVisible(false);
     }
@@ -59,6 +68,7 @@ public class WaitingRoomUI : MonoBehaviour
 
         if (!localPlayerSpawned)
         {
+            SetReadyOperationVisible(false);
             ClearEntries();
             SetPanelVisible(false);
         }
@@ -105,6 +115,10 @@ public class WaitingRoomUI : MonoBehaviour
                 roundManagerNotReadyYet
             );
 
+        bool isCombatant = canShowByRoundManager && hasLocalPlayer &&
+            roundManager.ConnectedParticipants.TryGet(roundManager.Runner.LocalPlayer, out ParticipantRole role) &&
+            role == ParticipantRole.Combatant && (networkLauncher == null || networkLauncher.IsLocalCombatant);
+        SetReadyOperationVisible(shouldShow && isCombatant);
         SetPanelVisible(shouldShow);
 
         if (shouldShow)
@@ -141,6 +155,14 @@ public class WaitingRoomUI : MonoBehaviour
         }
 
         return false;
+    }
+
+    private void SetReadyOperationVisible(bool visible)
+    {
+        if (readyOperationText != null && readyOperationText.gameObject.activeSelf != visible)
+        {
+            readyOperationText.gameObject.SetActive(visible);
+        }
     }
 
     private void SetPanelVisible(bool visible)

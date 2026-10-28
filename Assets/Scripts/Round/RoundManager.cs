@@ -36,6 +36,7 @@ public class RoundManager : NetworkBehaviour, IAfterTick
 
     [Header("Ready")]
     [SerializeField] private int minPlayersToStart = 2;
+    [SerializeField] private bool allowWeaponsInWaitingRoom = true;
 
     [Header("Round Effect")]
     [SerializeField] private float roundEffectDisplayDuration = 3.0f;
@@ -43,10 +44,25 @@ public class RoundManager : NetworkBehaviour, IAfterTick
     [Networked]
     private RoundEffectType currentRoundEffect { get; set; }
     public bool IsJumpProhibited =>
-    currentRoundEffect == RoundEffectType.BanJump;
+        CanReadNetworkedPhase && (currentRoundEffect == RoundEffectType.BanJump ||
+        (IsHappeningActive && HappeningState.Effect == RoundHappeningType.NoJump));
 
     public float CurrentMoveSpeedMultiplier =>
-        currentRoundEffect == RoundEffectType.BanJump ? 2.0f : 1.0f;
+        (CanReadNetworkedPhase && currentRoundEffect == RoundEffectType.BanJump ? 2f : 1f) *
+        (IsHappeningActive && HappeningState.Effect == RoundHappeningType.FasterMovement ? HappeningState.MoveSpeedMultiplier : 1f);
+
+    [Header("Spectator Happening")]
+    [SerializeField] private RoundHappeningSettings happeningSettings = new();
+
+    [Networked] public RoundHappeningState HappeningState { get; private set; }
+    [Networked] public int HappeningVoteCount { get; private set; }
+    [Networked, Capacity(NetworkSessionController.MaxConnectionCount)]
+    public NetworkDictionary<PlayerRef, int> HappeningVotes => default;
+
+    public bool IsLocalDedicatedSpectator => IsNetworkReady && Runner != null && Runner.IsRunning && !Runner.IsShutdown &&
+        ConnectedParticipants.TryGet(Runner.LocalPlayer, out ParticipantRole role) && role == ParticipantRole.Spectator;
+    public bool IsHappeningVotingOpen => IsRoundPlaying && !IsSuddenDeath && HappeningState.IsVotingOpen(Runner);
+    public bool IsHappeningActive => IsRoundPlaying && !IsSuddenDeath && HappeningState.IsEffectActive(Runner);
 
     [Header("Skill Selection")]
     [SerializeField] private float skillSelectionDuration = 10.0f;
@@ -130,9 +146,10 @@ public class RoundManager : NetworkBehaviour, IAfterTick
         (suddenDeathActive || SuddenDeathDeadline.Expired(Runner));
 
     /// <summary>
-    /// 命中した時点の倍率を返す。飛翔中にサドンデスへ入った特殊弾にも適用する。
+    /// 命中した時点の全体倍率を返す。ハプニングとサドンデスは独立した期間で扱い、スキル補正は攻撃側に残す。
     /// </summary>
-    public float AttackDamageMultiplier => IsSuddenDeath ? 2f : 1f;
+    public float AttackDamageMultiplier => (IsSuddenDeath ? 2f : 1f) *
+        (IsHappeningActive && HappeningState.Effect == RoundHappeningType.DoubleDamage ? HappeningState.DamageMultiplier : 1f);
 
     public bool CanApplyCombatDamage(int roundVersion) => IsRoundPlaying &&
         roundVersion == DamageRoundVersion && !RoundDeadline.ExpiredOrNotRunning(Runner);
@@ -179,6 +196,9 @@ public class RoundManager : NetworkBehaviour, IAfterTick
     private RoundUIController uiController;
     private RoundDebugLogger debugLogger;
     private RoundProjectileCleaner projectileCleaner;
+    private RoundHappeningController happeningController;
+    private SpectatorHappeningInputController happeningInput;
+    private readonly List<PlayerRef> departedHappeningVoters = new(NetworkSessionController.MaxConnectionCount);
 
     private readonly TeamColor[] teamOrder =
     {
@@ -194,7 +214,8 @@ public class RoundManager : NetworkBehaviour, IAfterTick
 
     public bool CanUseWeapons =>
         CanReadNetworkedPhase &&
-        phase == GamePhase.RoundPlaying;
+        (phase == GamePhase.RoundPlaying ||
+         (allowWeaponsInWaitingRoom && phase == GamePhase.WaitingForReady));
 
     public bool CanControlPlayers =>
         CanReadNetworkedPhase &&
@@ -352,6 +373,9 @@ public class RoundManager : NetworkBehaviour, IAfterTick
         Instance = this;
 
         InitializeControllers();
+        happeningInput = GetComponent<SpectatorHappeningInputController>();
+        if (happeningInput == null) happeningInput = gameObject.AddComponent<SpectatorHappeningInputController>();
+        happeningInput.Initialize(this);
         RoundBattleStatusUI battleStatus = GetComponent<RoundBattleStatusUI>();
         if (battleStatus == null) battleStatus = gameObject.AddComponent<RoundBattleStatusUI>();
         WaitingRoomUI styleSource = waitingRoomUI != null ? waitingRoomUI : FindFirstObjectByType<WaitingRoomUI>(FindObjectsInactive.Include);
@@ -388,6 +412,7 @@ public class RoundManager : NetworkBehaviour, IAfterTick
     public override void Despawned(NetworkRunner runner, bool hasState)
     {
         flowController?.StopProgression();
+        happeningController?.Reset();
         if (roundEffectCoroutine != null) StopCoroutine(roundEffectCoroutine);
         isSpawned = false;
     }
@@ -409,15 +434,27 @@ public class RoundManager : NetworkBehaviour, IAfterTick
             return;
         }
 
+        if (participantLauncher == null) participantLauncher = FindFirstObjectByType<NetworkLauncher>();
+
         if (IsSuddenDeath && !suddenDeathActive)
         {
             suddenDeathActive = true;
             // 再生成待ちも停止し、次ラウンドのSetupまで回復アイテムを復帰させない。
             healthItemController.ClearHealthItems();
         }
-        if (participantLauncher == null)
+        if (IsRoundPlaying)
         {
-            participantLauncher = FindFirstObjectByType<NetworkLauncher>();
+            if (IsSuddenDeath) ResetHappening();
+            else
+            {
+                RoundHappeningPhase previous = HappeningState.Phase;
+                HappeningState = happeningController.Advance(HappeningState, Runner, participantLauncher != null ? participantLauncher.ParticipantRoles : null);
+                if ((previous == RoundHappeningPhase.Waiting || previous == RoundHappeningPhase.Voting) &&
+                    HappeningState.Phase >= RoundHappeningPhase.Preview)
+                {
+                    PublishHappeningVotes();
+                }
+            }
         }
         if (participantLauncher == null || lastParticipantRevision == participantLauncher.ParticipantRevision)
         {
@@ -430,6 +467,33 @@ public class RoundManager : NetworkBehaviour, IAfterTick
             ConnectedParticipants.Add(participant.Key, participant.Value);
         }
         lastParticipantRevision = participantLauncher.ParticipantRevision;
+        RemoveDepartedHappeningVoters();
+    }
+
+    private void RemoveDepartedHappeningVoters()
+    {
+        // 同期一覧は現在の接続者の確認用に限る。退出者の票数と投票済み判定はControllerへ残す。
+        // 途中退出と新規接続を繰り返しても、固定容量のNetworkDictionaryを超えないようにする。
+        departedHappeningVoters.Clear();
+        foreach (var vote in HappeningVotes)
+        {
+            if (!participantLauncher.ParticipantRoles.ContainsKey(vote.Key)) departedHappeningVoters.Add(vote.Key);
+        }
+        foreach (PlayerRef voter in departedHappeningVoters) HappeningVotes.Remove(voter);
+    }
+
+    private void PublishHappeningVotes()
+    {
+        if (participantLauncher != null)
+        {
+            RemoveDepartedHappeningVoters();
+            foreach (var participant in participantLauncher.ParticipantRoles)
+            {
+                if (!HappeningVotes.ContainsKey(participant.Key) && happeningController.TryGetVote(participant.Key, out int candidate))
+                    HappeningVotes.Add(participant.Key, candidate);
+            }
+        }
+        HappeningVoteCount = happeningController.VoteCount;
     }
 
     /// <summary>
@@ -502,6 +566,7 @@ public class RoundManager : NetworkBehaviour, IAfterTick
 
     private void InitializeControllers()
     {
+        happeningController = new RoundHappeningController(count => UnityEngine.Random.Range(0, count));
         playerRegistry = new RoundPlayerRegistry(teamOrder, HandlePlayerDied);
         readyController = new RoundReadyController();
         scoreCalculator = new RoundScoreCalculator();
@@ -562,6 +627,7 @@ public class RoundManager : NetworkBehaviour, IAfterTick
 
         if (phase == GamePhase.RoundPlaying)
         {
+            ResetHappening();
             // 復活・スキル解除でHPが変わる前の値を結果として固定する。
             PublishDamageSnapshot();
             HasFinalDamageRanking = value == GamePhase.RoundEnding;
@@ -581,6 +647,9 @@ public class RoundManager : NetworkBehaviour, IAfterTick
             scoreCalculator.BeginRoundDamage(GetValidPlayers());
             RoundDeadline = TickTimer.CreateFromSeconds(Runner, RoundDurationSeconds);
             SuddenDeathDeadline = TickTimer.CreateFromSeconds(Runner, RoundDurationSeconds - SuddenDeathRemainingSeconds);
+            HappeningState = happeningController.Begin(Runner, happeningSettings);
+            HappeningVotes.Clear();
+            HappeningVoteCount = 0;
             PublishDamageSnapshot();
         }
         else if (value == GamePhase.WaitingForReady)
@@ -597,6 +666,60 @@ public class RoundManager : NetworkBehaviour, IAfterTick
             ? TickTimer.CreateFromSeconds(Runner, Mathf.Max(0f, startAfterAllSkillsSelectedDelay))
             : TickTimer.None;
         phase = value;
+    }
+
+    private void ResetHappening()
+    {
+        if (HappeningState.Phase == RoundHappeningPhase.None) return;
+        happeningController.Reset();
+        HappeningVotes.Clear();
+        HappeningVoteCount = 0;
+        HappeningState = default;
+    }
+
+    /// <summary>
+    /// 接続者本人の専用観戦者権限、ラウンド世代、投票期間をStateAuthorityで検証する。
+    /// 同じ候補の再送は受理済みと応答するだけで、変更・追加の一票にはしない。
+    /// </summary>
+    [Rpc(RpcSources.All, RpcTargets.StateAuthority, HostMode = RpcHostMode.SourceIsHostPlayer)]
+    public void RPC_RequestHappeningVote(int roundVersion, int candidate, RpcInfo info = default)
+    {
+        if (info.Source == PlayerRef.None || roundVersion != DamageRoundVersion) return;
+        if (participantLauncher == null) participantLauncher = FindFirstObjectByType<NetworkLauncher>();
+        bool eligible = IsRoundPlaying && !IsSuddenDeath && participantLauncher != null &&
+            participantLauncher.ParticipantRoles.TryGetValue(info.Source, out ParticipantRole role) && role == ParticipantRole.Spectator;
+        bool accepted = false;
+        if (eligible)
+        {
+            RemoveDepartedHappeningVoters();
+            if (happeningController.TryGetVote(info.Source, out int existing)) accepted = existing == candidate;
+            else if (happeningController.TryVote(info.Source, candidate, true, HappeningState, Runner))
+            {
+                accepted = true;
+            }
+            if (accepted && !HappeningVotes.ContainsKey(info.Source)) HappeningVotes.Add(info.Source, candidate);
+            HappeningVoteCount = happeningController.VoteCount;
+        }
+        RPC_HappeningVoteResult(info.Source, roundVersion, candidate, accepted);
+    }
+
+    /// <summary>
+    /// 本人の専用観戦者権限を確認し、締切で使う仮選択だけを更新する。確定や票数の加算は行わない。
+    /// </summary>
+    [Rpc(RpcSources.All, RpcTargets.StateAuthority, HostMode = RpcHostMode.SourceIsHostPlayer)]
+    public void RPC_UpdateHappeningFocus(int roundVersion, int candidate, int revision, RpcInfo info = default)
+    {
+        if (info.Source == PlayerRef.None || roundVersion != DamageRoundVersion || !IsHappeningVotingOpen) return;
+        if (participantLauncher == null) participantLauncher = FindFirstObjectByType<NetworkLauncher>();
+        bool eligible = participantLauncher != null && participantLauncher.ParticipantRoles.TryGetValue(info.Source, out ParticipantRole role) &&
+            role == ParticipantRole.Spectator;
+        happeningController.TrySetFocus(info.Source, candidate, revision, eligible, HappeningState, Runner);
+    }
+
+    [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+    private void RPC_HappeningVoteResult(PlayerRef voter, int roundVersion, int candidate, bool accepted)
+    {
+        if (Runner.LocalPlayer == voter) happeningInput?.ApplyResult(roundVersion, candidate, accepted);
     }
 
     private void InitializeSkillSelectionController()
