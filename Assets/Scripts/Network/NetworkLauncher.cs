@@ -2,15 +2,20 @@ using Fusion;
 using Fusion.Sockets;
 using System;
 using System.Collections.Generic;
+using System.Collections;
 using Unity.Cinemachine;
 using Unity.XR.CoreUtils;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using TMPro;
 using UnityEngine.UI;
+using UnityEngine.SceneManagement;
 
+[DisallowMultipleComponent]
 public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
 {
+    public static NetworkLauncher Instance { get; private set; }
+    public NetworkRunner Runner => sessionController != null ? sessionController.Runner : null;
     [Header("Network")]
     [SerializeField] private NetworkPrefabRef playerPrefab;
     [SerializeField] private string roomName = "TestRoom";
@@ -80,6 +85,13 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
     private NetworkInputCollector inputCollector;
     private LocalSkillSelectionInputController skillSelectionInputController;
     private Transform attachedXrOriginRoot;
+    private LocalPlayModeController playModeController;
+    private bool presentationReady;
+    private bool vrSpectating;
+    private Vector3 spectatorHeadOffset;
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    private static void ResetStatics() => Instance = null;
 
     public int CurrentSkillSelectionSlot =>
         skillSelectionInputController != null
@@ -97,7 +109,23 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
 
     private void Awake()
     {
+        if (Instance != null && Instance != this)
+        {
+            Instance.AdoptSceneReferences(this);
+            Debug.Log($"[NetworkLauncher] Reusing existing session; suppressing launcher {GetInstanceID()} in {gameObject.scene.name}.");
+            enabled = false;
+            Destroy(gameObject);
+            return;
+        }
+
+        Instance = this;
+        transform.SetParent(null);
+        DontDestroyOnLoad(gameObject);
+        playModeController = GetComponent<LocalPlayModeController>();
+        if (playModeController == null) playModeController = gameObject.AddComponent<LocalPlayModeController>();
+        playModeController.SelectMode();
         InitializeControllers();
+        SceneManager.sceneLoaded += HandleSceneLoaded;
 
         connectionUIController.InitializeButtons(
             () => StartGame(GameMode.Host),
@@ -105,8 +133,20 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
         );
     }
 
-    private void Start()
+    private IEnumerator Start()
     {
+        connectionUIController.SetStatusTextVisible(true);
+        connectionUIController.LockButtons();
+        connectionUIController.SetStatusText("起動モードを準備中...");
+        yield return playModeController.Initialize();
+        if (!LocalPlayModeController.IsReady || !ConfigureScenePresentation())
+        {
+            string error = playModeController.Error ?? "選択したモードのカメラ設定が不足しています。シーンの参照を確認してください。";
+            Debug.LogError($"[NetworkLauncher] Startup stopped: {error}");
+            connectionUIController.SetStatusText(error);
+            yield break;
+        }
+
         connectionUIController.SetStatusText("ホスト・クライアント選択");
 
         if (autoStartOnLaunch)
@@ -116,12 +156,12 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
             connectionUIController.LockButtons();
 
             StartGame(GameMode.AutoHostOrClient);
-            return;
+            yield break;
         }
 
         connectionUIController.SetConnectionMenuVisible(true);
         connectionUIController.SetStatusTextVisible(false);
-        connectionUIController.SetConnectionButtonsInteractable(true);
+        connectionUIController.UnlockButtons();
     }
 
     private void OnEnable()
@@ -136,22 +176,27 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
 
     private void OnDestroy()
     {
+        if (Instance != this) return;
+        SceneManager.sceneLoaded -= HandleSceneLoaded;
         connectionUIController?.DisposeButtons();
+        sessionController?.Dispose();
+        Instance = null;
     }
 
     private void Update()
     {
+        if (Instance != this || !LocalPlayModeController.IsReady || !presentationReady) return;
         inputCollector.UpdateHmdAndLook();
 
-        if (skillSelectionInputController.UpdateIfSkillSelecting())
+        bool reconnectPressed = inputCollector.ReadReconnectPressed();
+        if (sessionController.CanReconnect() && reconnectPressed)
         {
+            sessionController.ReconnectAsClient();
             return;
         }
 
-        if (sessionController.CanReconnectFromWaitingRoom() &&
-            inputCollector.ReadReconnectPressed())
+        if (skillSelectionInputController.UpdateIfSkillSelecting())
         {
-            sessionController.ReconnectAsClient();
             return;
         }
 
@@ -216,7 +261,108 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
 
     public void StartGame(GameMode gameMode)
     {
+        if (Instance != this || !LocalPlayModeController.IsReady || !presentationReady) return;
         sessionController.StartGame(gameMode);
+    }
+
+    private void AdoptSceneReferences(NetworkLauncher source)
+    {
+        waitingRoomUI = source.waitingRoomUI;
+        connectionMenuRoot = source.connectionMenuRoot;
+        statusTextLabel = source.statusTextLabel;
+        hostButton = source.hostButton;
+        clientButton = source.clientButton;
+        xrOriginRoot = source.xrOriginRoot;
+        xrHmd = source.xrHmd;
+        xrLeftController = source.xrLeftController;
+        xrRightController = source.xrRightController;
+        sceneFollowCamera = source.sceneFollowCamera;
+        cinemachineCamera = source.cinemachineCamera;
+        attachedXrOriginRoot = null;
+
+        connectionUIController.DisposeButtons();
+        connectionUIController = new NetworkConnectionUIController(connectionMenuRoot, statusTextLabel, hostButton, clientButton);
+        connectionUIController.InitializeButtons(() => StartGame(GameMode.Host), () => StartGame(GameMode.Client));
+        sessionController.SetConnectionUI(connectionUIController);
+        connectionUIController.SetConnectionMenuVisible(false);
+        connectionUIController.SetStatusTextVisible(false);
+    }
+
+    private void HandleSceneLoaded(Scene scene, LoadSceneMode mode)
+    {
+        if (LocalPlayModeController.IsReady) ConfigureScenePresentation();
+    }
+
+    public void PrepareForSceneReload()
+    {
+        presentationReady = false;
+        EndVrSpectating();
+        DetachXrOriginFromPlayer();
+        inputCollector.ResetConnectionState();
+        inputCollector.SetXrTransforms(null, null, null);
+    }
+
+    public bool RestoreScenePresentation()
+    {
+        inputCollector.EnableActions();
+        return ConfigureScenePresentation();
+    }
+
+    public void UpdateVrSpectatorView(Vector3 eyePosition, Quaternion bodyRotation)
+    {
+        if (!IsVrSessionActive() || xrOriginRoot == null || xrHmd == null) return;
+        if (!vrSpectating)
+        {
+            // Anchor the current physical head position; tracked head motion remains free.
+            spectatorHeadOffset = xrOriginRoot.InverseTransformPoint(xrHmd.position);
+            vrSpectating = true;
+        }
+        xrOriginRoot.rotation = bodyRotation;
+        xrOriginRoot.position = eyePosition - xrOriginRoot.TransformVector(spectatorHeadOffset);
+    }
+
+    public void EndVrSpectating()
+    {
+        if (!vrSpectating) return;
+        vrSpectating = false;
+        if (attachedXrOriginRoot == null) return;
+        attachedXrOriginRoot.localPosition = Vector3.zero;
+        attachedXrOriginRoot.localRotation = Quaternion.identity;
+    }
+
+    private bool ConfigureScenePresentation()
+    {
+        ResolveXrReferencesIfNeeded();
+        ResolvePcCameraReferencesIfNeeded();
+        bool vr = IsVrSessionActive();
+        Camera vrCamera = xrHmd != null ? xrHmd.GetComponent<Camera>() : null;
+        presentationReady = false;
+        if (vr && (xrOriginRoot == null || vrCamera == null || vrCamera == sceneFollowCamera)) return false;
+        if (!vr && (sceneFollowCamera == null || cinemachineCamera == null)) return false;
+
+        if (xrOriginRoot != null) xrOriginRoot.gameObject.SetActive(vr);
+        if (vrCamera != null)
+        {
+            vrCamera.enabled = vr;
+            AudioListener listener = vrCamera.GetComponent<AudioListener>();
+            if (listener != null) listener.enabled = vr;
+        }
+        if (sceneFollowCamera != null && sceneFollowCamera != vrCamera)
+        {
+            sceneFollowCamera.enabled = !vr;
+            AudioListener listener = sceneFollowCamera.GetComponent<AudioListener>();
+            if (listener != null) listener.enabled = !vr;
+            CinemachineBrain brain = sceneFollowCamera.GetComponent<CinemachineBrain>();
+            if (brain != null) brain.enabled = !vr;
+        }
+        if (cinemachineCamera != null) cinemachineCamera.enabled = !vr;
+        inputCollector.SetXrTransforms(vr ? xrHmd : null, vr ? xrLeftController : null, vr ? xrRightController : null);
+        VRWorldSpaceUIFollower[] followers = FindObjectsByType<VRWorldSpaceUIFollower>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+        Transform view = vr ? xrHmd : sceneFollowCamera != null ? sceneFollowCamera.transform : null;
+        foreach (VRWorldSpaceUIFollower follower in followers) follower.SetTargetCamera(view);
+        Debug.Log($"[NetworkLauncher] Presentation ready: {playModeController.Mode}, scene={SceneManager.GetActiveScene().name}.");
+        presentationReady = true;
+        return true;
     }
 
     public void OnServerSkillSelectionProgress(PlayerRef playerRef, int selectedCount)
@@ -297,6 +443,7 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
 
     public void DetachXrOriginFromPlayer()
     {
+        EndVrSpectating();
         if (attachedXrOriginRoot == null)
         {
             return;
@@ -344,14 +491,15 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
     public void ConfigureLocalVrBodySync(VRBodyTargetSync bodySync)
     {
         ResolveXrReferencesIfNeeded();
+        bool vr = IsVrSessionActive();
 
         if (bodySync != null)
         {
-            bodySync.SetXrTransforms(xrHmd, xrLeftController, xrRightController);
+            bodySync.SetXrTransforms(vr ? xrHmd : null, vr ? xrLeftController : null, vr ? xrRightController : null);
         }
 
-        inputCollector.SetXrTransforms(xrHmd, xrLeftController, xrRightController);
-        ConfigureVrUiFollowers();
+        inputCollector.SetXrTransforms(vr ? xrHmd : null, vr ? xrLeftController : null, vr ? xrRightController : null);
+        if (vr) ConfigureVrUiFollowers();
     }
 
     private void ConfigureVrUiFollowers()
@@ -385,13 +533,7 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
 
     private bool IsVrSessionActive()
     {
-#if UNITY_EDITOR
-        if (forceVrSimulationInEditor)
-        {
-            return true;
-        }
-#endif
-        return UnityEngine.XR.XRSettings.isDeviceActive;
+        return LocalPlayModeController.IsVirtualReality;
     }
 
     private void ResolveXrReferencesIfNeeded()
@@ -404,7 +546,7 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
             return;
         }
 
-        XROrigin origin = FindFirstObjectByType<XROrigin>();
+        XROrigin origin = FindFirstObjectByType<XROrigin>(FindObjectsInactive.Include);
         if (origin == null)
         {
             return;
@@ -439,12 +581,12 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
     {
         if (cinemachineCamera == null)
         {
-            cinemachineCamera = FindFirstObjectByType<CinemachineCamera>();
+            cinemachineCamera = FindFirstObjectByType<CinemachineCamera>(FindObjectsInactive.Include);
         }
 
         if (sceneFollowCamera == null)
         {
-            CinemachineBrain brain = FindFirstObjectByType<CinemachineBrain>();
+            CinemachineBrain brain = FindFirstObjectByType<CinemachineBrain>(FindObjectsInactive.Include);
             if (brain != null)
             {
                 sceneFollowCamera = brain.GetComponent<Camera>();
@@ -468,7 +610,10 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
     }
 
     public void OnInputMissing(NetworkRunner runner, PlayerRef player, NetworkInput input) { }
-    public void OnShutdown(NetworkRunner runner, ShutdownReason shutdownReason) { }
+    public void OnShutdown(NetworkRunner runner, ShutdownReason shutdownReason)
+    {
+        sessionController.HandleShutdown(runner, shutdownReason);
+    }
     public void OnConnectedToServer(NetworkRunner runner) { }
     public void OnDisconnectedFromServer(NetworkRunner runner, NetDisconnectReason reason) { }
     public void OnConnectRequest(NetworkRunner runner, NetworkRunnerCallbackArgs.ConnectRequest request, byte[] token) { request.Accept(); }
@@ -477,8 +622,15 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
     public void OnSessionListUpdated(NetworkRunner runner, List<SessionInfo> sessionList) { }
     public void OnCustomAuthenticationResponse(NetworkRunner runner, Dictionary<string, object> data) { }
     public void OnHostMigration(NetworkRunner runner, HostMigrationToken hostMigrationToken) { }
-    public void OnSceneLoadDone(NetworkRunner runner) { }
-    public void OnSceneLoadStart(NetworkRunner runner) { }
+    public void OnSceneLoadDone(NetworkRunner runner)
+    {
+        Debug.Log($"[NetworkLauncher] Scene load complete, runner={runner.GetInstanceID()}, scene={SceneManager.GetActiveScene().name}");
+        if (LocalPlayModeController.IsReady) ConfigureScenePresentation();
+    }
+    public void OnSceneLoadStart(NetworkRunner runner)
+    {
+        Debug.Log($"[NetworkLauncher] Scene load start, runner={runner.GetInstanceID()}");
+    }
     public void OnObjectExitAOI(NetworkRunner runner, NetworkObject obj, PlayerRef player) { }
     public void OnObjectEnterAOI(NetworkRunner runner, NetworkObject obj, PlayerRef player) { }
     public void OnReliableDataReceived(NetworkRunner runner, PlayerRef player, ReliableKey key, ArraySegment<byte> data) { }

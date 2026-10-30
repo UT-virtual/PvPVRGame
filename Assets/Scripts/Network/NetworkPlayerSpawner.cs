@@ -12,6 +12,7 @@ public sealed class NetworkPlayerSpawner
     private readonly List<NetworkObject> debugSpectatorDummies = new();
 
     private bool debugSpectatorDummiesSpawned;
+    private NetworkRunner spawnRunner;
 
     public NetworkPlayerSpawner(
         NetworkPrefabRef playerPrefab,
@@ -37,6 +38,20 @@ public sealed class NetworkPlayerSpawner
         {
             return;
         }
+
+        if (spawnRunner != runner)
+        {
+            spawnedPlayers.Clear();
+            debugSpectatorDummies.Clear();
+            debugSpectatorDummiesSpawned = false;
+            spawnRunner = runner;
+        }
+        if (spawnedPlayers.TryGetValue(player, out NetworkObject existing) && existing != null)
+        {
+            Debug.LogWarning($"[NetworkPlayerSpawner] Ignoring duplicate join for {player}, runner={runner.GetInstanceID()}");
+            return;
+        }
+        spawnedPlayers.Remove(player);
 
         if (!playerPrefab.IsValid)
         {

@@ -249,7 +249,7 @@ public sealed class LocalSkillSelectionInputController
     //wayo’Ç‹L
     private bool ReadVrTriggerConfirmPressed()
     {
-        if (!UnityEngine.XR.XRSettings.isDeviceActive)
+        if (!LocalPlayModeController.IsVirtualReality)
         {
             return false;
         }

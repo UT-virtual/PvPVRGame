@@ -87,7 +87,7 @@ public class VRWorldSpaceUIFollower : MonoBehaviour
             return targetCamera;
         }
 
-        XROrigin xrOrigin = FindFirstObjectByType<XROrigin>();
+        XROrigin xrOrigin = LocalPlayModeController.IsVirtualReality ? FindFirstObjectByType<XROrigin>() : null;
         if (xrOrigin != null &&
             xrOrigin.Camera != null &&
             xrOrigin.Camera.enabled &&

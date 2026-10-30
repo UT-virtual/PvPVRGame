@@ -13,6 +13,12 @@ public class VRBodyTargetSync : NetworkBehaviour
     private Transform xrLeftController;
     private Transform xrRightController;
     private VRWeaponVisualSettings weaponVisualSettings;
+    private PlayerCamera playerCamera;
+    private RootMotion.FinalIK.VRIK[] vrSolvers;
+    private Quaternion muzzleRelativeRotation = Quaternion.identity;
+    private bool? appliedVrMode;
+
+    [Networked] private NetworkBool NetworkedIsVr { get; set; }
 
     [Networked] private NetworkBool NetworkedTargetsInitialized { get; set; }
 
@@ -28,6 +34,11 @@ public class VRBodyTargetSync : NetworkBehaviour
     private void Awake()
     {
         weaponVisualSettings = GetComponent<VRWeaponVisualSettings>();
+        playerCamera = GetComponent<PlayerCamera>();
+        vrSolvers = GetComponentsInChildren<RootMotion.FinalIK.VRIK>(true);
+        PlayerWeapon weapon = GetComponent<PlayerWeapon>();
+        if (weaponVisualSettings != null && weaponVisualSettings.WeaponTransform != null && weapon != null && weapon.MuzzleTransform != null)
+            muzzleRelativeRotation = Quaternion.Inverse(weaponVisualSettings.WeaponTransform.rotation) * weapon.MuzzleTransform.rotation;
     }
 
     public void SetXrTransforms(
@@ -42,7 +53,7 @@ public class VRBodyTargetSync : NetworkBehaviour
 
     public override void Spawned()
     {
-        AttachWeaponToRightHandTarget();
+        ApplyPresentation(Object.HasInputAuthority ? LocalPlayModeController.IsVirtualReality : (bool)NetworkedIsVr);
     }
 
     public override void FixedUpdateNetwork()
@@ -57,7 +68,20 @@ public class VRBodyTargetSync : NetworkBehaviour
             return;
         }
 
-        UpdateNetworkedTargets(input);
+        ApplyAuthoritativeInput(input);
+    }
+
+    public void ApplyAuthoritativeInput(PlayerNetworkInput input)
+    {
+        if (Object == null || !Object.HasStateAuthority) return;
+        NetworkedIsVr = input.IsVR;
+        NetworkedTargetsInitialized = input.IsVR;
+        ApplyPresentation(input.IsVR);
+        if (input.IsVR)
+        {
+            UpdateNetworkedTargets(input);
+            ApplyFromNetworked();
+        }
     }
 
     private void UpdateNetworkedTargets(PlayerNetworkInput input)
@@ -87,7 +111,8 @@ public class VRBodyTargetSync : NetworkBehaviour
     {
         if (Object != null && Object.HasInputAuthority)
         {
-            ApplyFromXrTransforms();
+            ApplyPresentation(LocalPlayModeController.IsVirtualReality);
+            if (LocalPlayModeController.IsVirtualReality) ApplyFromXrTransforms();
         }
     }
 
@@ -98,7 +123,28 @@ public class VRBodyTargetSync : NetworkBehaviour
             return;
         }
 
-        ApplyFromNetworked();
+        ApplyPresentation(NetworkedIsVr);
+        if (NetworkedIsVr) ApplyFromNetworked();
+    }
+
+    private void ApplyPresentation(bool vr)
+    {
+        if (appliedVrMode == vr) return;
+        appliedVrMode = vr;
+        foreach (RootMotion.FinalIK.VRIK solver in vrSolvers) solver.enabled = vr;
+        if (vr)
+        {
+            AttachWeaponToRightHandTarget();
+        }
+        else if (weaponVisualSettings != null && weaponVisualSettings.WeaponTransform != null && playerCamera != null && playerCamera.CameraTarget != null)
+        {
+            Transform weapon = weaponVisualSettings.WeaponTransform;
+            weapon.SetParent(playerCamera.CameraTarget, false);
+            weapon.localPosition = weaponVisualSettings.DesktopWeaponLocalPosition;
+            // Align the actual muzzle axis, rather than assuming the imported mesh faces +Z.
+            weapon.localRotation = Quaternion.Inverse(muzzleRelativeRotation);
+            weapon.localScale = Vector3.one * weaponVisualSettings.WeaponScale;
+        }
     }
 
     private void ApplyFromXrTransforms()

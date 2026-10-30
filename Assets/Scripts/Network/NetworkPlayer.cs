@@ -44,7 +44,7 @@ public class NetworkPlayer : NetworkBehaviour
                 networkTransform.DisableSharedModeInterpolation = true;
             }
 
-            NetworkLauncher launcher = FindFirstObjectByType<NetworkLauncher>();
+            NetworkLauncher launcher = NetworkLauncher.Instance;
             PlayerController playerController = GetComponent<PlayerController>();
 
             if (launcher != null && playerController != null)
@@ -67,7 +67,7 @@ public class NetworkPlayer : NetworkBehaviour
             return;
         }
 
-        NetworkLauncher launcher = FindFirstObjectByType<NetworkLauncher>();
+        NetworkLauncher launcher = NetworkLauncher.Instance;
         PlayerController playerController = GetComponent<PlayerController>();
 
         if (launcher != null && playerController != null)
@@ -81,7 +81,7 @@ public class NetworkPlayer : NetworkBehaviour
     {
         yield return null;
 
-        NetworkLauncher launcher = FindFirstObjectByType<NetworkLauncher>();
+        NetworkLauncher launcher = NetworkLauncher.Instance;
 
         if (playerCamera == null)
         {

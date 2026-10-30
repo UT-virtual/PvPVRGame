@@ -98,6 +98,8 @@ public class SpectatorCameraController : MonoBehaviour
 
         if (spectatorTargets.Count == 0)
         {
+            if (isSpectating) RestoreLocalCamera();
+            ResetSpectatorState();
             return;
         }
 
@@ -129,6 +131,16 @@ public class SpectatorCameraController : MonoBehaviour
     private void LateUpdate()
     {
         UpdateSpectatorCameraTarget();
+        if (isSpectating && currentTarget != null && LocalPlayModeController.IsVirtualReality)
+            NetworkLauncher.Instance?.UpdateVrSpectatorView(spectatorCameraTarget.position, currentTarget.transform.rotation);
+    }
+
+    private void OnDisable() => ResetSpectatorState();
+
+    private void OnDestroy()
+    {
+        ResetSpectatorState();
+        if (spectatorCameraTarget != null) Destroy(spectatorCameraTarget.gameObject);
     }
 
     private void UpdateSpectatorCameraTarget()
@@ -301,6 +313,12 @@ public class SpectatorCameraController : MonoBehaviour
 
     private int ReadSwitchDirection()
     {
+        if (LocalPlayModeController.IsVirtualReality && NetworkLauncher.Instance != null)
+        {
+            float stickX = NetworkLauncher.Instance.GetLocalMoveInput().x;
+            if (stickX <= -stickSwitchThreshold) return -1;
+            if (stickX >= stickSwitchThreshold) return 1;
+        }
         if (Keyboard.current != null)
         {
             if (Keyboard.current.aKey.wasPressedThisFrame)
@@ -336,7 +354,7 @@ public class SpectatorCameraController : MonoBehaviour
     {
         FindCinemachineCameraIfNeeded();
 
-        if (cinemachineCamera == null)
+        if (!LocalPlayModeController.IsVirtualReality && cinemachineCamera == null)
         {
             Debug.LogWarning("[SpectatorCameraController] CinemachineCamera was not found.");
             return;
@@ -369,6 +387,7 @@ public class SpectatorCameraController : MonoBehaviour
         }
 
         currentTarget = targetHealth;
+        NetworkLauncher.Instance?.EndVrSpectating();
 
         if (battleHudBinder == null)
         {
@@ -384,19 +403,23 @@ public class SpectatorCameraController : MonoBehaviour
 
         UpdateSpectatorCameraTarget();
 
-        cinemachineCamera.Target.TrackingTarget = spectatorCameraTarget;
-        cinemachineCamera.Target.LookAtTarget = spectatorCameraTarget;
+        if (!LocalPlayModeController.IsVirtualReality && cinemachineCamera != null)
+        {
+            cinemachineCamera.Target.TrackingTarget = spectatorCameraTarget;
+            cinemachineCamera.Target.LookAtTarget = spectatorCameraTarget;
+        }
 
         Debug.Log($"[SpectatorCameraController] Spectating: {targetHealth.name}");
     }
 
     private void RestoreLocalCamera()
     {
+        NetworkLauncher.Instance?.EndVrSpectating();
         RestoreHiddenSpectatedTargetModel();
 
         FindCinemachineCameraIfNeeded();
 
-        if (cinemachineCamera == null || localPlayer == null)
+        if (localPlayer == null)
         {
             return;
         }
@@ -420,14 +443,18 @@ public class SpectatorCameraController : MonoBehaviour
 
         localCamera.UpdateCameraTarget();
 
-        cinemachineCamera.Target.TrackingTarget = localCamera.CameraTarget;
-        cinemachineCamera.Target.LookAtTarget = localCamera.CameraTarget;
+        if (!LocalPlayModeController.IsVirtualReality && cinemachineCamera != null)
+        {
+            cinemachineCamera.Target.TrackingTarget = localCamera.CameraTarget;
+            cinemachineCamera.Target.LookAtTarget = localCamera.CameraTarget;
+        }
 
         Debug.Log("[SpectatorCameraController] Restored local camera.");
     }
 
     private void ResetSpectatorState()
     {
+        NetworkLauncher.Instance?.EndVrSpectating();
         RestoreHiddenSpectatedTargetModel();
 
         deadTimer = 0.0f;

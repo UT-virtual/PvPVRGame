@@ -17,6 +17,7 @@ public class PlayerCamera : MonoBehaviour
 
     private PlayerMove playerMove;
     private PlayerLook playerLook;
+    private PlayerController playerController;
 
     public Vector3 CameraPosition => GetCameraPosition();
     public Transform CameraTarget => cameraTarget;
@@ -25,6 +26,7 @@ public class PlayerCamera : MonoBehaviour
     {
         playerMove = GetComponent<PlayerMove>();
         playerLook = GetComponent<PlayerLook>();
+        playerController = GetComponent<PlayerController>();
     }
 
     public void ConfigureSceneCameras(
@@ -46,7 +48,7 @@ public class PlayerCamera : MonoBehaviour
             return;
         }
 
-        if (IsVrActive())
+        if (LocalPlayModeController.IsVirtualReality)
         {
             ConfigureVrCamera();
             return;
@@ -70,6 +72,14 @@ public class PlayerCamera : MonoBehaviour
         Vector3 cameraPosition = GetCameraPosition();
         Vector3 cameraForward = playerLook.ViewForward;
         Vector3 cameraUp = playerLook.ViewUp;
+        if (playerController != null && playerController.Object != null &&
+            !playerController.Object.HasInputAuthority && !playerController.Object.HasStateAuthority &&
+            playerController.HasSpectatorView)
+        {
+            cameraPosition = playerController.NetworkedSpectatorCameraPosition;
+            cameraForward = playerController.NetworkedSpectatorViewForward;
+            cameraUp = playerController.NetworkedSpectatorViewUp;
+        }
         Quaternion cameraRotation = Quaternion.LookRotation(cameraForward, cameraUp);
 
         cameraTarget.SetPositionAndRotation(cameraPosition, cameraRotation);
@@ -77,6 +87,13 @@ public class PlayerCamera : MonoBehaviour
 
     private void ConfigureVrCamera()
     {
+        // Keep the fallback camera if no usable XR camera exists.
+        Unity.XR.CoreUtils.XROrigin origin = FindFirstObjectByType<Unity.XR.CoreUtils.XROrigin>();
+        if (origin == null || origin.Camera == null || !origin.Camera.isActiveAndEnabled)
+        {
+            Debug.LogError($"{name}: VR camera is missing or disabled.");
+            return;
+        }
         ResolvePcCameraReferences();
 
         if (cinemachineCamera != null)
@@ -94,6 +111,8 @@ public class PlayerCamera : MonoBehaviour
         if (sceneFollowCamera != null)
         {
             sceneFollowCamera.enabled = false;
+            AudioListener listener = sceneFollowCamera.GetComponent<AudioListener>();
+            if (listener != null) listener.enabled = false;
         }
     }
 
@@ -115,6 +134,8 @@ public class PlayerCamera : MonoBehaviour
         if (sceneFollowCamera != null)
         {
             sceneFollowCamera.enabled = true;
+            AudioListener listener = sceneFollowCamera.GetComponent<AudioListener>();
+            if (listener != null) listener.enabled = true;
         }
 
         cinemachineCamera.enabled = true;
@@ -128,12 +149,12 @@ public class PlayerCamera : MonoBehaviour
     {
         if (cinemachineCamera == null)
         {
-            cinemachineCamera = FindFirstObjectByType<CinemachineCamera>();
+            cinemachineCamera = FindFirstObjectByType<CinemachineCamera>(FindObjectsInactive.Include);
         }
 
         if (sceneFollowCamera == null)
         {
-            CinemachineBrain foundBrain = FindFirstObjectByType<CinemachineBrain>();
+            CinemachineBrain foundBrain = FindFirstObjectByType<CinemachineBrain>(FindObjectsInactive.Include);
             if (foundBrain != null)
             {
                 cinemachineBrain = foundBrain;
@@ -147,9 +168,11 @@ public class PlayerCamera : MonoBehaviour
         }
     }
 
-    private static bool IsVrActive()
+    private bool IsVrActive()
     {
-        return UnityEngine.XR.XRSettings.isDeviceActive;
+        if (playerController == null || playerController.Object == null || playerController.Object.HasInputAuthority)
+            return LocalPlayModeController.IsVirtualReality;
+        return playerController.IsCurrentInputVR;
     }
 
     private Vector3 GetCameraPosition()

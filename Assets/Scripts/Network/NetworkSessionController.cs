@@ -17,7 +17,7 @@ public sealed class NetworkSessionController
     private readonly float clientRetryInterval;
     private readonly int maxClientRetryCount;
 
-    private readonly NetworkConnectionUIController connectionUIController;
+    private NetworkConnectionUIController connectionUIController;
     private readonly Func<WaitingRoomUI> getWaitingRoomUI;
 
     private GameObject runnerObject;
@@ -26,10 +26,21 @@ public sealed class NetworkSessionController
 
     private bool isStartingGame;
     private bool isReconnecting;
+    private bool disposed;
+    private int operationVersion;
+    private bool sceneNeedsReload;
+    private int gameSceneBuildIndex = -1;
+
+    private static NetworkSessionController activeSession;
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    private static void ResetStatics() => activeSession = null;
 
     public NetworkRunner Runner => runner;
     public bool IsStartingGame => isStartingGame;
     public bool IsReconnecting => isReconnecting;
+
+    public void SetConnectionUI(NetworkConnectionUIController controller) => connectionUIController = controller;
 
     public NetworkSessionController(
         MonoBehaviour owner,
@@ -59,13 +70,19 @@ public sealed class NetworkSessionController
 
     public async void StartGame(GameMode gameMode)
     {
-        if (owner == null)
+        if (disposed || owner == null)
         {
             return;
         }
 
-        if (runner != null || isStartingGame)
+        if (runner != null || isStartingGame || isReconnecting)
         {
+            return;
+        }
+
+        if (activeSession != null && activeSession != this)
+        {
+            Debug.LogWarning("[NetworkSessionController] Another session already owns this process. Connection ignored.");
             return;
         }
 
@@ -78,7 +95,7 @@ public sealed class NetworkSessionController
             return;
         }
 
-        int buildIndex = SceneManager.GetActiveScene().buildIndex;
+        int buildIndex = gameSceneBuildIndex >= 0 ? gameSceneBuildIndex : SceneManager.GetActiveScene().buildIndex;
 
         if (buildIndex < 0)
         {
@@ -92,6 +109,9 @@ public sealed class NetworkSessionController
         ResetWaitingRoomUIForConnectionStart();
 
         isStartingGame = true;
+        gameSceneBuildIndex = buildIndex;
+        activeSession = this;
+        int version = ++operationVersion;
         connectionUIController.SetConnectionMenuVisible(false);
 
         SceneRef sceneRef = SceneRef.FromIndex(buildIndex);
@@ -99,29 +119,50 @@ public sealed class NetworkSessionController
 
         while (true)
         {
-            if (owner == null)
+            if (disposed || owner == null || version != operationVersion)
             {
                 return;
             }
 
             attemptCount++;
 
-            Debug.Log($"[NetworkSessionController] StartGame: {gameMode}, RoomName={roomName}, Attempt={attemptCount}");
+            Debug.Log($"[NetworkSessionController] StartGame: {gameMode}, RoomName={roomName}, Attempt={attemptCount}, Scene={SceneManager.GetActiveScene().name}, BuildIndex={buildIndex}, Owner={owner.GetInstanceID()}");
 
             connectionUIController.SetStatusText($"{GetGameModeLabel(gameMode)}中...");
 
-            CreateRunnerObject(gameMode, attemptCount);
-
-            StartGameResult result = await runner.StartGame(new StartGameArgs()
+            StartGameResult result;
+            try
             {
-                GameMode = gameMode,
-                SessionName = roomName,
-                Scene = sceneRef,
-                SceneManager = sceneManager,
-                PlayerCount = 8
-            });
+                await RestoreSceneIfNeededAsync();
+                if (disposed || owner == null || version != operationVersion) return;
+                // A new scene supplies new UI references through the persistent launcher.
+                connectionUIController.LockButtons();
+                connectionUIController.SetStatusTextVisible(true);
+                connectionUIController.SetStatusText($"{GetGameModeLabel(gameMode)}中...");
+                CreateRunnerObject(gameMode, attemptCount);
+                NetworkRunner startingRunner = runner;
+                result = await startingRunner.StartGame(new StartGameArgs()
+                {
+                    GameMode = gameMode,
+                    SessionName = roomName,
+                    Scene = sceneRef,
+                    SceneManager = sceneManager,
+                    PlayerCount = 8
+                });
+            }
+            catch (Exception exception)
+            {
+                if (disposed || owner == null || version != operationVersion) return;
+                Debug.LogError($"[NetworkSessionController] StartGame failed: {exception}");
+                await ShutdownRunnerAsync();
+                if (disposed || version != operationVersion) return;
+                isStartingGame = false;
+                if (activeSession == this) activeSession = null;
+                ShowReconnectPrompt(exception.Message);
+                return;
+            }
 
-            if (owner == null)
+            if (disposed || owner == null || version != operationVersion)
             {
                 return;
             }
@@ -143,7 +184,8 @@ public sealed class NetworkSessionController
             connectionUIController.SetStatusText($"Failed: {shutdownReason}");
             Debug.LogError($"[NetworkSessionController] Failed to start Fusion: {shutdownReason}");
 
-            CleanupRunner();
+            await ShutdownRunnerAsync();
+            if (disposed || version != operationVersion) return;
 
             bool shouldRetry =
                 gameMode == GameMode.Client &&
@@ -154,7 +196,8 @@ public sealed class NetworkSessionController
             if (!shouldRetry)
             {
                 isStartingGame = false;
-                connectionUIController.ShowConnectionMenuAndUnlockButtons();
+                if (activeSession == this) activeSession = null;
+                ShowReconnectPrompt($"Failed: {shutdownReason}");
                 return;
             }
 
@@ -173,28 +216,31 @@ public sealed class NetworkSessionController
         }
     }
 
-    public bool CanReconnectFromWaitingRoom()
+    public bool CanReconnect()
     {
-        if (isStartingGame || isReconnecting)
+        if (disposed || isStartingGame || isReconnecting)
         {
             return false;
         }
 
-        return
+        return runner == null ||
             RoundManager.Instance != null &&
             RoundManager.Instance.IsWaitingForReady;
     }
 
-    public async void ReconnectAsClient()
+    public void ReconnectAsClient() => _ = RestartSessionAsync(GameMode.Client);
+
+    private async Task RestartSessionAsync(GameMode gameMode)
     {
-        if (isStartingGame || isReconnecting)
+        if (disposed || isStartingGame || isReconnecting)
         {
             return;
         }
 
         isReconnecting = true;
+        int version = ++operationVersion;
 
-        Debug.Log("[NetworkSessionController] Reconnect requested from waiting room.");
+        Debug.Log("[NetworkSessionController] Reconnect requested.");
 
         connectionUIController.SetConnectionMenuVisible(false);
         connectionUIController.SetConnectionButtonsInteractable(false);
@@ -203,21 +249,9 @@ public sealed class NetworkSessionController
 
         ResetWaitingRoomUIForConnectionStart();
 
-        NetworkRunner currentRunner = runner;
+        await ShutdownRunnerAsync();
 
-        if (currentRunner != null)
-        {
-            try
-            {
-                await currentRunner.Shutdown();
-            }
-            catch (Exception e)
-            {
-                Debug.LogWarning($"[NetworkSessionController] Runner shutdown during reconnect failed: {e}");
-            }
-        }
-
-        if (owner == null)
+        if (disposed || owner == null || version != operationVersion)
         {
             return;
         }
@@ -227,7 +261,7 @@ public sealed class NetworkSessionController
         isReconnecting = false;
         connectionUIController.LockButtons();
 
-        StartGame(GameMode.Client);
+        StartGame(gameMode);
     }
 
     public void CleanupRunner()
@@ -259,6 +293,78 @@ public sealed class NetworkSessionController
         runnerObject = null;
     }
 
+    private async Task ShutdownRunnerAsync()
+    {
+        NetworkRunner oldRunner = runner;
+        GameObject oldObject = runnerObject;
+        runner = null;
+        runnerObject = null;
+        sceneManager = null;
+        if (oldRunner != null)
+        {
+            sceneNeedsReload = true;
+            oldRunner.RemoveCallbacks(callbacks);
+            try { await oldRunner.Shutdown(); }
+            catch (Exception exception) { Debug.LogWarning($"[NetworkSessionController] Shutdown failed: {exception.Message}"); }
+        }
+        if (oldObject != null) UnityEngine.Object.Destroy(oldObject);
+    }
+
+    public async void HandleShutdown(NetworkRunner stoppedRunner, ShutdownReason reason)
+    {
+        if (disposed || stoppedRunner != runner) return;
+        Debug.Log($"[NetworkSessionController] Shutdown: {reason}, Runner={stoppedRunner.GetInstanceID()}");
+        // StartGame owns cleanup while its asynchronous operation is in flight.
+        if (isStartingGame || isReconnecting) return;
+        isReconnecting = true;
+        int version = ++operationVersion;
+        sceneNeedsReload = true;
+        // Let Fusion finish its callback before disposing the old runner.
+        await Task.Yield();
+        if (disposed || owner == null || version != operationVersion) return;
+        await ShutdownRunnerAsync();
+        if (disposed || owner == null || version != operationVersion) return;
+        isReconnecting = false;
+        if (activeSession == this) activeSession = null;
+        ResetWaitingRoomUIForConnectionStart();
+        ShowReconnectPrompt($"Disconnected: {reason}");
+    }
+
+    private async Task RestoreSceneIfNeededAsync()
+    {
+        if (!sceneNeedsReload) return;
+        if (owner is NetworkLauncher launcher) launcher.PrepareForSceneReload();
+        AsyncOperation load = SceneManager.LoadSceneAsync(gameSceneBuildIndex, LoadSceneMode.Single);
+        if (load == null) throw new InvalidOperationException("Game scene could not be reloaded.");
+        while (!load.isDone)
+        {
+            await Task.Yield();
+            if (disposed || owner == null) return;
+        }
+        // Old scene objects (including action managers) finish destruction this frame.
+        await Task.Yield();
+        if (disposed || owner == null) return;
+        if (owner is NetworkLauncher restoredLauncher && !restoredLauncher.RestoreScenePresentation())
+            throw new InvalidOperationException("Reloaded scene is missing its cameras or XR rig.");
+        sceneNeedsReload = false;
+    }
+
+    private void ShowReconnectPrompt(string message)
+    {
+        connectionUIController.SetStatusText(message + "\n再接続: R / ゲームパッド Start / VR 両手グリップ");
+        connectionUIController.SetStatusTextVisible(true);
+        connectionUIController.ShowConnectionMenuAndUnlockButtons();
+    }
+
+    public void Dispose()
+    {
+        if (disposed) return;
+        disposed = true;
+        ++operationVersion;
+        if (activeSession == this) activeSession = null;
+        _ = ShutdownRunnerAsync();
+    }
+
     private void CreateRunnerObject(GameMode gameMode, int attemptCount)
     {
         CleanupRunner();
@@ -267,6 +373,7 @@ public sealed class NetworkSessionController
         UnityEngine.Object.DontDestroyOnLoad(runnerObject);
 
         runner = runnerObject.AddComponent<NetworkRunner>();
+        Debug.Log($"[NetworkSessionController] Created runner={runner.GetInstanceID()}, Owner={owner.GetInstanceID()}");
         runner.ProvideInput = true;
         runner.AddCallbacks(callbacks);
 

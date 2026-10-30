@@ -18,6 +18,9 @@ public class VRWeaponVisualSettings : MonoBehaviour
     [SerializeField] private float weaponScale = 1.5f;
 
     public Transform WeaponTransform => weaponTransform;
+    [Header("Desktop Presentation")]
+    [SerializeField] private Vector3 desktopWeaponLocalPosition = new Vector3(0.25f, -0.25f, 0.5f);
+    public Vector3 DesktopWeaponLocalPosition => desktopWeaponLocalPosition;
     public Transform WeaponGripParent => weaponGripParent;
     public float WeaponScale => weaponScale;
     public Vector3 WeaponLocalPosition => weaponLocalPosition;

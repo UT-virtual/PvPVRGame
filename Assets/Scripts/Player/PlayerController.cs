@@ -189,7 +189,7 @@ public class PlayerController : NetworkBehaviour
         playerMove.AlignToSurface(deltaTime);
         playerMove.ApplyGravityAndJump(jumpPressed, deltaTime);
 
-        UpdateNetworkedSpectatorView();
+        UpdateNetworkedSpectatorView(input);
 
         bool canUseWeapon = RoundManager.Instance == null || RoundManager.Instance.CanUseWeapons;
 
@@ -225,6 +225,8 @@ public class PlayerController : NetworkBehaviour
 
         if (fireHeld)
         {
+            // The server must use this tick's hand pose even if Render has not run yet.
+            if (input.IsVR) GetComponent<VRBodyTargetSync>()?.ApplyAuthoritativeInput(input);
             playerWeapon.TryFireProjectile();
         }
     }
@@ -257,7 +259,7 @@ public class PlayerController : NetworkBehaviour
         }
     }
 
-    private void UpdateNetworkedSpectatorView()
+    private void UpdateNetworkedSpectatorView(PlayerNetworkInput input)
     {
         if (Object == null || !Object.HasStateAuthority)
         {
@@ -269,7 +271,7 @@ public class PlayerController : NetworkBehaviour
             return;
         }
 
-        Vector3 cameraPosition = playerCamera.CameraPosition;
+        Vector3 cameraPosition = input.IsVR ? input.HMDPosition : playerCamera.CameraPosition;
         Vector3 viewForward = playerLook.ViewForward;
         Vector3 viewUp = playerLook.ViewUp;
 

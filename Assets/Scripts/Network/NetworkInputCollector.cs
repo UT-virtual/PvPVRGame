@@ -48,6 +48,7 @@ public sealed class NetworkInputCollector
     private bool activateSkill1Queued;
     private bool activateSkill2Queued;
     private bool wasLeftVrTriggerPressedForSkill;
+    private bool wasReconnectGripHeld;
 
     private Transform xrHmd;
     private Transform xrLeftController;
@@ -56,19 +57,7 @@ public sealed class NetworkInputCollector
     public PlayerController LocalPlayerController { get; private set; }
     public Vector2 LastMoveInput { get; private set; }
 
-    private bool IsVRActive
-    {
-        get
-        {
-#if UNITY_EDITOR
-            if (forceVrSimulationInEditor)
-            {
-                return true;
-            }
-#endif
-            return UnityEngine.XR.XRSettings.isDeviceActive;
-        }
-    }
+    private bool IsVRActive => LocalPlayModeController.IsVirtualReality;
 
     public NetworkInputCollector(
         InputActionReference moveAction,
@@ -276,7 +265,7 @@ public sealed class NetworkInputCollector
             data.HMDPosition = xrHmd.position;
             data.HMDRotation = xrHmd.rotation;
         }
-        else
+        else if (IsVRActive)
         {
             data.HMDPosition = ReadVector3Action(hmdPositionAction);
         }
@@ -287,7 +276,7 @@ public sealed class NetworkInputCollector
             data.LeftHandRotation = xrLeftController.rotation;
             data.HasLeftHand = 1;
         }
-        else
+        else if (IsVRActive)
         {
             data.LeftHandPosition = ReadVector3Action(leftHandPositionAction);
             data.LeftHandRotation = ReadQuaternionAction(leftHandRotationAction);
@@ -300,7 +289,7 @@ public sealed class NetworkInputCollector
             data.RightHandRotation = xrRightController.rotation;
             data.HasRightHand = 1;
         }
-        else
+        else if (IsVRActive)
         {
             data.RightHandPosition = ReadVector3Action(rightHandPositionAction);
             data.RightHandRotation = ReadQuaternionAction(rightHandRotationAction);
@@ -349,12 +338,26 @@ public sealed class NetworkInputCollector
 
     public bool ReadReconnectPressed()
     {
-        if (Keyboard.current != null && Keyboard.current.rKey.wasPressedThisFrame)
-        {
-            return true;
-        }
+        bool gripsHeld = IsVRActive && IsXrButtonHeld("<XRController>{LeftHand}/gripButton") &&
+            IsXrButtonHeld("<XRController>{RightHand}/gripButton");
+        bool vrPressed = gripsHeld && !wasReconnectGripHeld;
+        wasReconnectGripHeld = gripsHeld;
+        return vrPressed ||
+            (Keyboard.current != null && Keyboard.current.rKey.wasPressedThisFrame) ||
+            (Gamepad.current != null && Gamepad.current.startButton.wasPressedThisFrame);
+    }
 
-        return false;
+    private static bool IsXrButtonHeld(string path) =>
+        InputSystem.FindControl(path) is ButtonControl button && button.isPressed;
+
+    public void ResetConnectionState()
+    {
+        LocalPlayerController = null;
+        LastMoveInput = Vector2.zero;
+        ClearQueuedInputs();
+        wasBothVrTriggerPressed = false;
+        wasLeftTriggerPressed = false;
+        wasLeftVrTriggerPressedForSkill = false;
     }
 
     public void RegisterLocalPlayer(PlayerController playerController)
@@ -425,7 +428,7 @@ public sealed class NetworkInputCollector
     private void UpdateHMD()
     {
 #if UNITY_EDITOR
-        if (forceVrSimulationInEditor && useKeyboardHmdSimulationInEditor)
+        if (IsVRActive && forceVrSimulationInEditor && useKeyboardHmdSimulationInEditor)
         {
             if (Keyboard.current != null)
             {
@@ -501,7 +504,7 @@ public sealed class NetworkInputCollector
         }
 
 #if UNITY_EDITOR
-        if (forceVrSimulationInEditor)
+        if (IsVRActive && forceVrSimulationInEditor)
         {
             return Vector2.zero;
         }

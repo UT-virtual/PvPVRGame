@@ -65,6 +65,7 @@ public class PlayerWeapon : NetworkBehaviour
     public NetworkBool NetworkedIsReloading { get; private set; }
 
     public int CurrentAmmo => NetworkedCurrentAmmo;
+    public Transform MuzzleTransform => muzzleTransform;
     public int MaxAmmo => maxAmmo;
     public bool IsReloading => NetworkedIsReloading;
 
@@ -385,7 +386,9 @@ public class PlayerWeapon : NetworkBehaviour
         Vector3 spawnPosition;
         Quaternion spawnRotation;
 
-        if (muzzleTransform != null)
+        PlayerController controller = GetComponent<PlayerController>();
+        bool isVrPlayer = controller != null && controller.IsCurrentInputVR;
+        if (isVrPlayer && muzzleTransform != null)
         {
             fireDirection = muzzleTransform.forward.normalized;
             spawnPosition = muzzleTransform.position + fireDirection * muzzleExitOffset;

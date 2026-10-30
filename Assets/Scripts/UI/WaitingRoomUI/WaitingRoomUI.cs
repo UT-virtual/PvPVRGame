@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Collections.Generic;
 using TMPro;
 using Fusion;
@@ -98,9 +99,13 @@ public class WaitingRoomUI : MonoBehaviour
 
     private bool HasLocalInputAuthorityPlayer()
     {
-        PlayerHealth[] players = FindObjectsByType<PlayerHealth>(
-            FindObjectsSortMode.None
-        );
+        NetworkRunner currentRunner = NetworkLauncher.Instance != null ? NetworkLauncher.Instance.Runner : null;
+        PlayerHealth[] players = FindObjectsByType<PlayerHealth>(FindObjectsSortMode.None)
+            .Where(player => currentRunner != null && player.Object != null &&
+                player.Runner == currentRunner && player.Object.InputAuthority != PlayerRef.None)
+            .GroupBy(player => player.Object.InputAuthority)
+            .Select(group => group.First())
+            .ToArray();
 
         foreach (PlayerHealth player in players)
         {
@@ -165,9 +170,13 @@ public class WaitingRoomUI : MonoBehaviour
     {
         ClearEntries();
 
-        PlayerHealth[] players = FindObjectsByType<PlayerHealth>(
-            FindObjectsSortMode.None
-        );
+        NetworkRunner currentRunner = NetworkLauncher.Instance != null ? NetworkLauncher.Instance.Runner : null;
+        PlayerHealth[] players = FindObjectsByType<PlayerHealth>(FindObjectsSortMode.None)
+            .Where(player => currentRunner != null && player.Object != null &&
+                player.Runner == currentRunner && player.Object.InputAuthority != PlayerRef.None)
+            .GroupBy(player => player.Object.InputAuthority)
+            .Select(group => group.First())
+            .ToArray();
 
         if (playerCountText != null)
         {
