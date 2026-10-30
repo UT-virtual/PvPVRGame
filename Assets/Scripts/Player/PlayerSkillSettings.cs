@@ -45,8 +45,6 @@ public sealed class PlayerSkillSettings
         int doubleJumpExtraAirJumpCount,
         float rapidFireDuration,
         float rapidFireIntervalMultiplier,
-        float bulletSpeedUpDuration,
-        float bulletSpeedMultiplier,
         float damageReductionDuration,
         float damageTakenMultiplier,
         float xRayVisionDuration,
@@ -59,8 +57,6 @@ public sealed class PlayerSkillSettings
         float shrinkDamageDealtMultiplier,
         float delayedDamageInvincibleDuration,
         float instantReloadDuration,
-        float gravityBurstReloadDuration,
-        int gravityBurstReloadAmmoCount,
         float heavyBulletReloadDuration,
         int heavyBulletReloadAmmoCount,
         float nextShotDamageBoostDuration,
@@ -75,8 +71,6 @@ public sealed class PlayerSkillSettings
         RapidFireDuration = rapidFireDuration;
         RapidFireIntervalMultiplier = rapidFireIntervalMultiplier;
 
-        BulletSpeedUpDuration = bulletSpeedUpDuration;
-        BulletSpeedMultiplier = bulletSpeedMultiplier;
 
         DamageReductionDuration = damageReductionDuration;
         DamageTakenMultiplier = damageTakenMultiplier;
@@ -97,8 +91,6 @@ public sealed class PlayerSkillSettings
 
         InstantReloadDuration = instantReloadDuration;
 
-        GravityBurstReloadDuration = gravityBurstReloadDuration;
-        GravityBurstReloadAmmoCount = gravityBurstReloadAmmoCount;
 
         HeavyBulletReloadDuration = heavyBulletReloadDuration;
         HeavyBulletReloadAmmoCount = heavyBulletReloadAmmoCount;

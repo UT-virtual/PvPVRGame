@@ -89,13 +89,6 @@ public class SkillCardUI : MonoBehaviour
                     "射撃間隔が短くなる"
                 );
 
-            case PlayerSkillType.BulletSpeedUp:
-                return new SkillDisplayData(
-                    "速",
-                    "弾速強化",
-                    "弾の速度が上がる"
-                );
-
             case PlayerSkillType.DamageReduction:
                 return new SkillDisplayData(
                     "盾",
@@ -145,12 +138,6 @@ public class SkillCardUI : MonoBehaviour
                     "10秒間、リロードが即座に完了する"
                 );
             
-            case PlayerSkillType.GravityBurstReload:
-                return new SkillDisplayData(
-                    "炸",
-                    "拡散曲射弾",
-                    "重力で落ち、着弾時に周囲へダメージを与える弾を5発装填"
-                );
 
             case PlayerSkillType.HeavyBulletReload:
                 return new SkillDisplayData(

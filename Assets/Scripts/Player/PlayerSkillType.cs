@@ -3,7 +3,6 @@ public enum PlayerSkillType
     None,
     DoubleJump,
     RapidFire,
-    BulletSpeedUp,
     DamageReduction,
     XRayVision,
     MoveSpeedUp,
@@ -11,7 +10,6 @@ public enum PlayerSkillType
     Shrink,
     DelayedDamageInvincible,
     InstantReload,
-    GravityBurstReload,
     HeavyBulletReload,
     NextShotDamageBoost
 }

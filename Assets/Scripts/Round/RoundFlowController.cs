@@ -1,13 +1,10 @@
+
 using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 
-/// <summary>
-/// 生存人数または時間切れでラウンドを終了し、得点確定、結果通知、次の選択または待機復帰を進める。
-/// RoundManagerのStateAuthority側の進行経路から使用し、終了処理の重複を抑止する。
-/// </summary>
 public sealed class RoundFlowController
 {
     private readonly MonoBehaviour coroutineRunner;
@@ -20,7 +17,6 @@ public sealed class RoundFlowController
 
     private readonly Func<List<PlayerHealth>> getValidPlayers;
     private readonly Func<int> getRegisteredPlayerCount;
-
     private readonly Func<bool> countDebugSpectatorDummiesAsAlive;
 
     private readonly Func<int> getMaxRoundCount;
@@ -34,28 +30,28 @@ public sealed class RoundFlowController
     private readonly RoundHealthItemController healthItemController;
     private readonly RoundProjectileCleaner projectileCleaner;
 
-    private readonly Action<
-        int,
-        int,
-        int,
-        int,
-        int,
-        int,
-        int
-    > showRoundEndUIRpc;
-
+    private readonly Action<int, int, int, int, int, int, int> showRoundEndUIRpc;
     private readonly Action hideRoundEndUIRpc;
+
+    // FINAL DUEL表示RPC
+    private readonly Action showFinalDuelUIRpc;
+
     private readonly Action<int> showFinalResultUIRpc;
     private readonly Action hideFinalResultUIRpc;
 
     private readonly Action showWaitingRoomUI;
     private readonly Action logReadyStates;
-
     private readonly Action beginRoundEffect;
 
     private bool isRoundEnding;
     private bool roundEndCheckPending;
     private Coroutine roundEndCoroutine;
+
+    // ファイナルキル演出の待機時間
+    private const float FinalKillResultDelay = 2.0f;
+
+    // このラウンドですでにFINAL DUELを表示したか
+    private bool finalDuelShown;
 
     public RoundFlowController(
         MonoBehaviour coroutineRunner,
@@ -77,6 +73,7 @@ public sealed class RoundFlowController
         RoundProjectileCleaner projectileCleaner,
         Action<int, int, int, int, int, int, int> showRoundEndUIRpc,
         Action hideRoundEndUIRpc,
+        Action showFinalDuelUIRpc,
         Action<int> showFinalResultUIRpc,
         Action hideFinalResultUIRpc,
         Action showWaitingRoomUI,
@@ -95,7 +92,8 @@ public sealed class RoundFlowController
         this.getValidPlayers = getValidPlayers;
         this.getRegisteredPlayerCount = getRegisteredPlayerCount;
 
-        this.countDebugSpectatorDummiesAsAlive = countDebugSpectatorDummiesAsAlive;
+        this.countDebugSpectatorDummiesAsAlive =
+            countDebugSpectatorDummiesAsAlive;
 
         this.getMaxRoundCount = getMaxRoundCount;
         this.getNextRoundDelay = getNextRoundDelay;
@@ -110,6 +108,8 @@ public sealed class RoundFlowController
 
         this.showRoundEndUIRpc = showRoundEndUIRpc;
         this.hideRoundEndUIRpc = hideRoundEndUIRpc;
+        this.showFinalDuelUIRpc = showFinalDuelUIRpc;
+
         this.showFinalResultUIRpc = showFinalResultUIRpc;
         this.hideFinalResultUIRpc = hideFinalResultUIRpc;
 
@@ -118,9 +118,10 @@ public sealed class RoundFlowController
         this.beginRoundEffect = beginRoundEffect;
     }
 
-    /// <summary>
-    /// 戦闘中の死亡を通知する。爆発で複数人が死亡する途中では勝者を確定せず、Tick末尾で再判定する。
-    /// </summary>
+    // =========================================================
+    // プレイヤー死亡処理
+    // =========================================================
+
     public void HandlePlayerDied(PlayerHealth deadPlayer)
     {
         if (deadPlayer == null)
@@ -128,46 +129,115 @@ public sealed class RoundFlowController
             return;
         }
 
-        Debug.Log($"[RoundFlowController] HandlePlayerDied: {deadPlayer.gameObject.name}");
+        Debug.Log(
+            $"[RoundFlowController] HandlePlayerDied: {deadPlayer.gameObject.name}"
+        );
 
         roundEndCheckPending = true;
     }
 
-    /// <summary>
-    /// RoundManagerのシミュレーション後処理から呼び、同一Tickの死亡をまとめて判定する。
-    /// </summary>
     public void ResolvePendingDeaths()
     {
-        if (!roundEndCheckPending) return;
+        if (!roundEndCheckPending)
+        {
+            return;
+        }
+
         roundEndCheckPending = false;
+
         CheckRoundEnd();
     }
 
-    /// <summary>
-    /// 制限時間に達したとき、生存者の撃破数、与ダメージ、残りHPで結果を確定する。
-    /// 死亡側と同じ終了経路を通し、すでに確定済みなら何もしない。
-    /// </summary>
+    // =========================================================
+    // FINAL DUEL判定
+    // =========================================================
+
+    private int GetAliveCount()
+    {
+        List<PlayerHealth> alivePlayers = getValidPlayers()
+            .Where(player => player != null && !player.IsDead)
+            .ToList();
+
+        int debugAliveDummyCount =
+            countDebugSpectatorDummiesAsAlive()
+                ? CountAliveDebugSpectatorDummies()
+                : 0;
+
+        return alivePlayers.Count + debugAliveDummyCount;
+    }
+
+    private void TryShowFinalDuel(int aliveCount)
+    {
+        if (finalDuelShown)
+        {
+            return;
+        }
+
+        if (aliveCount != 2)
+        {
+            return;
+        }
+
+        finalDuelShown = true;
+
+        Debug.Log(
+            "[RoundFlowController] FINAL DUEL started! Alive players = 2"
+        );
+
+        showFinalDuelUIRpc?.Invoke();
+    }
+
+    // ラウンド開始時に呼び出す
+    // 最初から2人で開始する場合にもFINAL DUELを表示する
+    public void CheckFinalDuelAtRoundStart()
+    {
+        if (getPhase() != RoundManager.GamePhase.RoundPlaying)
+        {
+            return;
+        }
+
+        if (isRoundEnding)
+        {
+            return;
+        }
+
+        int aliveCount = GetAliveCount();
+
+        Debug.Log(
+            $"[RoundFlowController] Round start FINAL DUEL check: Alive={aliveCount}"
+        );
+
+        TryShowFinalDuel(aliveCount);
+    }
+
+    // =========================================================
+    // ラウンド終了判定
+    // =========================================================
+
     public void EndRoundOnTimeout()
     {
         EndRound(scoreCalculator.GetTimeoutWinner());
     }
 
-    /// <summary>
-    /// 死亡・退出後の参加者一覧で終了条件を再判定する。終了開始済みなら何もしない。
-    /// </summary>
     public void CheckRoundEnd()
     {
         RoundManager.GamePhase currentPhase = getPhase();
 
         if (currentPhase != RoundManager.GamePhase.RoundPlaying)
         {
-            Debug.Log($"[RoundFlowController] Death ignored. Current phase={currentPhase}");
+            Debug.Log(
+                $"[RoundFlowController] Death ignored. Current phase={currentPhase}"
+            );
+
             return;
         }
 
         if (isRoundEnding)
         {
-            Debug.Log("[RoundFlowController] Death ignored. Round is already ending.");
+            Debug.Log(
+                "[RoundFlowController] Death ignored. Round is already ending."
+            );
+
             return;
         }
 
@@ -175,50 +245,79 @@ public sealed class RoundFlowController
             .Where(player => player != null && !player.IsDead)
             .ToList();
 
-        int debugAliveDummyCount = countDebugSpectatorDummiesAsAlive()
-            ? CountAliveDebugSpectatorDummies()
-            : 0;
+        int debugAliveDummyCount =
+            countDebugSpectatorDummiesAsAlive()
+                ? CountAliveDebugSpectatorDummies()
+                : 0;
 
-        int aliveCountForRoundEnd = alivePlayers.Count + debugAliveDummyCount;
+        int aliveCountForRoundEnd =
+            alivePlayers.Count + debugAliveDummyCount;
 
         Debug.Log(
-            $"[RoundFlowController] Alive Count: {alivePlayers.Count} / Registered Count: {getRegisteredPlayerCount()}, " +
+            $"[RoundFlowController] Alive Count: {alivePlayers.Count} / " +
+            $"Registered Count: {getRegisteredPlayerCount()}, " +
             $"DebugAliveDummyCount={debugAliveDummyCount}, " +
             $"AliveCountForRoundEnd={aliveCountForRoundEnd}"
         );
 
         foreach (PlayerHealth player in alivePlayers)
         {
-            Debug.Log($"[RoundFlowController] Alive: {player.gameObject.name}");
+            Debug.Log(
+                $"[RoundFlowController] Alive: {player.gameObject.name}"
+            );
         }
 
+        // 生存人数が2人ならFINAL DUELを表示
+        TryShowFinalDuel(aliveCountForRoundEnd);
+
+        // 生存者が2人以上ならラウンドを続行
         if (aliveCountForRoundEnd > 1)
         {
             return;
         }
 
-        PlayerHealth roundWinner = alivePlayers.Count == 1 ? alivePlayers[0] : null;
+        PlayerHealth roundWinner = alivePlayers.Count == 1
+            ? alivePlayers[0]
+            : null;
 
         EndRound(roundWinner);
     }
 
+    // =========================================================
+    // ラウンド終了
+    // =========================================================
+
     private void EndRound(PlayerHealth roundWinner)
     {
-        // 死亡と時間切れが同じTickでも、得点加算と結果通知を一度だけ実行する。
-        if (isRoundEnding || getPhase() != RoundManager.GamePhase.RoundPlaying) return;
+        if (
+            isRoundEnding ||
+            getPhase() != RoundManager.GamePhase.RoundPlaying
+        )
+        {
+            return;
+        }
+
         isRoundEnding = true;
+
         setPhase(RoundManager.GamePhase.RoundEnding);
 
-        roundEndCoroutine = coroutineRunner.StartCoroutine(EndRoundCoroutine(roundWinner));
+        roundEndCoroutine = coroutineRunner.StartCoroutine(
+            EndRoundCoroutine(roundWinner)
+        );
     }
 
     private IEnumerator EndRoundCoroutine(PlayerHealth roundWinner)
     {
-        Debug.Log("[RoundFlowController] EndRoundCoroutine started");
+        Debug.Log(
+            "[RoundFlowController] EndRoundCoroutine started"
+        );
 
         healthItemController.ClearHealthItems();
 
         int completedRound = getCurrentRound();
+
+        // ファイナルキルの場合、撃破UIが表示される時間を確保する
+        yield return new WaitForSeconds(FinalKillResultDelay);
 
         if (roundWinner != null)
         {
@@ -231,7 +330,9 @@ public sealed class RoundFlowController
         }
         else
         {
-            Debug.Log($"Round {completedRound} ended with no winner.");
+            Debug.Log(
+                $"Round {completedRound} ended with no winner."
+            );
         }
 
         List<PlayerHealth> validPlayers = getValidPlayers();
@@ -255,10 +356,14 @@ public sealed class RoundFlowController
         if (completedRound >= getMaxRoundCount())
         {
             yield return FinishMatchAndReturnToWaitingCoroutine();
+
             yield break;
         }
 
         setCurrentRound(completedRound + 1);
+
+        // 次のラウンドではFINAL DUELを再表示できるようにする
+        finalDuelShown = false;
 
         beginRoundEffect();
 
@@ -266,12 +371,18 @@ public sealed class RoundFlowController
         roundEndCoroutine = null;
     }
 
+    // =========================================================
+    // 試合終了
+    // =========================================================
+
     private IEnumerator FinishMatchAndReturnToWaitingCoroutine()
     {
         setPhase(RoundManager.GamePhase.MatchFinished);
 
         healthItemController.ClearHealthItems();
+
         projectileCleaner.DespawnProjectiles();
+
         skillSelectionController.StopSkillSelectionCoroutines();
 
         scoreCalculator.LogMatchResult();
@@ -281,57 +392,69 @@ public sealed class RoundFlowController
         );
 
         Debug.Log(
-            $"[RoundFlowController] Match finished. Returning to waiting state in {getReturnToWaitingDelay()} seconds."
+            $"[RoundFlowController] Match finished. " +
+            $"Returning to waiting state in {getReturnToWaitingDelay()} seconds."
         );
 
-        yield return new WaitForSeconds(getReturnToWaitingDelay());
+        yield return new WaitForSeconds(
+            getReturnToWaitingDelay()
+        );
 
         ResetMatchStateToWaiting();
+
         roundEndCoroutine = null;
     }
 
-    /// <summary>
-    /// 遅延中のラウンド終了と選択・開始待機を停止する。Despawn時には状態を再初期化しない。
-    /// </summary>
+    // =========================================================
+    // 進行停止・リセット
+    // =========================================================
+
     public void StopProgression()
     {
         roundEndCheckPending = false;
+
         if (roundEndCoroutine != null)
         {
             coroutineRunner.StopCoroutine(roundEndCoroutine);
+
             roundEndCoroutine = null;
         }
 
         skillSelectionController.StopSkillSelectionCoroutines();
     }
 
-    /// <summary>
-    /// 人数不足で試合を中断し、残った参加者の得点・準備・スキルを初期化して待機へ戻す。
-    /// </summary>
     public void AbortMatchToWaiting()
     {
         StopProgression();
+
         ResetMatchStateToWaiting();
     }
 
     private void ResetMatchStateToWaiting()
     {
-        // 復活・スキル解除に伴うイベントが、終了判定へ再入しないよう先にフェーズを閉じる。
         setPhase(RoundManager.GamePhase.WaitingForReady);
+
         hideRoundEndUIRpc();
+
         hideFinalResultUIRpc();
 
         healthItemController.ClearHealthItems();
+
         projectileCleaner.DespawnProjectiles();
+
         skillSelectionController.StopSkillSelectionCoroutines();
 
         setCurrentRound(1);
 
+        // 次の試合にフラグを持ち越さない
+        finalDuelShown = false;
+
         List<PlayerHealth> validPlayers = getValidPlayers();
 
-        // 待機への切替と同じ処理内で、次の試合に持ち越せない状態を消去する。
         scoreCalculator.ResetPoints(validPlayers);
+
         readyController.ResetReadyStates(validPlayers);
+
         skillSelectionController.ResetSelectionStates(validPlayers);
 
         foreach (PlayerHealth player in validPlayers)
@@ -341,7 +464,8 @@ public sealed class RoundFlowController
                 continue;
             }
 
-            PlayerSkillController skillController = player.GetComponent<PlayerSkillController>();
+            PlayerSkillController skillController =
+                player.GetComponent<PlayerSkillController>();
 
             if (skillController != null)
             {
@@ -355,20 +479,32 @@ public sealed class RoundFlowController
 
         isRoundEnding = false;
 
-        Debug.Log("[RoundFlowController] Returned to waiting state.");
-        Debug.Log("[RoundFlowController] Press Enter or ZL to ready.");
+        Debug.Log(
+            "[RoundFlowController] Returned to waiting state."
+        );
+
+        Debug.Log(
+            "[RoundFlowController] Press Enter or ZL to ready."
+        );
 
         logReadyStates();
     }
 
+    // =========================================================
+    // デバッグ用ダミー生存人数
+    // =========================================================
+
     private int CountAliveDebugSpectatorDummies()
     {
-        PlayerHealth[] allPlayers = UnityEngine.Object.FindObjectsByType<PlayerHealth>(
-            FindObjectsSortMode.None
-        );
+        PlayerHealth[] allPlayers =
+            UnityEngine.Object.FindObjectsByType<PlayerHealth>(
+                FindObjectsSortMode.None
+            );
 
         int count = 0;
-        HashSet<PlayerHealth> registeredPlayers = new(getValidPlayers());
+
+        HashSet<PlayerHealth> registeredPlayers =
+            new(getValidPlayers());
 
         foreach (PlayerHealth player in allPlayers)
         {
@@ -387,7 +523,11 @@ public sealed class RoundFlowController
                 continue;
             }
 
-            if (!player.gameObject.name.StartsWith("DebugSpectatorDummy"))
+            if (
+                !player.gameObject.name.StartsWith(
+                    "DebugSpectatorDummy"
+                )
+            )
             {
                 continue;
             }

@@ -4,7 +4,7 @@ using UnityEngine;
 
 /// <summary>
 /// StateAuthorityで射撃間隔、逐次装填、弾薬消費とProjectile生成を管理する。
-/// 通常弾・ヘビー弾は即時命中判定、重力弾はProjectile側で衝突判定を行う。
+/// 通常弾・ヘビー弾は即時命中判定を行い、生成したProjectileは視覚表現として使用する。
 /// </summary>
 [RequireComponent(typeof(PlayerHealth))]
 [RequireComponent(typeof(PlayerLook))]
@@ -14,7 +14,6 @@ public class PlayerWeapon : NetworkBehaviour
     private enum ProjectileShotKind
     {
         Normal,
-        GravityBurst,
         Heavy
     }
 
@@ -38,12 +37,6 @@ public class PlayerWeapon : NetworkBehaviour
     [SerializeField] private Transform muzzleTransform;
     [SerializeField] private float muzzleExitOffset = 0.05f;
 
-    [Header("Gravity Burst Ammo")]
-    [SerializeField] private float gravityBurstSpeedMultiplier = 0.75f;
-    [SerializeField] private float gravityBurstDamageMultiplier = 1.0f;
-    [SerializeField] private float gravityBurstGravityAcceleration = 18.0f;
-    [SerializeField] private float gravityBurstExplosionRadius = 3.0f;
-    [SerializeField] private float gravityBurstExplosionDamageMultiplier = 1.0f;
 
     [Header("Heavy Bullet Ammo")]
     [SerializeField] private float heavyBulletSpeedMultiplier = 3.0f;
@@ -213,31 +206,23 @@ public class PlayerWeapon : NetworkBehaviour
         return loadedShotKind;
     }
 
-    private float GetShotSpeedMultiplier(ProjectileShotKind shotKind)
+    private float GetShotSpeedMultiplier(ProjectileShotKind kind)
     {
-        switch (shotKind)
+        switch (kind)
         {
-            case ProjectileShotKind.GravityBurst:
-                return gravityBurstSpeedMultiplier;
-
             case ProjectileShotKind.Heavy:
                 return heavyBulletSpeedMultiplier;
-
             default:
                 return 1.0f;
         }
     }
 
-    private float GetShotDamageMultiplier(ProjectileShotKind shotKind)
+    private float GetShotDamageMultiplier(ProjectileShotKind kind)
     {
-        switch (shotKind)
+        switch (kind)
         {
-            case ProjectileShotKind.GravityBurst:
-                return gravityBurstDamageMultiplier;
-
             case ProjectileShotKind.Heavy:
                 return heavyBulletDamageMultiplier;
-
             default:
                 return 1.0f;
         }
@@ -458,34 +443,15 @@ public class PlayerWeapon : NetworkBehaviour
             projectileSpeedMultiplier *
             GetShotSpeedMultiplier(shotKind);
 
-        bool isGravityBurst = shotKind == ProjectileShotKind.GravityBurst;
-        if (isGravityBurst)
-        {
-            projectile.Initialize(
-                fireDirection,
-                currentSpeed,
-                projectileLifeTime,
-                currentDamage,
-                playerHealth,
-                true,
-                GetProjectileGravityDirection(),
-                gravityBurstGravityAcceleration,
-                true,
-                gravityBurstExplosionRadius,
-                currentDamage * gravityBurstExplosionDamageMultiplier
-            );
-        }
-        else
-        {
-            projectile.InitializeVisualOnly(
-                fireDirection,
-                currentSpeed,
-                projectileLifeTime,
-                playerHealth
-            );
+        // 通常弾・ヘビー弾は発射時に即時命中判定を行う。
+        // 生成した弾丸は見た目専用で、衝突時に消える。
+        projectile.InitializeVisualOnly(
+            fireDirection,
+            currentSpeed,
+            projectileLifeTime
+        );
 
-            ApplyHitscan(spawnPosition, fireDirection, currentDamage);
-        }
+        ApplyHitscan(spawnPosition, fireDirection, currentDamage);
 
         return true;
     }
@@ -493,7 +459,10 @@ public class PlayerWeapon : NetworkBehaviour
     /// <summary>
     /// 最初の非自身Colliderで止める。通常弾・ヘビー弾の着弾SEはここで通知する。
     /// </summary>
-    private void ApplyHitscan(Vector3 origin, Vector3 direction, float damage)
+    private void ApplyHitscan(
+    Vector3 origin,
+    Vector3 direction,
+    float damage)
     {
         RaycastHit[] hits = Physics.RaycastAll(
             origin,
@@ -503,29 +472,52 @@ public class PlayerWeapon : NetworkBehaviour
             QueryTriggerInteraction.Ignore
         );
 
-        Array.Sort(hits, (firstHit, secondHit) => firstHit.distance.CompareTo(secondHit.distance));
+        Array.Sort(
+            hits,
+            (firstHit, secondHit) =>
+                firstHit.distance.CompareTo(secondHit.distance)
+        );
 
         foreach (RaycastHit hit in hits)
         {
-            if (hit.collider == null || hit.collider.transform.root == transform.root)
+            if (hit.collider == null ||
+                hit.collider.transform.root == transform.root)
             {
                 continue;
             }
 
-            PlayerHealth targetHealth = hit.collider.GetComponentInParent<PlayerHealth>();
-            bool isEnemyHit = targetHealth != null && !targetHealth.IsDead;
+            PlayerHealth targetHealth =
+                hit.collider.GetComponentInParent<PlayerHealth>();
+
+            bool isEnemyHit =
+                targetHealth != null && !targetHealth.IsDead;
 
             if (targetHealth != null)
             {
-                // ハプニング・サドンデス倍率と実効与ダメージの確定はHP側で統一し、特殊弾と二重適用しない。
-                targetHealth.TakeDamage(damage, Object.InputAuthority,
-                    RoundManager.Instance != null ? RoundManager.Instance.DamageRoundVersion : 0);
+                Debug.Log(
+                    $"[KillDebug] Hitscan hit: " +
+                    $"Shooter={Object.InputAuthority}, " +
+                    $"Target={targetHealth.name}, " +
+                    $"Damage={damage}, " +
+                    $"TargetStateAuthority={targetHealth.Object.HasStateAuthority}"
+                );
+
+                // ダメージ処理は1回だけ呼び出す
+                targetHealth.TakeDamage(
+                    damage,
+                    Object.InputAuthority,
+                    RoundManager.Instance != null
+                        ? RoundManager.Instance.DamageRoundVersion
+                        : 0
+                );
             }
             else
             {
-                // 待機場の練習ターゲットも即時命中判定で扱い、見た目用の弾には加害させない。
-                PracticeTarget practiceTarget = hit.collider.GetComponentInParent<PracticeTarget>();
-                if (practiceTarget != null && practiceTarget.CanReceiveDamage)
+                PracticeTarget practiceTarget =
+                    hit.collider.GetComponentInParent<PracticeTarget>();
+
+                if (practiceTarget != null &&
+                    practiceTarget.CanReceiveDamage)
                 {
                     practiceTarget.TakeDamage(damage);
                     isEnemyHit = true;
@@ -535,9 +527,13 @@ public class PlayerWeapon : NetworkBehaviour
             NotifyProjectileImpactEffect(hit.point);
 
             PlayerSound playerSound = GetComponent<PlayerSound>();
+
             if (playerSound != null)
             {
-                playerSound.NotifyProjectileHitFromServer(isEnemyHit, hit.point);
+                playerSound.NotifyProjectileHitFromServer(
+                    isEnemyHit,
+                    hit.point
+                );
             }
 
             return;
@@ -570,11 +566,6 @@ public class PlayerWeapon : NetworkBehaviour
     public void SetDamageDealtMultiplier(float multiplier)
     {
         damageDealtMultiplier = Mathf.Clamp(multiplier, 0.0f, 10.0f);
-    }
-
-    public void LoadGravityBurstAmmo(int ammoCount)
-    {
-        LoadSpecialAmmo(ProjectileShotKind.GravityBurst, ammoCount);
     }
 
     public void LoadHeavyBulletAmmo(int ammoCount)
@@ -650,21 +641,6 @@ public class PlayerWeapon : NetworkBehaviour
         float damageMultiplier = pendingNextShotDamageMultiplier;
         pendingNextShotDamageMultiplier = 1.0f;
         return damageMultiplier;
-    }
-
-    private Vector3 GetProjectileGravityDirection()
-    {
-        if (playerLook != null && playerLook.ViewUp.sqrMagnitude > 0.0001f)
-        {
-            return -playerLook.ViewUp.normalized;
-        }
-
-        if (Physics.gravity.sqrMagnitude > 0.0001f)
-        {
-            return Physics.gravity.normalized;
-        }
-
-        return Vector3.down;
     }
 
     public void SetInstantReloadEnabled(bool enabled)

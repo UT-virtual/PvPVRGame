@@ -22,9 +22,6 @@ public class PlayerSkillController : NetworkBehaviour
     [SerializeField] private float rapidFireDuration = 10.0f;
     [SerializeField] private float rapidFireIntervalMultiplier = 0.4f;
 
-    [Header("Bullet Speed Up")]
-    [SerializeField] private float bulletSpeedUpDuration = 10.0f;
-    [SerializeField] private float bulletSpeedMultiplier = 1.8f;
 
     [Header("Damage Reduction")]
     [SerializeField] private float damageReductionDuration = 10.0f;
@@ -52,9 +49,6 @@ public class PlayerSkillController : NetworkBehaviour
     [Header("Instant Reload")]
     [SerializeField] private float instantReloadDuration = 20.0f;
 
-    [Header("Gravity Burst Reload")]
-    [SerializeField] private float gravityBurstReloadDuration = 0.1f;
-    [SerializeField] private int gravityBurstReloadAmmoCount = 20;
 
     [Header("Heavy Bullet Reload")]
     [SerializeField] private float heavyBulletReloadDuration = 0.1f;
@@ -384,8 +378,6 @@ public class PlayerSkillController : NetworkBehaviour
             doubleJumpExtraAirJumpCount,
             rapidFireDuration,
             rapidFireIntervalMultiplier,
-            bulletSpeedUpDuration,
-            bulletSpeedMultiplier,
             damageReductionDuration,
             damageTakenMultiplier,
             xRayVisionDuration,
@@ -398,8 +390,6 @@ public class PlayerSkillController : NetworkBehaviour
             shrinkDamageDealtMultiplier,
             delayedDamageInvincibleDuration,
             instantReloadDuration,
-            gravityBurstReloadDuration,
-            gravityBurstReloadAmmoCount,
             heavyBulletReloadDuration,
             heavyBulletReloadAmmoCount,
             nextShotDamageBoostDuration,

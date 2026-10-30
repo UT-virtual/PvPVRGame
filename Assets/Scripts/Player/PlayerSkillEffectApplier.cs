@@ -36,7 +36,6 @@ public sealed class PlayerSkillEffectApplier
     {
         ApplyDoubleJumpEffect();
         ApplyRapidFireEffect();
-        ApplyBulletSpeedUpEffect();
         ApplyDamageReductionEffect();
         ApplyMoveSpeedUpEffect();
         ApplySlowFallEffect();
@@ -78,19 +77,7 @@ public sealed class PlayerSkillEffectApplier
         );
     }
 
-    private void ApplyBulletSpeedUpEffect()
-    {
-        if (playerWeapon == null)
-        {
-            return;
-        }
-
-        playerWeapon.SetProjectileSpeedMultiplier(
-            IsActive(PlayerSkillType.BulletSpeedUp)
-                ? settings.BulletSpeedMultiplier
-                : 1.0f
-        );
-    }
+  
 
     private void ApplyDamageReductionEffect()
     {

@@ -135,9 +135,6 @@ public class SkillHudUI : MonoBehaviour
             case PlayerSkillType.RapidFire:
                 return "速射強化";
 
-            case PlayerSkillType.BulletSpeedUp:
-                return "弾速強化";
-
             case PlayerSkillType.DamageReduction:
                 return "防御強化";
 
@@ -158,9 +155,6 @@ public class SkillHudUI : MonoBehaviour
 
             case PlayerSkillType.InstantReload:
                 return "即時装填";
-
-            case PlayerSkillType.GravityBurstReload:
-                return "拡散曲射弾";
 
             case PlayerSkillType.HeavyBulletReload:
                 return "重弾装填";
