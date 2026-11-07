@@ -34,6 +34,7 @@ public sealed class PlayerSkillActivator
     /// </summary>
     public void Activate(PlayerSkillType skill, int slotIndex)
     {
+        slotIndex = slotIndex <= 0 ? 0 : 1;
         switch (skill)
         {
             case PlayerSkillType.DoubleJump:

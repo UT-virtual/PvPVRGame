@@ -42,7 +42,7 @@ public sealed class LocalParticipantRoleController
 
     public void Update()
     {
-        bool rightHeld = IsRoleButtonHeld("<XRController>{RightHand}/primaryButton");
+        bool rightHeld = LocalPlayModeController.IsVirtualReality && IsRoleButtonHeld("<XRController>{RightHand}/primaryButton");
         bool toggleRole = (Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame) ||
             (Gamepad.current != null && Gamepad.current.buttonNorth.wasPressedThisFrame) || (rightHeld && !rightRoleButtonHeld);
         rightRoleButtonHeld = rightHeld;

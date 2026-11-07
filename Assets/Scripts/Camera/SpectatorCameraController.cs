@@ -39,6 +39,7 @@ public class SpectatorCameraController : MonoBehaviour
     private PlayerHealth localPlayer;
     private PlayerHealth currentTarget;
     private Transform spectatorCameraTarget;
+    private Quaternion spectatorBodyRotation = Quaternion.identity;
 
     private float deadTimer;
     private bool wasLocalDead;
@@ -62,6 +63,7 @@ public class SpectatorCameraController : MonoBehaviour
 
     private void OnDisable()
     {
+        networkLauncher?.EndVrSpectating();
         if (isSpectating)
         {
             RestoreLocalCamera();
@@ -72,6 +74,7 @@ public class SpectatorCameraController : MonoBehaviour
 
     private void OnDestroy()
     {
+        networkLauncher?.EndVrSpectating();
         RestoreHiddenSpectatedTargetModel();
 
         if (spectatorCameraTarget != null)
@@ -180,9 +183,13 @@ public class SpectatorCameraController : MonoBehaviour
                 battleHudBinder.ClearSpectatorTarget();
             }
         }
-        if (!isSpectating && cinemachineCamera != null && spectatorCameraTarget != null)
+        if (!isSpectating && spectatorCameraTarget != null)
         {
-            spectatorCameraTarget.SetPositionAndRotation(cinemachineCamera.transform.position, cinemachineCamera.transform.rotation);
+            Transform view = LocalPlayModeController.IsVirtualReality ? networkLauncher?.LocalVrHead : null;
+            if (view == null && cinemachineCamera != null) view = cinemachineCamera.transform;
+            if (view != null) spectatorCameraTarget.SetPositionAndRotation(view.position, view.rotation);
+            if (LocalPlayModeController.IsVirtualReality && networkLauncher?.LocalVrOrigin != null)
+                spectatorBodyRotation = networkLauncher.LocalVrOrigin.rotation;
         }
 
         currentTarget = null;
@@ -209,6 +216,14 @@ public class SpectatorCameraController : MonoBehaviour
     private void LateUpdate()
     {
         UpdateSpectatorCameraTarget();
+        if (isSpectating && spectatorCameraTarget != null && LocalPlayModeController.IsVirtualReality)
+        {
+            // Overview and held views use the same VR anchor as live targets.
+            // Keep the target body basis; its HMD pitch/roll must not tilt our tracking space.
+            if (currentTarget != null) spectatorBodyRotation = currentTarget.transform.rotation;
+            else if (IsWaitingOverview) spectatorBodyRotation = spectatorCameraTarget.rotation;
+            networkLauncher?.UpdateVrSpectatorView(spectatorCameraTarget.position, spectatorBodyRotation);
+        }
     }
 
     private void UpdateSpectatorCameraTarget()
@@ -274,7 +289,7 @@ public class SpectatorCameraController : MonoBehaviour
             return;
         }
 
-        cinemachineCamera = FindFirstObjectByType<CinemachineCamera>();
+        cinemachineCamera = FindFirstObjectByType<CinemachineCamera>(FindObjectsInactive.Include);
     }
 
     private void FindLocalPlayerIfNeeded()
@@ -295,7 +310,7 @@ public class SpectatorCameraController : MonoBehaviour
                 continue;
             }
 
-            if (player.Object.IsValid && player.Object.HasInputAuthority)
+            if (player.Object.IsValid && player.Object.Runner == networkLauncher?.Runner && player.Object.HasInputAuthority)
             {
                 localPlayer = player;
                 return;
@@ -314,7 +329,7 @@ public class SpectatorCameraController : MonoBehaviour
 
         foreach (PlayerHealth player in players)
         {
-            if (player != null && player.Object != null && player.Object.IsValid &&
+            if (player != null && player.Object != null && player.Object.IsValid && player.Object.Runner == networkLauncher?.Runner &&
                 player.Object.InputAuthority != PlayerRef.None)
             {
                 hasSpawnedCombatants = true;
@@ -355,7 +370,7 @@ public class SpectatorCameraController : MonoBehaviour
             return false;
         }
 
-        if (player.Object == null || !player.Object.IsValid)
+        if (player.Object == null || !player.Object.IsValid || player.Object.Runner != networkLauncher?.Runner)
         {
             return false;
         }
@@ -433,10 +448,15 @@ public class SpectatorCameraController : MonoBehaviour
             }
         }
 
+        RoundManager manager = RoundManager.Instance;
+        bool voting = manager != null && manager.IsLocalDedicatedSpectator && manager.IsHappeningVotingOpen;
+        if (LocalPlayModeController.IsVirtualReality && networkLauncher != null)
+        {
+            return SpectatorHappeningInputController.GetPrimaryStickDirection(
+                networkLauncher.GetLocalMoveInput(), stickSwitchThreshold, voting).x;
+        }
         if (Gamepad.current != null)
         {
-            RoundManager manager = RoundManager.Instance;
-            bool voting = manager != null && manager.IsLocalDedicatedSpectator && manager.IsHappeningVotingOpen;
             return SpectatorHappeningInputController.GetPrimaryStickDirection(
                 Gamepad.current.leftStick.ReadValue(), stickSwitchThreshold, voting).x;
         }
@@ -493,6 +513,7 @@ public class SpectatorCameraController : MonoBehaviour
 
     private void RestoreLocalCamera()
     {
+        networkLauncher?.EndVrSpectating();
         RestoreHiddenSpectatedTargetModel();
 
         FindCinemachineCameraIfNeeded();
@@ -522,6 +543,7 @@ public class SpectatorCameraController : MonoBehaviour
 
     private void ResetSpectatorState()
     {
+        networkLauncher?.EndVrSpectating();
         RestoreHiddenSpectatedTargetModel();
 
         if (isSpectating && battleHudBinder != null)

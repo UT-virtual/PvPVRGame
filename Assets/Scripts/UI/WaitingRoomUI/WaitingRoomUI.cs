@@ -148,7 +148,7 @@ public class WaitingRoomUI : MonoBehaviour
                 continue;
             }
 
-            if (networkObject.IsValid && networkObject.HasInputAuthority)
+            if (networkObject.IsValid && networkObject.Runner == NetworkLauncher.Instance?.Runner && networkObject.HasInputAuthority)
             {
                 return true;
             }
@@ -206,7 +206,7 @@ public class WaitingRoomUI : MonoBehaviour
     {
         nextPlayers.Clear();
         RoundManager manager = RoundManager.Instance;
-        if (manager == null || !manager.IsNetworkReady)
+        if (manager == null || !manager.IsNetworkReady || manager.Runner != NetworkLauncher.Instance?.Runner)
         {
             return;
         }
@@ -217,7 +217,7 @@ public class WaitingRoomUI : MonoBehaviour
             PlayerHealth health = null;
             foreach (PlayerHealth candidate in players)
             {
-                if (candidate != null && candidate.Object != null && candidate.Object.IsValid &&
+                if (candidate != null && candidate.Object != null && candidate.Object.IsValid && candidate.Object.Runner == manager.Runner &&
                     candidate.Object.InputAuthority == participant.Key)
                 {
                     health = candidate;
