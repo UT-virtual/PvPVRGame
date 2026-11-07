@@ -5021,7 +5021,6 @@ GameObject:
   - component: {fileID: 3624686665772569979}
   - component: {fileID: 295022638901180286}
   - component: {fileID: 6676467707588154224}
-  - component: {fileID: 4342323959552603012}
   m_Layer: 0
   m_Name: Bullet
   m_TagString: Untagged
@@ -5122,17 +5121,3 @@ Rigidbody:
   m_Interpolate: 0
   m_Constraints: 112
   m_CollisionDetection: 0
---- !u!114 &4342323959552603012
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 6457653946344358340}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 5e25ec1c9dd8eb849b631ea1d4cff077, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::SpawnOnDestroy
-  hitEffectPrefab: {fileID: 2772215153189503253, guid: 12673212336cdcd45954d0b53f60c383, type: 3}
-  matchRotation: 0

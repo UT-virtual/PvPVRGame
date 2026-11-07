@@ -1,11 +1,12 @@
+
 using System;
 using System.Collections;
 using TMPro;
 using UnityEngine;
 
 /// <summary>
-/// RoundStartingへの遷移に合わせてカウントダウンと開始文言の演出を再生する。
-/// フェーズ遷移はRoundStartControllerが行い、開始文言は同期フェーズが戦闘へ移った後に表示する。
+/// 同期されたラウンド開始時刻に合わせてカウントダウンを表示する。
+/// カウントダウンと戦闘開始時にSE通知イベントを発行する。
 /// </summary>
 public class BattleStartUI : MonoBehaviour
 {
@@ -17,6 +18,9 @@ public class BattleStartUI : MonoBehaviour
     [SerializeField] private float countDuration = 1f;
     [SerializeField] private float engageDuration = 1.5f;
     [SerializeField] private RoundManager roundManager;
+
+    public event Action<int> OnCountdownTick;
+    public event Action<int> OnRoundStartAnnounced;
 
     public IEnumerator PlaySequence()
     {
@@ -34,51 +38,82 @@ public class BattleStartUI : MonoBehaviour
         gameObject.SetActive(true);
         canvasGroup.alpha = 1f;
 
-        // ローカルで3秒を数え直さず、同期された開始期限から残りの表示を決める。
         float interval = Mathf.Max(0.01f, countDuration);
+        int lastAnnouncedCountdownNumber = int.MaxValue;
+
+        // ネットワークで同期された残り時間に基づいて表示する。
         while (roundManager.IsRoundStarting)
         {
-            float remaining = roundManager.RoundStartRemainingSeconds;
-            countText.text = Mathf.Max(1, Mathf.CeilToInt(remaining / interval)).ToString();
-            float normalized = 1f - (remaining % interval) / interval;
-            countText.transform.localScale = Vector3.one * Mathf.Lerp(0.5f, 1.5f, normalized);
+            float remainingSeconds = roundManager.RoundStartRemainingSeconds;
+            int countdownNumber = Mathf.Max(
+                1,
+                Mathf.CeilToInt(remainingSeconds / interval)
+            );
+
+            countText.text = countdownNumber.ToString();
+
+            // 同期時刻の補正で表示が戻っても、同じSEを繰り返さない。
+            if (countdownNumber < lastAnnouncedCountdownNumber)
+            {
+                OnCountdownTick?.Invoke(countdownNumber);
+                lastAnnouncedCountdownNumber = countdownNumber;
+            }
+
+            float normalized = 1f - (remainingSeconds % interval) / interval;
+
+            countText.transform.localScale =
+                Vector3.one * Mathf.Lerp(0.5f, 1.5f, normalized);
+
             Color color = countText.color;
             color.a = Mathf.Lerp(1f, 0f, normalized);
             countText.color = color;
+
             yield return null;
         }
 
+        // 戦闘以外のフェーズに移った場合は開始SEを鳴らさない。
         if (!roundManager.IsRoundPlaying)
         {
-            canvasGroup.alpha = 0.0f;
+            canvasGroup.alpha = 0f;
             yield break;
         }
 
-        yield return StartCoroutine(AnimateText("Round " + roundManager.CurrentRound + " Start!", engageDuration));
+        OnRoundStartAnnounced?.Invoke(roundManager.CurrentRound);
 
-        float t = 0f;
+        yield return StartCoroutine(
+            AnimateText(
+                "Round " + roundManager.CurrentRound + " Start!",
+                engageDuration
+            )
+        );
 
-        while (t < 0.5f)
+        float elapsedSeconds = 0f;
+
+        while (elapsedSeconds < 0.5f)
         {
-            t += Time.deltaTime;
-            canvasGroup.alpha = Mathf.Lerp(1f, 0f, t / 0.5f);
+            elapsedSeconds += Time.deltaTime;
+            canvasGroup.alpha = Mathf.Lerp(
+                1f,
+                0f,
+                elapsedSeconds / 0.5f
+            );
             yield return null;
         }
 
-
+        canvasGroup.alpha = 0f;
     }
 
-    private IEnumerator AnimateText(string text, float duration, bool isCountdown = false)
+    private IEnumerator AnimateText(string text, float duration)
     {
         countText.text = text;
 
-        float t = 0f;
+        float elapsedSeconds = 0f;
 
-        while (t < duration && (!isCountdown || roundManager.IsRoundStarting))
+        while (elapsedSeconds < duration)
         {
-            t += Time.deltaTime;
+            elapsedSeconds += Time.deltaTime;
 
-            float normalized = t / duration;
+            float normalized = elapsedSeconds / duration;
 
             float scale = Mathf.Lerp(0.5f, 1.5f, normalized);
             countText.transform.localScale = Vector3.one * scale;
@@ -90,9 +125,8 @@ public class BattleStartUI : MonoBehaviour
             yield return null;
         }
 
-        // 次の表示のために透明度を戻す
-        Color reset = countText.color;
-        reset.a = 1f;
-        countText.color = reset;
+        Color resetColor = countText.color;
+        resetColor.a = 1f;
+        countText.color = resetColor;
     }
 }

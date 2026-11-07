@@ -1,10 +1,6 @@
 using System;
 using UnityEngine;
 
-/// <summary>
-/// 同期フェーズに応じた待機UIと開始演出、結果RPCで受け取った各種結果UIの表示を各端末で仲介する。
-/// 試合の進行や得点計算は行わない。
-/// </summary>
 public sealed class RoundUIController
 {
     private WaitingRoomUI waitingRoomUI;
@@ -150,6 +146,12 @@ public sealed class RoundUIController
         else
         {
             HideWaitingRoomUI();
+        }
+
+        // 結果通知の表示を次の選択・開始演出へ持ち越さない。
+        if (targetPhase != RoundManager.GamePhase.RoundPlaying && targetPhase != RoundManager.GamePhase.RoundEnding)
+        {
+            HideRoundEndUI();
         }
 
         if (playBattleStartUI && battleStartUI != null)

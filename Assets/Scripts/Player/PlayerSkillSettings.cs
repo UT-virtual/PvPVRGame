@@ -1,6 +1,3 @@
-/// <summary>
-/// PlayerSkillControllerのInspector設定を、発動処理と効果反映処理へ渡す読み取り専用の設定値として保持する。
-/// </summary>
 public sealed class PlayerSkillSettings
 {
     public readonly float CooldownAfterSkillEnd;

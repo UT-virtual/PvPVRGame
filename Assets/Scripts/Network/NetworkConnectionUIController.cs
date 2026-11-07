@@ -3,10 +3,6 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
-/// <summary>
-/// 接続メニューの表示、状態文言、接続ボタンの多重操作防止を担当する。
-/// 接続処理自体は登録されたコールバックを通じて呼び出す。
-/// </summary>
 public sealed class NetworkConnectionUIController
 {
     private readonly GameObject connectionMenuRoot;

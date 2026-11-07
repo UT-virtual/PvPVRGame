@@ -203,7 +203,10 @@ public class PlayerController : NetworkBehaviour
         playerMove.UpdateAimBasis();
 
         playerMove.AlignToSurface(deltaTime);
-        playerMove.ApplyGravityAndJump(jumpPressed, deltaTime);
+
+        // ジャンプ禁止中も重力は通常どおり適用する。
+        bool canJump = RoundManager.Instance == null || !RoundManager.Instance.IsJumpProhibited;
+        playerMove.ApplyGravityAndJump(jumpPressed && canJump, deltaTime);
     }
 
     private void ApplyRemoteLookInput(PlayerNetworkInput input)

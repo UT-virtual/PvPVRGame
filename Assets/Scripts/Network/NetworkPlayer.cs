@@ -2,10 +2,6 @@ using System.Collections;
 using Fusion;
 using UnityEngine;
 
-/// <summary>
-/// InputAuthorityを持つプレイヤーだけのカメラ・ローカル専用オブジェクトを有効にする。
-/// Spawned／Despawnedで入力先を登録・解除し、自分のモデルの表示も切り替える。
-/// </summary>
 [RequireComponent(typeof(NetworkObject))]
 public class NetworkPlayer : NetworkBehaviour
 {
@@ -70,9 +66,6 @@ public class NetworkPlayer : NetworkBehaviour
         }
     }
 
-    /// <summary>
-    /// 生成直後のフレームを避けてローカルカメラを設定し、さらに1フレーム後に待機UIへ生成を通知する。
-    /// </summary>
     private IEnumerator SetupLocalPlayerAfterSpawn()
     {
         yield return null;

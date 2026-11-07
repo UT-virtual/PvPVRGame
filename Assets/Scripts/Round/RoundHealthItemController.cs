@@ -1,9 +1,6 @@
 using System;
 using UnityEngine;
 
-/// <summary>
-/// ラウンド進行からHealthItemSpawnerを呼び出し、登録人数に応じた配置と終了時の撤去を仲介する。
-/// </summary>
 public sealed class RoundHealthItemController
 {
     private HealthItemSpawner healthItemSpawner;

@@ -1,10 +1,6 @@
 using Fusion;
 using UnityEngine;
 
-/// <summary>
-/// StateAuthorityで接触相手を回復し、HPが実際に増えた場合だけ取得を確定する。
-/// 生成元へ再配置を通知してから、自身をDespawnする。
-/// </summary>
 [RequireComponent(typeof(NetworkObject))]
 [RequireComponent(typeof(Collider))]
 [RequireComponent(typeof(Rigidbody))]
@@ -54,6 +50,11 @@ public class HealthItem : NetworkBehaviour
         {
             return;
         }
+
+        // 撤去と接触が同じTickでも、サドンデスに入った時点で取得を禁止する。
+        RoundManager roundManager = RoundManager.Instance;
+        if (roundManager != null && (!roundManager.CanUseWeapons || roundManager.IsSuddenDeath ||
+            roundManager.RoundRemainingSeconds <= 0f)) return;
 
         PlayerHealth playerHealth = other.GetComponentInParent<PlayerHealth>();
 
