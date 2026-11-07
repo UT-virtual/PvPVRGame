@@ -18,6 +18,7 @@ public class PlayerController : NetworkBehaviour
     [Header("Animation")]
     [SerializeField] private Animator animator;
 
+    private Vector3 spectatorLocalEyeOffset;
     private PlayerHealth playerHealth;
     private PlayerMove playerMove;
     private PlayerLook playerLook;
@@ -30,6 +31,7 @@ public class PlayerController : NetworkBehaviour
     [Networked] private NetworkBool NetworkedIsRunning { get; set; }
     [Networked] private float NetworkedMoveX { get; set; }
     [Networked] private float NetworkedMoveY { get; set; }
+    [Networked] public NetworkBool IsCurrentInputVR { get; private set; }
     [Networked] public Vector3 NetworkedSpectatorCameraPosition { get; private set; }
     [Networked] public Vector3 NetworkedSpectatorViewForward { get; private set; }
     [Networked] public Vector3 NetworkedSpectatorViewUp { get; private set; }
@@ -59,18 +61,6 @@ public class PlayerController : NetworkBehaviour
         {
             Cursor.lockState = CursorLockMode.Locked;
             Cursor.visible = false;
-
-            NetworkLauncher launcher = FindFirstObjectByType<NetworkLauncher>();
-
-            if (launcher != null)
-            {
-                launcher.RegisterLocalPlayer(this);
-                launcher.NotifyLocalPlayerSpawnedOnWaitingPlanet();
-            }
-            else
-            {
-                Debug.LogWarning("[PlayerController] NetworkLauncher was not found.");
-            }
         }
 
         Debug.Log(
@@ -82,20 +72,6 @@ public class PlayerController : NetworkBehaviour
         );
     }
 
-    public override void Despawned(NetworkRunner runner, bool hasState)
-    {
-        if (!Object.HasInputAuthority)
-        {
-            return;
-        }
-
-        NetworkLauncher launcher = FindFirstObjectByType<NetworkLauncher>();
-
-        if (launcher != null)
-        {
-            launcher.UnregisterLocalPlayer(this);
-        }
-    }
 
     /// <summary>
     /// StateAuthorityで入力の押下差分を判定し、フェーズの許可に従って操作を実行する。
@@ -128,6 +104,7 @@ public class PlayerController : NetworkBehaviour
             return;
         }
 
+        IsCurrentInputVR = input.IsVR;
         float deltaTime = Runner.DeltaTime;
 
         NetworkButtons pressedButtons = input.Buttons.GetPressed(PreviousButtons);
@@ -275,6 +252,7 @@ public class PlayerController : NetworkBehaviour
 
         if (fireHeld)
         {
+            if (input.IsVR) GetComponent<VRBodyTargetSync>()?.ApplyAuthoritativeInput(input);
             playerWeapon.TryFireProjectile();
         }
     }
@@ -319,7 +297,11 @@ public class PlayerController : NetworkBehaviour
             return;
         }
 
+        // Use a fresh VR pose when available; update respawn/phase views even without input.
         Vector3 cameraPosition = playerCamera.CameraPosition;
+        if (GetInput(out PlayerNetworkInput input) && input.IsVR) cameraPosition = input.HMDPosition;
+        else if (IsCurrentInputVR && HasSpectatorView)
+            cameraPosition = transform.position + transform.rotation * spectatorLocalEyeOffset;
         Vector3 viewForward = playerLook.ViewForward;
         Vector3 viewUp = playerLook.ViewUp;
 
@@ -333,6 +315,7 @@ public class PlayerController : NetworkBehaviour
             viewUp = transform.up;
         }
 
+        spectatorLocalEyeOffset = Quaternion.Inverse(transform.rotation) * (cameraPosition - transform.position);
         NetworkedSpectatorCameraPosition = cameraPosition;
         NetworkedSpectatorViewForward = viewForward.normalized;
         NetworkedSpectatorViewUp = viewUp.normalized;

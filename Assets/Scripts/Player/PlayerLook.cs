@@ -8,13 +8,11 @@ public class PlayerLook : MonoBehaviour
     [SerializeField] private float maxPitch = 85.0f;
 
     [Header("VR Look Settings")]
-    //VRゴーグルの感度
     [SerializeField] private float hmdSensitivity = 1.0f;
 
     private PlayerMove playerMove;
     private float pitch;
 
-    // VR用の現在の頭の回転を保持する変数
     private Quaternion currentHMDRotation = Quaternion.identity;
     private bool isVRMode;
 
@@ -33,23 +31,23 @@ public class PlayerLook : MonoBehaviour
 
         if (isVR)
         {
-            // スティックの方向転換する
             playerMove.RotateYaw(lookInput.x);
 
-            // ゴーグルの回転はHMDのデータをそのまま保持する
             if (Mathf.Approximately(hmdSensitivity, 1.0f))
             {
                 currentHMDRotation = hmdRotation;
             }
             else
             {
-                // VR感度の適用：元の回転と無回転の間を補間/補外して感度を表現
-                currentHMDRotation = Quaternion.SlerpUnclamped(Quaternion.identity, hmdRotation, hmdSensitivity);
+                Quaternion bodyRotation = Quaternion.LookRotation(
+                    playerMove.AimForward,
+                    playerMove.SurfaceUp);
+
+                currentHMDRotation = Quaternion.Slerp(bodyRotation, hmdRotation, hmdSensitivity);
             }
         }
         else
         {
-            //デバック用
             float yawAmount = lookInput.x;
             float pitchAmount = lookInput.y;
 
@@ -60,63 +58,78 @@ public class PlayerLook : MonoBehaviour
                 pitch -= pitchAmount;
                 pitch = Mathf.Clamp(pitch, minPitch, maxPitch);
             }
+
             currentHMDRotation = Quaternion.identity;
         }
-        
     }
 
     private Vector3 GetViewForward()
     {
-        if (isVRMode && currentHMDRotation != Quaternion.identity)
+        if (isVRMode)
         {
-            // スティックとゴーグルを合体させカメラの向きを決定
-            Quaternion bodyRotation = Quaternion.LookRotation(playerMove.AimForward, playerMove.SurfaceUp);
-            Vector3 viewForward = (bodyRotation * currentHMDRotation) * Vector3.forward;
+            Vector3 viewForward = currentHMDRotation * Vector3.forward;
+            if (viewForward.sqrMagnitude < 0.001f)
+            {
+                return playerMove.AimForward;
+            }
+
             return viewForward.normalized;
         }
-        else
+
+        Vector3 pcViewForward = Quaternion.AngleAxis(pitch, playerMove.AimRight) * playerMove.AimForward;
+        if (pcViewForward.sqrMagnitude < 0.001f)
         {
-            // PC用の既存処理
-            Vector3 viewForward = Quaternion.AngleAxis(pitch, playerMove.AimRight) * playerMove.AimForward;
-            if (viewForward.sqrMagnitude < 0.001f) return playerMove.AimForward;
-            return viewForward.normalized;
+            return playerMove.AimForward;
         }
+
+        return pcViewForward.normalized;
     }
 
     private Vector3 GetViewUp()
     {
-        if (isVRMode && currentHMDRotation != Quaternion.identity)
+        if (isVRMode)
         {
-            // Rollのカメラの傾きも反映
-            Quaternion bodyRotation = Quaternion.LookRotation(playerMove.AimForward, playerMove.SurfaceUp);
-            Vector3 viewUp = (bodyRotation * currentHMDRotation) * Vector3.up;
+            Vector3 viewUp = currentHMDRotation * Vector3.up;
+            if (viewUp.sqrMagnitude < 0.001f)
+            {
+                return playerMove.SurfaceUp;
+            }
+
             return viewUp.normalized;
         }
 
-        // PC用の既存処理
         Vector3 viewForward = GetViewForward();
         Vector3 viewRight = Vector3.Cross(playerMove.SurfaceUp, viewForward);
-        if (viewRight.sqrMagnitude < 0.001f) viewRight = playerMove.AimRight;
+        if (viewRight.sqrMagnitude < 0.001f)
+        {
+            viewRight = playerMove.AimRight;
+        }
+
         viewRight.Normalize();
+
         Vector3 viewUpVec = Vector3.Cross(viewForward, viewRight);
-        if (viewUpVec.sqrMagnitude < 0.001f) return playerMove.SurfaceUp;
+        if (viewUpVec.sqrMagnitude < 0.001f)
+        {
+            return playerMove.SurfaceUp;
+        }
+
         return viewUpVec.normalized;
     }
 
     public void SetPitchFromViewForward(Vector3 viewForward)
-{
-    if (viewForward.sqrMagnitude < 0.001f)
     {
-        return;
+        if (viewForward.sqrMagnitude < 0.001f)
+        {
+            return;
+        }
+
+        Vector3 normalizedViewForward = viewForward.normalized;
+        float newPitch = Vector3.SignedAngle(
+            playerMove.AimForward,
+            normalizedViewForward,
+            playerMove.AimRight
+        );
+
+        pitch = Mathf.Clamp(newPitch, minPitch, maxPitch);
     }
-
-    Vector3 normalizedViewForward = viewForward.normalized;
-    float newPitch = Vector3.SignedAngle(
-        playerMove.AimForward,
-        normalizedViewForward,
-        playerMove.AimRight
-    );
-
-    pitch = Mathf.Clamp(newPitch, minPitch, maxPitch);
-}
 }
