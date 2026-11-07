@@ -84,11 +84,28 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
     private NetworkPlayerSpawner playerSpawner;
     private NetworkInputCollector inputCollector;
     private LocalSkillSelectionInputController skillSelectionInputController;
+    private NetworkParticipantRegistry participantRegistry;
+    private LocalParticipantRoleController participantRoleController;
+    private SpectatorCameraController spectatorController;
+
+    public int ParticipantRevision => participantRegistry.Revision;
+    public IReadOnlyDictionary<PlayerRef, ParticipantRole> ParticipantRoles => participantRegistry.Roles;
+
+    public ParticipantRole LocalRole => participantRoleController.LocalRole;
+    public bool IsConnected => participantRoleController.IsConnected;
+    public bool IsLocalCombatant => participantRoleController.IsLocalCombatant;
+    public bool IsDedicatedSpectator => participantRoleController.IsDedicatedSpectator;
+    public bool CanChooseRole => participantRoleController.CanChooseRole;
+    public bool IsRoleRequestPending => participantRoleController.IsRoleRequestPending;
+    public string RoleStatus => participantRoleController.RoleStatus;
+
     private Transform attachedXrOriginRoot;
     private LocalPlayModeController playModeController;
     private bool presentationReady;
     private bool vrSpectating;
     private Vector3 spectatorHeadOffset;
+    private Vector3 spectatorOriginPosition;
+    private Quaternion spectatorOriginRotation;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     private static void ResetStatics() => Instance = null;
@@ -186,21 +203,55 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
     private void Update()
     {
         if (Instance != this || !LocalPlayModeController.IsReady || !presentationReady) return;
+        // Tracking and spectator switching must continue without a combatant avatar.
         inputCollector.UpdateHmdAndLook();
-
-        bool reconnectPressed = inputCollector.ReadReconnectPressed();
-        if (sessionController.CanReconnect() && reconnectPressed)
+        UpdateRoleSelection();
+        if (sessionController.CanReconnectFromWaitingRoom() && inputCollector.ReadReconnectPressed())
         {
-            sessionController.ReconnectAsClient();
+            ReconnectAsClient();
             return;
         }
-
-        if (skillSelectionInputController.UpdateIfSkillSelecting())
+        if (!IsLocalCombatant || IsRoleRequestPending)
         {
+            inputCollector.ClearPendingInput();
+            skillSelectionInputController.ResetSkillSelectionInputState();
             return;
         }
+        if (!skillSelectionInputController.UpdateIfSkillSelecting()) inputCollector.QueueGameplayButtons();
+    }
 
-        inputCollector.QueueGameplayButtons();
+    private void UpdateRoleSelection()
+    {
+        participantRoleController.Update();
+        bool lockCursor = IsConnected;
+        Cursor.lockState = lockCursor ? CursorLockMode.Locked : CursorLockMode.None;
+        Cursor.visible = !lockCursor;
+    }
+
+    public void RequestRole(ParticipantRole role) => participantRoleController.RequestRole(role);
+
+    public bool TryChangeParticipantRole(NetworkRunner runner, PlayerRef player,
+        ParticipantRole role, int requestId, bool isWaiting, bool initialAssignment, out string message) =>
+        participantRegistry.TryChangeRole(runner, player, role, requestId, isWaiting, out message, initialAssignment);
+
+    public ParticipantRole GetParticipantRole(PlayerRef player) => participantRegistry.GetRole(player);
+
+    public void OnParticipantRoleResult(PlayerRef player, int requestId, ParticipantRole role, string message) =>
+        participantRoleController.OnResult(player, requestId, role, message);
+
+    private async void ReconnectAsClient()
+    {
+        await sessionController.ReconnectAsClientAsync();
+    }
+
+    private void ResetLocalSessionState()
+    {
+        EndVrSpectating();
+        participantRoleController?.ResetSession();
+        participantRegistry?.ResetSession();
+        inputCollector.ResetLocalState();
+        skillSelectionInputController?.ResetSkillSelectionInputState();
+        playerSpawner.ResetSession();
     }
 
     private void InitializeControllers()
@@ -251,18 +302,31 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
             editorHmdRotationSpeed
         );
 
+        sessionController.ConnectionReset += ResetLocalSessionState;
+
         skillSelectionInputController = new LocalSkillSelectionInputController(
             moveAction,
             skillSelectionStickThreshold,
-            () => sessionController.Runner,
-            () => inputCollector.LocalPlayerController
+            () => sessionController.Runner
         );
+
+        participantRegistry = new NetworkParticipantRegistry(playerSpawner);
+        participantRoleController = new LocalParticipantRoleController(
+            () => sessionController.IsStartingGame || sessionController.IsReconnecting ? null : sessionController.Runner,
+            inputCollector.ClearPendingInput,
+            skillSelectionInputController.ResetSkillSelectionInputState
+        );
+        spectatorController = FindFirstObjectByType<SpectatorCameraController>();
+        if (spectatorController == null)
+        {
+            spectatorController = gameObject.AddComponent<SpectatorCameraController>();
+        }
     }
 
-    public void StartGame(GameMode gameMode)
+    public async void StartGame(GameMode gameMode)
     {
         if (Instance != this || !LocalPlayModeController.IsReady || !presentationReady) return;
-        sessionController.StartGame(gameMode);
+        await sessionController.StartGameAsync(gameMode);
     }
 
     private void AdoptSceneReferences(NetworkLauncher source)
@@ -279,6 +343,7 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
         sceneFollowCamera = source.sceneFollowCamera;
         cinemachineCamera = source.cinemachineCamera;
         attachedXrOriginRoot = null;
+        spectatorController = FindFirstObjectByType<SpectatorCameraController>(FindObjectsInactive.Include);
 
         connectionUIController.DisposeButtons();
         connectionUIController = new NetworkConnectionUIController(connectionMenuRoot, statusTextLabel, hostButton, clientButton);
@@ -298,7 +363,7 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
         presentationReady = false;
         EndVrSpectating();
         DetachXrOriginFromPlayer();
-        inputCollector.ResetConnectionState();
+        inputCollector.ResetLocalState();
         inputCollector.SetXrTransforms(null, null, null);
     }
 
@@ -314,6 +379,8 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
         if (!vrSpectating)
         {
             // Anchor the current physical head position; tracked head motion remains free.
+            spectatorOriginPosition = xrOriginRoot.localPosition;
+            spectatorOriginRotation = xrOriginRoot.localRotation;
             spectatorHeadOffset = xrOriginRoot.InverseTransformPoint(xrHmd.position);
             vrSpectating = true;
         }
@@ -325,10 +392,13 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
     {
         if (!vrSpectating) return;
         vrSpectating = false;
-        if (attachedXrOriginRoot == null) return;
-        attachedXrOriginRoot.localPosition = Vector3.zero;
-        attachedXrOriginRoot.localRotation = Quaternion.identity;
+        if (xrOriginRoot == null) return;
+        xrOriginRoot.localPosition = attachedXrOriginRoot != null ? Vector3.zero : spectatorOriginPosition;
+        xrOriginRoot.localRotation = attachedXrOriginRoot != null ? Quaternion.identity : spectatorOriginRotation;
     }
+
+    public Transform LocalVrHead => xrHmd;
+    public Transform LocalVrOrigin => xrOriginRoot;
 
     private bool ConfigureScenePresentation()
     {
@@ -365,9 +435,9 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
         return true;
     }
 
-    public void OnServerSkillSelectionProgress(PlayerRef playerRef, int selectedCount)
+    public void OnServerSkillSelectionProgress(PlayerRef playerRef, int selectedCount, int requestStep, PlayerSkillType firstSkill, int selectionVersion)
     {
-        skillSelectionInputController.OnServerSkillSelectionProgress(playerRef, selectedCount);
+        skillSelectionInputController.OnServerSkillSelectionProgress(playerRef, selectedCount, requestStep, firstSkill, selectionVersion);
     }
 
     public void NotifyLocalPlayerSpawnedOnWaitingPlanet()
@@ -596,26 +666,41 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
 
     public void OnPlayerJoined(NetworkRunner runner, PlayerRef player)
     {
-        playerSpawner.OnPlayerJoined(runner, player);
+        participantRegistry.RegisterConnection(runner, player);
     }
 
     public void OnPlayerLeft(NetworkRunner runner, PlayerRef player)
     {
-        playerSpawner.OnPlayerLeft(runner, player);
+        participantRegistry.UnregisterConnection(runner, player);
     }
 
     public void OnInput(NetworkRunner runner, NetworkInput input)
     {
-        inputCollector.CollectInput(input);
+        if (runner != Runner || sessionController.IsStartingGame || sessionController.IsReconnecting)
+        {
+            input.Set(default(PlayerNetworkInput));
+            return;
+        }
+        if (IsLocalCombatant && !IsRoleRequestPending)
+        {
+            inputCollector.CollectInput(input);
+        }
+        else
+        {
+            input.Set(default(PlayerNetworkInput));
+        }
     }
 
     public void OnInputMissing(NetworkRunner runner, PlayerRef player, NetworkInput input) { }
-    public void OnShutdown(NetworkRunner runner, ShutdownReason shutdownReason)
+    public async void OnShutdown(NetworkRunner runner, ShutdownReason shutdownReason)
     {
-        sessionController.HandleShutdown(runner, shutdownReason);
+        await sessionController.HandleDisconnectedAsync(runner, shutdownReason.ToString());
     }
     public void OnConnectedToServer(NetworkRunner runner) { }
-    public void OnDisconnectedFromServer(NetworkRunner runner, NetDisconnectReason reason) { }
+    public async void OnDisconnectedFromServer(NetworkRunner runner, NetDisconnectReason reason)
+    {
+        await sessionController.HandleDisconnectedAsync(runner, reason.ToString());
+    }
     public void OnConnectRequest(NetworkRunner runner, NetworkRunnerCallbackArgs.ConnectRequest request, byte[] token) { request.Accept(); }
     public void OnConnectFailed(NetworkRunner runner, NetAddress remoteAddress, NetConnectFailedReason reason) { }
     public void OnUserSimulationMessage(NetworkRunner runner, SimulationMessagePtr message) { }

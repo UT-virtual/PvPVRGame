@@ -872,8 +872,8 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 432667075}
   m_HandleRect: {fileID: 432667074}
   m_Direction: 2
-  m_Value: 0
-  m_Size: 0.9999933
+  m_Value: 1
+  m_Size: 0.999997
   m_NumberOfSteps: 0
   m_OnValueChanged:
     m_PersistentCalls:
@@ -2217,6 +2217,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::BattleHudBinder
   healthBar: {fileID: 1221322612}
   ammoBar: {fileID: 1061165987}
+  skillHudUI: {fileID: 0}
 --- !u!4 &773190231
 Transform:
   m_ObjectHideFlags: 0
@@ -2396,7 +2397,7 @@ MonoBehaviour:
   m_HandleRect: {fileID: 280388581}
   m_Direction: 0
   m_Value: 1
-  m_Size: 0.999971
+  m_Size: 0.99998105
   m_NumberOfSteps: 0
   m_OnValueChanged:
     m_PersistentCalls:
@@ -3505,6 +3506,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::BattleHudBinder
   healthBar: {fileID: 1221322612}
   ammoBar: {fileID: 1061165987}
+  skillHudUI: {fileID: 0}
 --- !u!1001 &1107965855
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -3515,7 +3517,7 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: 847176050165502015, guid: b5a26f89cc7544331ba5909bd6973c24, type: 3}
       propertyPath: SortKey
-      value: 3848845340
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 1461872884026709090, guid: b5a26f89cc7544331ba5909bd6973c24, type: 3}
       propertyPath: m_Name
@@ -3608,7 +3610,7 @@ MonoBehaviour:
   minPlayersToStart: 1
   skillSelectionDuration: 30
   startAfterAllSkillsSelectedDelay: 3
-  availableRoundSkills: 0100000002000000030000000400000005000000060000000700000008000000090000000a0000000b0000000c0000000d000000
+  selectableRoundSkills: 0100000002000000030000000400000005000000060000000700000008000000090000000a0000000b0000000c0000000d000000
   maxRoundCount: 3
   nextRoundDelay: 2
   returnToWaitingDelay: 3
@@ -3618,9 +3620,9 @@ MonoBehaviour:
   healthItemSpawner: {fileID: 0}
   waitingRoomUI: {fileID: 81070261}
   battleStartUI: {fileID: 1760244462}
-  skillOptionSlotCount: 4
+  roundEndUI: {fileID: 0}
+  finalResultUI: {fileID: 0}
   countDebugSpectatorDummiesAsAlive: 0
-  currentRound: 1
 --- !u!4 &1119373598
 Transform:
   m_ObjectHideFlags: 0
@@ -3648,7 +3650,7 @@ MonoBehaviour:
   m_Script: {fileID: -1552182283, guid: e725a070cec140c4caffb81624c8c787, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Fusion.Runtime.dll::Fusion.NetworkObject
-  SortKey: 1048161609
+  SortKey: 0
   ObjectInterest: 1
   Flags: 262145
   NestedObjects: []
@@ -3942,7 +3944,7 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: 847176050165502015, guid: b5a26f89cc7544331ba5909bd6973c24, type: 3}
       propertyPath: SortKey
-      value: 2098861530
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 1461872884026709090, guid: b5a26f89cc7544331ba5909bd6973c24, type: 3}
       propertyPath: m_Name
@@ -4711,7 +4713,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 1}
   m_AnchorMax: {x: 1, y: 1}
-  m_AnchoredPosition: {x: 11253483, y: 13380297}
+  m_AnchoredPosition: {x: 11353274, y: 13498938}
   m_SizeDelta: {x: -183, y: 0}
   m_Pivot: {x: 0, y: 1}
 --- !u!114 &1502683515
@@ -5974,7 +5976,7 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: 847176050165502015, guid: b5a26f89cc7544331ba5909bd6973c24, type: 3}
       propertyPath: SortKey
-      value: 461413035
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 1461872884026709090, guid: b5a26f89cc7544331ba5909bd6973c24, type: 3}
       propertyPath: m_Name
@@ -7194,7 +7196,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 1}
   m_AnchorMax: {x: 1, y: 1}
-  m_AnchoredPosition: {x: -0.014200852, y: 0.0007567761}
+  m_AnchoredPosition: {x: 0.009188235, y: -0.0032301398}
   m_SizeDelta: {x: -183, y: 0}
   m_Pivot: {x: 0, y: 1}
 --- !u!114 &2049869607
@@ -7390,7 +7392,7 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: 847176050165502015, guid: b5a26f89cc7544331ba5909bd6973c24, type: 3}
       propertyPath: SortKey
-      value: 2282504988
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 1461872884026709090, guid: b5a26f89cc7544331ba5909bd6973c24, type: 3}
       propertyPath: m_Name

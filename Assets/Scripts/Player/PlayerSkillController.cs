@@ -1,6 +1,11 @@
+using System;
 using Fusion;
 using UnityEngine;
 
+/// <summary>
+/// 2枠のスキル、発動時間、クールダウンをStateAuthorityで管理し、待機場では練習用スキルを割り当てる。
+/// 発動時の操作はPlayerSkillActivator、継続効果の反映はPlayerSkillEffectApplierへ委ねる。
+/// </summary>
 [RequireComponent(typeof(PlayerMove))]
 [RequireComponent(typeof(PlayerWeapon))]
 [RequireComponent(typeof(PlayerHealth))]
@@ -62,6 +67,11 @@ public class PlayerSkillController : NetworkBehaviour
     [Header("Debug")]
     [SerializeField] private bool allowSameSkillConsecutiveForDebug = false;
 
+    [Header("Waiting Room Skills")]
+    [SerializeField] private bool enableWaitingRoomSkills = true;
+    [SerializeField] private PlayerSkillType waitingRoomFirstSkill = PlayerSkillType.MoveSpeedUp;
+    [SerializeField] private PlayerSkillType waitingRoomSecondSkill = PlayerSkillType.NextShotDamageBoost;
+
     private PlayerMove playerMove;
     private PlayerWeapon playerWeapon;
     private PlayerHealth playerHealth;
@@ -69,6 +79,9 @@ public class PlayerSkillController : NetworkBehaviour
     private PlayerSkillSettings skillSettings;
     private PlayerSkillEffectApplier effectApplier;
     private PlayerSkillActivator skillActivator;
+    private bool hasAppliedWaitingRoomSkills = false;
+
+    public event Action<PlayerSkillType> OnSkillActivated;
 
     [Networked] public PlayerSkillType CurrentRoundSkill { get; private set; }
     [Networked] public PlayerSkillType CurrentRoundSecondSkill { get; private set; }
@@ -133,6 +146,11 @@ public class PlayerSkillController : NetworkBehaviour
         return GetSkillCooldownRemaining(NormalizeSkillSlotIndex(slotIndex));
     }
 
+    private int NormalizeSkillSlotIndex(int slotIndex)
+    {
+        return slotIndex <= 0 ? 0 : 1;
+    }
+
     private void Awake()
     {
         playerMove = GetComponent<PlayerMove>();
@@ -159,6 +177,7 @@ public class PlayerSkillController : NetworkBehaviour
             return;
         }
 
+        UpdateWaitingRoomSkillAssignment();
         UpdateSkillState();
     }
 
@@ -333,26 +352,26 @@ public class PlayerSkillController : NetworkBehaviour
         skillActivator.Activate(selectedSkill, slotIndex);
     }
 
-    //wayo追記
+    /// <summary>
+    /// 指定枠のスキルを発動し、その枠へ効果時間とクールダウンを記録する。
+    /// 現在の選択枠は切り替えず、発動中・クールダウン中の枠は受け付けない。
+    /// </summary>
     public void TryActivateSkillBySlot(int slotIndex)
     {
         if (Object == null || !Object.HasStateAuthority)
         {
             return;
         }
-
         slotIndex = slotIndex <= 0 ? 0 : 1;
         PlayerSkillType selectedSkill = GetRoundSkillBySlot(slotIndex);
         if (selectedSkill == PlayerSkillType.None)
         {
             return;
         }
-
         if (IsSkillSlotActive(slotIndex) || IsSkillSlotCoolingDown(slotIndex))
         {
             return;
         }
-
         skillActivator.Activate(selectedSkill, slotIndex);
     }
 
@@ -413,10 +432,9 @@ public class PlayerSkillController : NetworkBehaviour
         );
     }
 
-    private void BeginActiveSkill(PlayerSkillType skill, float duration, int slotIndex)
+    private void BeginActiveSkill(int slotIndex, PlayerSkillType skill, float duration)
     {
-        slotIndex = slotIndex <= 0 ? 0 : 1;
-
+        // 直接発動した枠を使う。HUDで選択中の枠と一致するとは限らない。
         TickTimer activeTimer = TickTimer.CreateFromSeconds(Runner, duration);
 
         if (slotIndex <= 0)
@@ -434,6 +452,8 @@ public class PlayerSkillController : NetworkBehaviour
             $"[Skill] {gameObject.name}: BeginActiveSkill. " +
             $"Slot={slotIndex + 1}, Skill={skill}, Duration={duration}"
         );
+
+        OnSkillActivated?.Invoke(skill); // 追加
     }
 
     private void UpdateSkillState()
@@ -592,15 +612,61 @@ public class PlayerSkillController : NetworkBehaviour
         return CurrentSelectedSkillIndex <= 0 ? 0 : 1;
     }
 
-    private int NormalizeSkillSlotIndex(int slotIndex)
-    {
-        return slotIndex <= 0 ? 0 : 1;
-    }
-
     private PlayerSkillType GetRoundSkillBySlot(int slotIndex)
     {
         return slotIndex <= 0
             ? CurrentRoundSkill
             : CurrentRoundSecondSkill;
+    }
+
+    private void UpdateWaitingRoomSkillAssignment()
+    {
+        if (!enableWaitingRoomSkills)
+        {
+            return;
+        }
+
+        bool isWaitingPhase =
+            RoundManager.Instance == null ||
+            !RoundManager.Instance.IsNetworkReady ||
+            RoundManager.Instance.IsWaitingForReady;
+
+        if (isWaitingPhase)
+        {
+            if (!hasAppliedWaitingRoomSkills ||
+                (CurrentRoundSkill == PlayerSkillType.None && CurrentRoundSecondSkill == PlayerSkillType.None))
+            {
+                EquipWaitingRoomSkills();
+                hasAppliedWaitingRoomSkills = true;
+            }
+        }
+        else if (hasAppliedWaitingRoomSkills)
+        {
+            // スキル選択フェーズ等に移行した瞬間に待機用スキルの効果とクールダウンをリセット
+            hasAppliedWaitingRoomSkills = false;
+            if (RoundManager.Instance != null && RoundManager.Instance.IsSkillSelecting)
+            {
+                ClearSkillState();
+            }
+        }
+    }
+
+    public void EquipWaitingRoomSkills()
+    {
+        if (Object == null || !Object.HasStateAuthority)
+        {
+            return;
+        }
+
+        ResetActiveAndCooldownState();
+        CurrentRoundSkill = waitingRoomFirstSkill;
+        CurrentRoundSecondSkill = waitingRoomSecondSkill;
+        CurrentSelectedSkillIndex = GetInitialSelectedSkillIndex();
+        ApplySkillEffects();
+
+        Debug.Log(
+            $"[Skill] {gameObject.name}: Equipped waiting room skills. " +
+            $"Skill1={CurrentRoundSkill}, Skill2={CurrentRoundSecondSkill}"
+        );
     }
 }

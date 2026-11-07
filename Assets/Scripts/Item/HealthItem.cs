@@ -51,6 +51,11 @@ public class HealthItem : NetworkBehaviour
             return;
         }
 
+        // 撤去と接触が同じTickでも、サドンデスに入った時点で取得を禁止する。
+        RoundManager roundManager = RoundManager.Instance;
+        if (roundManager != null && (!roundManager.CanUseWeapons || roundManager.IsSuddenDeath ||
+            roundManager.RoundRemainingSeconds <= 0f)) return;
+
         PlayerHealth playerHealth = other.GetComponentInParent<PlayerHealth>();
 
         if (playerHealth == null)

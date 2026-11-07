@@ -1,6 +1,10 @@
 using System;
 using UnityEngine;
 
+/// <summary>
+/// 現在有効なスキルから移動・武器・HP関連の補正を再計算する。
+/// 効果の終了時も標準値を設定し直し、発動時だけの特殊弾装填などはPlayerSkillActivatorに委ねる。
+/// </summary>
 public sealed class PlayerSkillEffectApplier
 {
     private readonly PlayerMove playerMove;
@@ -24,6 +28,10 @@ public sealed class PlayerSkillEffectApplier
         this.isSkillActive = isSkillActive;
     }
 
+    /// <summary>
+    /// 有効なスキルの組み合わせから全補正を設定し直す。
+    /// TickとRenderの両方から呼ばれ、HPの確定操作などは各コンポーネントのAuthority判定に従う。
+    /// </summary>
     public void ApplySkillEffects()
     {
         ApplyDoubleJumpEffect();
@@ -105,6 +113,7 @@ public sealed class PlayerSkillEffectApplier
             return;
         }
 
+        // ここではスキル分だけを更新する。ハプニングとラウンド効果はPlayerMoveが移動時に合成する。
         playerMove.SetMoveSpeedMultiplier(
             IsActive(PlayerSkillType.MoveSpeedUp)
                 ? settings.MoveSpeedMultiplier

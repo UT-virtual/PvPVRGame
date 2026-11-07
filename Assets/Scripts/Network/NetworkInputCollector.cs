@@ -233,7 +233,7 @@ public sealed class NetworkInputCollector
             : ReadQuaternionAction(leftHandRotationAction);
 
         Vector3 aim = (leftRotation * (Vector3.forward - new Vector3(0, 0, 0.2f))).normalized;
-        Vector3 up = xrHmd.up;
+        Vector3 up = xrHmd != null ? xrHmd.up : Vector3.up;
         float vertical = Vector3.Dot(aim, up);
 
         const float directionThreshold = 0.5f;
@@ -350,7 +350,7 @@ public sealed class NetworkInputCollector
     private static bool IsXrButtonHeld(string path) =>
         InputSystem.FindControl(path) is ButtonControl button && button.isPressed;
 
-    public void ResetConnectionState()
+    public void ResetLocalState()
     {
         LocalPlayerController = null;
         LastMoveInput = Vector2.zero;
@@ -362,6 +362,11 @@ public sealed class NetworkInputCollector
 
     public void RegisterLocalPlayer(PlayerController playerController)
     {
+        if (LocalPlayerController != playerController)
+        {
+            ClearQueuedInputs();
+        }
+
         LocalPlayerController = playerController;
         Debug.Log($"[NetworkInputCollector] Registered local player: {playerController.name}");
     }
@@ -382,10 +387,13 @@ public sealed class NetworkInputCollector
         }
 
         LocalPlayerController = null;
+        ClearQueuedInputs();
 
         Debug.Log($"[NetworkInputCollector] Unregistered local player: {playerController.name}");
         return true;
     }
+
+    public void ClearPendingInput() => ClearQueuedInputs();
 
     private void ClearQueuedInputs()
     {

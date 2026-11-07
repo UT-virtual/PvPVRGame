@@ -148,6 +148,12 @@ public sealed class RoundUIController
             HideWaitingRoomUI();
         }
 
+        // 結果通知の表示を次の選択・開始演出へ持ち越さない。
+        if (targetPhase != RoundManager.GamePhase.RoundPlaying && targetPhase != RoundManager.GamePhase.RoundEnding)
+        {
+            HideRoundEndUI();
+        }
+
         if (playBattleStartUI && battleStartUI != null)
         {
             battleStartUI.StopAllCoroutines();

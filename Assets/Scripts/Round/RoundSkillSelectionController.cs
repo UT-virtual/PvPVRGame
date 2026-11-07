@@ -4,6 +4,10 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
+/// <summary>
+/// ラウンドごとの候補生成、参加者の2段階の選択、時間切れ時の補完を管理する。
+/// StateAuthority側で選択を確定してRoundStartControllerへ引き継ぎ、各端末には候補をRPCで配布する。
+/// </summary>
 public sealed class RoundSkillSelectionController
 {
     private readonly MonoBehaviour coroutineRunner;
@@ -29,7 +33,7 @@ public sealed class RoundSkillSelectionController
     private readonly RoundDebugLogger debugLogger;
 
     private readonly Action hideWaitingRoomUI;
-    private readonly Action<PlayerRef, int> notifySkillSelectionProgressRpc;
+    private readonly Action<PlayerRef, int, int, PlayerSkillType> notifySkillSelectionProgressRpc;
 
     private readonly Action<
         PlayerSkillType,
@@ -45,6 +49,7 @@ public sealed class RoundSkillSelectionController
     private readonly Action startRoundAfterSkillSelection;
     private readonly Action stopStartRoundCoroutine;
 
+    // 候補はNetworkedプロパティではなくRPCで配布した端末内配列。選択数と確定内容は進行側の辞書で管理する。
     private readonly PlayerSkillType[] currentSkillOptions;
     private readonly PlayerSkillType[] secondSkillOptions;
 
@@ -72,7 +77,7 @@ public sealed class RoundSkillSelectionController
         RoundProjectileCleaner projectileCleaner,
         RoundDebugLogger debugLogger,
         Action hideWaitingRoomUI,
-        Action<PlayerRef, int> notifySkillSelectionProgressRpc,
+        Action<PlayerRef, int, int, PlayerSkillType> notifySkillSelectionProgressRpc,
         Action<
             PlayerSkillType,
             PlayerSkillType,
@@ -130,6 +135,10 @@ public sealed class RoundSkillSelectionController
         return GetSkillOption(slotIndex, 0);
     }
 
+    /// <summary>
+    /// 0始まりの候補枠を返す。selectionIndexが0以下なら1回目、それ以外は2回目の候補を参照する。
+    /// 範囲外の枠はNoneを返す。
+    /// </summary>
     public PlayerSkillType GetSkillOption(int slotIndex, int selectionIndex)
     {
         if (slotIndex < 0 || slotIndex >= currentSkillOptions.Length)
@@ -219,6 +228,10 @@ public sealed class RoundSkillSelectionController
             : PlayerSkillType.None;
     }
 
+    /// <summary>
+    /// 進行側で古い選択・開始待ちを停止し、候補配布、残弾・アイテムの撤去、全員復活、選択初期化を行う。
+    /// 新しい選択フェーズの時間切れ監視を開始する。
+    /// </summary>
     public void BeginSkillSelectionForRound(int roundNumber)
     {
         StopSkillSelectionCoroutines();
@@ -245,6 +258,10 @@ public sealed class RoundSkillSelectionController
         skillSelectionCoroutine = coroutineRunner.StartCoroutine(SkillSelectionTimeoutCoroutine());
     }
 
+    /// <summary>
+    /// 進行側で登録参加者の現在の選択段階に対応する候補を受理する。
+    /// フェーズ・範囲・空枠・同一スキルの重複を確認し、全員完了なら開始待機へ引き継ぐ。
+    /// </summary>
     public void SelectSkillBySlot(PlayerHealth player, int slotIndex)
     {
         if (!IsSkillSelecting)
@@ -287,7 +304,7 @@ public sealed class RoundSkillSelectionController
         SelectSkill(player, skill, false);
     }
 
-    public void HandleRequestSelectSkillBySlot(PlayerRef playerRef, int slotIndex)
+    public void HandleRequestSelectSkillBySlot(PlayerRef playerRef, int slotIndex, int expectedSelectionStep)
     {
         if (!IsSkillSelecting)
         {
@@ -311,7 +328,11 @@ public sealed class RoundSkillSelectionController
 
         int beforeCount = GetSkillSelectionCount(player);
 
-        SelectSkillBySlot(player, slotIndex);
+        // 応答待ちの再送を次の選択として扱わない。受理済みなら現在の結果だけを返す。
+        if (expectedSelectionStep == beforeCount)
+        {
+            SelectSkillBySlot(player, slotIndex);
+        }
 
         int afterCount = GetSkillSelectionCount(player);
 
@@ -321,7 +342,7 @@ public sealed class RoundSkillSelectionController
             $"Count={beforeCount}->{afterCount}"
         );
 
-        notifySkillSelectionProgressRpc(playerRef, afterCount);
+        notifySkillSelectionProgressRpc(playerRef, afterCount, expectedSelectionStep, GetFirstSelectedSkill(player));
     }
 
     public void ApplySkillOptionsFromNetwork(
@@ -356,6 +377,9 @@ public sealed class RoundSkillSelectionController
         );
     }
 
+    /// <summary>
+    /// 有効な参加者が1人以上いて全員の選択が揃った場合に、選択タイムアウトを止めて開始待機を依頼する。
+    /// </summary>
     public void TryFinishSkillSelection()
     {
         if (!IsSkillSelecting)
@@ -396,6 +420,9 @@ public sealed class RoundSkillSelectionController
         skillSelectionCoroutine = null;
     }
 
+    /// <summary>
+    /// 選択タイムアウトとRoundStartControllerの開始待機の両方を停止し、前フェーズの遅延処理を残さない。
+    /// </summary>
     public void StopSkillSelectionCoroutines()
     {
         StopSkillSelectionCoroutineOnly();
@@ -463,20 +490,6 @@ public sealed class RoundSkillSelectionController
             Debug.LogWarning($"[RoundSkillSelectionController] PlayerSkillController was not found: {player.gameObject.name}");
             skill = PlayerSkillType.None;
         }
-        else if (!skillController.CanSelectSkill(skill))
-        {
-            Debug.Log(
-                $"[RoundSkillSelectionController] {player.gameObject.name} cannot select {skill} because it was used last round."
-            );
-
-            if (!isAutoSelect)
-            {
-                return;
-            }
-
-            skill = PlayerSkillType.None;
-        }
-
         if (selectionIndex > 0 &&
             skill != PlayerSkillType.None &&
             GetFirstSelectedSkill(player) == skill)
@@ -535,8 +548,6 @@ public sealed class RoundSkillSelectionController
             return PlayerSkillType.None;
         }
 
-        PlayerSkillController skillController = player.GetComponent<PlayerSkillController>();
-
         for (int i = 0; i < SkillOptionSlotCount; i++)
         {
             PlayerSkillType skill = GetSkillOption(i, selectionIndex);
@@ -551,10 +562,7 @@ public sealed class RoundSkillSelectionController
                 continue;
             }
 
-            if (skillController == null || skillController.CanSelectSkill(skill))
-            {
-                return skill;
-            }
+            return skill;
         }
 
         return PlayerSkillType.None;

@@ -4,6 +4,10 @@ using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 
+/// <summary>
+/// 生存人数または時間切れでラウンドを終了し、得点確定、結果通知、次の選択または待機復帰を進める。
+/// RoundManagerのStateAuthority側の進行経路から使用し、終了処理の重複を抑止する。
+/// </summary>
 public sealed class RoundFlowController
 {
     private readonly MonoBehaviour coroutineRunner;
@@ -47,7 +51,11 @@ public sealed class RoundFlowController
     private readonly Action showWaitingRoomUI;
     private readonly Action logReadyStates;
 
+    private readonly Action beginRoundEffect;
+
     private bool isRoundEnding;
+    private bool roundEndCheckPending;
+    private Coroutine roundEndCoroutine;
 
     public RoundFlowController(
         MonoBehaviour coroutineRunner,
@@ -72,7 +80,8 @@ public sealed class RoundFlowController
         Action<int> showFinalResultUIRpc,
         Action hideFinalResultUIRpc,
         Action showWaitingRoomUI,
-        Action logReadyStates
+        Action logReadyStates,
+        Action beginRoundEffect
     )
     {
         this.coroutineRunner = coroutineRunner;
@@ -106,8 +115,12 @@ public sealed class RoundFlowController
 
         this.showWaitingRoomUI = showWaitingRoomUI;
         this.logReadyStates = logReadyStates;
+        this.beginRoundEffect = beginRoundEffect;
     }
 
+    /// <summary>
+    /// 戦闘中の死亡を通知する。爆発で複数人が死亡する途中では勝者を確定せず、Tick末尾で再判定する。
+    /// </summary>
     public void HandlePlayerDied(PlayerHealth deadPlayer)
     {
         if (deadPlayer == null)
@@ -117,6 +130,33 @@ public sealed class RoundFlowController
 
         Debug.Log($"[RoundFlowController] HandlePlayerDied: {deadPlayer.gameObject.name}");
 
+        roundEndCheckPending = true;
+    }
+
+    /// <summary>
+    /// RoundManagerのシミュレーション後処理から呼び、同一Tickの死亡をまとめて判定する。
+    /// </summary>
+    public void ResolvePendingDeaths()
+    {
+        if (!roundEndCheckPending) return;
+        roundEndCheckPending = false;
+        CheckRoundEnd();
+    }
+
+    /// <summary>
+    /// 制限時間に達したとき、生存者の撃破数、与ダメージ、残りHPで結果を確定する。
+    /// 死亡側と同じ終了経路を通し、すでに確定済みなら何もしない。
+    /// </summary>
+    public void EndRoundOnTimeout()
+    {
+        EndRound(scoreCalculator.GetTimeoutWinner());
+    }
+
+    /// <summary>
+    /// 死亡・退出後の参加者一覧で終了条件を再判定する。終了開始済みなら何もしない。
+    /// </summary>
+    public void CheckRoundEnd()
+    {
         RoundManager.GamePhase currentPhase = getPhase();
 
         if (currentPhase != RoundManager.GamePhase.RoundPlaying)
@@ -159,10 +199,17 @@ public sealed class RoundFlowController
 
         PlayerHealth roundWinner = alivePlayers.Count == 1 ? alivePlayers[0] : null;
 
+        EndRound(roundWinner);
+    }
+
+    private void EndRound(PlayerHealth roundWinner)
+    {
+        // 死亡と時間切れが同じTickでも、得点加算と結果通知を一度だけ実行する。
+        if (isRoundEnding || getPhase() != RoundManager.GamePhase.RoundPlaying) return;
         isRoundEnding = true;
         setPhase(RoundManager.GamePhase.RoundEnding);
 
-        coroutineRunner.StartCoroutine(EndRoundCoroutine(roundWinner));
+        roundEndCoroutine = coroutineRunner.StartCoroutine(EndRoundCoroutine(roundWinner));
     }
 
     private IEnumerator EndRoundCoroutine(PlayerHealth roundWinner)
@@ -207,15 +254,16 @@ public sealed class RoundFlowController
 
         if (completedRound >= getMaxRoundCount())
         {
-            yield return coroutineRunner.StartCoroutine(FinishMatchAndReturnToWaitingCoroutine());
+            yield return FinishMatchAndReturnToWaitingCoroutine();
             yield break;
         }
 
         setCurrentRound(completedRound + 1);
 
-        skillSelectionController.BeginSkillSelectionForRound(getCurrentRound());
+        beginRoundEffect();
 
         isRoundEnding = false;
+        roundEndCoroutine = null;
     }
 
     private IEnumerator FinishMatchAndReturnToWaitingCoroutine()
@@ -239,10 +287,38 @@ public sealed class RoundFlowController
         yield return new WaitForSeconds(getReturnToWaitingDelay());
 
         ResetMatchStateToWaiting();
+        roundEndCoroutine = null;
+    }
+
+    /// <summary>
+    /// 遅延中のラウンド終了と選択・開始待機を停止する。Despawn時には状態を再初期化しない。
+    /// </summary>
+    public void StopProgression()
+    {
+        roundEndCheckPending = false;
+        if (roundEndCoroutine != null)
+        {
+            coroutineRunner.StopCoroutine(roundEndCoroutine);
+            roundEndCoroutine = null;
+        }
+
+        skillSelectionController.StopSkillSelectionCoroutines();
+    }
+
+    /// <summary>
+    /// 人数不足で試合を中断し、残った参加者の得点・準備・スキルを初期化して待機へ戻す。
+    /// </summary>
+    public void AbortMatchToWaiting()
+    {
+        StopProgression();
+        ResetMatchStateToWaiting();
     }
 
     private void ResetMatchStateToWaiting()
     {
+        // 復活・スキル解除に伴うイベントが、終了判定へ再入しないよう先にフェーズを閉じる。
+        setPhase(RoundManager.GamePhase.WaitingForReady);
+        hideRoundEndUIRpc();
         hideFinalResultUIRpc();
 
         healthItemController.ClearHealthItems();
@@ -253,6 +329,7 @@ public sealed class RoundFlowController
 
         List<PlayerHealth> validPlayers = getValidPlayers();
 
+        // 待機への切替と同じ処理内で、次の試合に持ち越せない状態を消去する。
         scoreCalculator.ResetPoints(validPlayers);
         readyController.ResetReadyStates(validPlayers);
         skillSelectionController.ResetSelectionStates(validPlayers);
@@ -273,8 +350,6 @@ public sealed class RoundFlowController
         }
 
         spawnController.RespawnAllPlayersWithoutOverlap(validPlayers);
-
-        setPhase(RoundManager.GamePhase.WaitingForReady);
 
         showWaitingRoomUI();
 

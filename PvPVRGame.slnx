@@ -57,6 +57,7 @@
   <Project Path="Unity.AI.Animate.csproj" />
   <Project Path="Unity.AI.Assistant.Tools.Editor.csproj" />
   <Project Path="Oculus.Platform.csproj" />
+  <Project Path="Assembly-CSharp.csproj" />
   <Project Path="Meta.WitAi.Lib.csproj" />
   <Project Path="VoiceSDK.Runtime.csproj" />
   <Project Path="AssistantCoreSDKRuntime.csproj" />
@@ -75,7 +76,6 @@
   <Project Path="Unity.AI.Navigation.Updater.csproj" />
   <Project Path="Unity.VisualScripting.State.Editor.csproj" />
   <Project Path="Unity.AI.Assistant.Integrations.Profiler.Editor.csproj" />
-  <Project Path="Assembly-CSharp.csproj" />
   <Project Path="Oculus.VR.Scripts.Editor.csproj" />
   <Project Path="Unity.AI.Search.Editor.csproj" />
   <Project Path="Unity.AppUI.Redux.csproj" />

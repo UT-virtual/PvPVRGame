@@ -50,6 +50,10 @@ public static class GameSetupValidation
         Require(prefab.GetComponent<PlayerCamera>() != null && prefab.GetComponent<PlayerController>() != null, "Common player needs PC and VR control components.");
         Require(prefab.GetComponent<PlayerWeapon>().MuzzleTransform != null, "VR muzzle must be assigned.");
         Require(prefab.GetComponent<PlayerCamera>().CameraTarget != null, "Desktop camera target must be assigned.");
+        Require(prefab.GetComponent<OtherPlayerHealthBar>() != null, "Shared player lost the stg health bar.");
+        Require(prefab.GetComponentInChildren<PlayerLocalSound>(true) != null, "Shared player lost local sound settings.");
+        Require(UnityEngine.Object.FindFirstObjectByType<PracticeTargetSpawner>() != null, "GameScene lost the practice target spawner.");
+        Require(UnityEngine.Object.FindFirstObjectByType<RoundSeManager>() != null, "GameScene lost round sound settings.");
         Debug.Log("[GameSetupValidation] PASS: mode selection, shared scene, explicit XR startup and common player configuration.");
     }
 
