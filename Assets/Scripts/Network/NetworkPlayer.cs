@@ -38,12 +38,22 @@ public class NetworkPlayer : NetworkBehaviour
 
         if (isLocalPlayer)
         {
-            NetworkLauncher launcher = FindFirstObjectByType<NetworkLauncher>();
+            NetworkTransform networkTransform = GetComponent<NetworkTransform>();
+            if (networkTransform != null)
+            {
+                networkTransform.DisableSharedModeInterpolation = true;
+            }
+
+            NetworkLauncher launcher = NetworkLauncher.Instance;
             PlayerController playerController = GetComponent<PlayerController>();
 
             if (launcher != null && playerController != null)
             {
                 launcher.RegisterLocalPlayer(playerController);
+                launcher.AttachXrOriginToPlayer(transform);
+
+                VRBodyTargetSync bodySync = GetComponent<VRBodyTargetSync>();
+                launcher.ConfigureLocalVrBodySync(bodySync);
             }
 
             StartCoroutine(SetupLocalPlayerAfterSpawn());
@@ -57,11 +67,12 @@ public class NetworkPlayer : NetworkBehaviour
             return;
         }
 
-        NetworkLauncher launcher = FindFirstObjectByType<NetworkLauncher>();
+        NetworkLauncher launcher = NetworkLauncher.Instance;
         PlayerController playerController = GetComponent<PlayerController>();
 
         if (launcher != null && playerController != null)
         {
+            launcher.DetachXrOriginFromPlayer();
             launcher.UnregisterLocalPlayer(playerController);
         }
     }
@@ -70,19 +81,24 @@ public class NetworkPlayer : NetworkBehaviour
     {
         yield return null;
 
+        NetworkLauncher launcher = NetworkLauncher.Instance;
+
         if (playerCamera == null)
         {
             Debug.LogError($"{name}: Cannot setup camera because PlayerCamera is null.");
         }
         else
         {
+            if (launcher != null)
+            {
+                launcher.ConfigureLocalPlayerCamera(playerCamera);
+            }
+
             playerCamera.SetupLocalCamera();
             playerCamera.UpdateCameraTarget();
         }
 
         yield return null;
-
-        NetworkLauncher launcher = FindFirstObjectByType<NetworkLauncher>();
 
         if (launcher != null)
         {

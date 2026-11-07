@@ -126,6 +126,31 @@ public class PlayerSkillController : NetworkBehaviour
         }
     }
 
+    public PlayerSkillType GetRoundSkillForSlot(int slotIndex)
+    {
+        return GetRoundSkillBySlot(NormalizeSkillSlotIndex(slotIndex));
+    }
+
+    public bool CanUseSkillSlot(int slotIndex)
+    {
+        slotIndex = NormalizeSkillSlotIndex(slotIndex);
+
+        return
+            GetRoundSkillBySlot(slotIndex) != PlayerSkillType.None &&
+            !IsSkillSlotActive(slotIndex) &&
+            !IsSkillSlotCoolingDown(slotIndex);
+    }
+
+    public float GetSkillCooldownRemainingForSlot(int slotIndex)
+    {
+        return GetSkillCooldownRemaining(NormalizeSkillSlotIndex(slotIndex));
+    }
+
+    private int NormalizeSkillSlotIndex(int slotIndex)
+    {
+        return slotIndex <= 0 ? 0 : 1;
+    }
+
     private void Awake()
     {
         playerMove = GetComponent<PlayerMove>();
