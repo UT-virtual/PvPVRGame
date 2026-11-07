@@ -15,6 +15,8 @@ public class NetworkPlayer : NetworkBehaviour
     [Header("Local Only Objects")]
     [SerializeField] private GameObject[] localOnlyObjects;
 
+    private PlayerAimGuide aimGuide;
+
     public override void Spawned()
     {
         bool isLocalPlayer = Object.HasInputAuthority;
@@ -38,6 +40,9 @@ public class NetworkPlayer : NetworkBehaviour
 
         if (isLocalPlayer)
         {
+            if (aimGuide == null) aimGuide = gameObject.AddComponent<PlayerAimGuide>();
+            aimGuide.enabled = true;
+
             NetworkTransform networkTransform = GetComponent<NetworkTransform>();
             if (networkTransform != null)
             {
@@ -62,6 +67,7 @@ public class NetworkPlayer : NetworkBehaviour
 
     public override void Despawned(NetworkRunner runner, bool hasState)
     {
+        if (aimGuide != null) aimGuide.enabled = false;
         if (!Object.HasInputAuthority)
         {
             return;

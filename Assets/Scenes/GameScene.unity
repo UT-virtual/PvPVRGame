@@ -1659,7 +1659,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 1}
   m_AnchorMax: {x: 1, y: 1}
-  m_AnchoredPosition: {x: 0.0075046164, y: -0.011696439}
+  m_AnchoredPosition: {x: 0.0053494433, y: -0.006173247}
   m_SizeDelta: {x: -183, y: 0}
   m_Pivot: {x: 0, y: 1}
 --- !u!114 &223972608
@@ -3001,7 +3001,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 836e274871e34c5caf8212b84b352807, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::LocalPlayModeController
-  editorMode: 1
+  editorMode: 0
   simulateVrInEditor: 0
   xrStartupTimeout: 15
 --- !u!1 &609098896
@@ -7898,7 +7898,7 @@ MonoBehaviour:
   m_HandleRect: {fileID: 1320048002}
   m_Direction: 0
   m_Value: 1
-  m_Size: 0.99996626
+  m_Size: 0.99998105
   m_NumberOfSteps: 0
   m_OnValueChanged:
     m_PersistentCalls:
@@ -8429,11 +8429,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 625c14eee3ad46c99df7c7c891ef668a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Unity.Cinemachine::Unity.Cinemachine.CinemachineThirdPersonFollow
-  Damping: {x: 0.1, y: 0.5, z: 0.3}
-  ShoulderOffset: {x: 0, y: -0.4, z: 0}
-  VerticalArmLength: 0.4
+  Damping: {x: 0, y: 0, z: 0}
+  ShoulderOffset: {x: 0, y: 0, z: 0}
+  VerticalArmLength: 0
   CameraSide: 1
-  CameraDistance: 0.5
+  CameraDistance: 0
   AvoidObstacles:
     Enabled: 0
     CollisionFilter:
