@@ -73,7 +73,6 @@ public class RoundManager : NetworkBehaviour, IAfterTick
     {
         PlayerSkillType.DoubleJump,
         PlayerSkillType.RapidFire,
-        PlayerSkillType.BulletSpeedUp,
         PlayerSkillType.DamageReduction,
         PlayerSkillType.XRayVision,
         PlayerSkillType.MoveSpeedUp,
@@ -81,7 +80,6 @@ public class RoundManager : NetworkBehaviour, IAfterTick
         PlayerSkillType.Shrink,
         PlayerSkillType.DelayedDamageInvincible,
         PlayerSkillType.InstantReload,
-        PlayerSkillType.GravityBurstReload,
         PlayerSkillType.HeavyBulletReload,
         PlayerSkillType.NextShotDamageBoost
     };
@@ -106,6 +104,7 @@ public class RoundManager : NetworkBehaviour, IAfterTick
     [SerializeField] private BattleStartUI battleStartUI;
     [SerializeField] private RoundEndUI roundEndUI;
     [SerializeField] private FinalResultUI finalResultUI;
+    [SerializeField] private FinalDuelUI finalDuelUI;
 
     [Header("Debug Spectator Dummy")]
     [SerializeField] private bool countDebugSpectatorDummiesAsAlive = false;
@@ -113,6 +112,7 @@ public class RoundManager : NetworkBehaviour, IAfterTick
     [Header("Round Effect UI")]
     [SerializeField] private RoundEffectUI roundEffectUI;
 
+   
     // 接続者の一覧と役割はキャラクターの有無と分け、観戦者も全端末の待機一覧へ載せる。
     [Networked, Capacity(NetworkSessionController.MaxConnectionCount)]
     public NetworkDictionary<PlayerRef, ParticipantRole> ConnectedParticipants => default;
@@ -266,6 +266,9 @@ public class RoundManager : NetworkBehaviour, IAfterTick
             return;
         }
 
+        // 次のラウンド開始時に撃破UIを消す
+        RPC_HideKillNotification();
+
         // 5分の1の確率でラウンド効果を発生させる
         bool effectOccurs = UnityEngine.Random.Range(0, 5) == 0;
 
@@ -341,6 +344,24 @@ public class RoundManager : NetworkBehaviour, IAfterTick
             roundEffectUI.ShowEffect(effect, 3.0f);
         }
         // ここでRoundEffect UIを表示
+    }
+
+    [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+    private void RPC_HideKillNotification()
+    {
+        KillNotificationUI[] notifications =
+            FindObjectsByType<KillNotificationUI>(
+                FindObjectsInactive.Include,
+                FindObjectsSortMode.None
+            );
+
+        foreach (KillNotificationUI ui in notifications)
+        {
+            if (ui != null)
+            {
+                ui.HideKillNotification();
+            }
+        }
     }
 
     public int SkillOptionSlotCount =>
@@ -666,6 +687,12 @@ public class RoundManager : NetworkBehaviour, IAfterTick
             ? TickTimer.CreateFromSeconds(Runner, Mathf.Max(0f, startAfterAllSkillsSelectedDelay))
             : TickTimer.None;
         phase = value;
+
+        // フェーズ確定後に判定し、最初から2人のラウンドでも演出を開始する。
+        if (value == GamePhase.RoundPlaying)
+        {
+            flowController.CheckFinalDuelAtRoundStart();
+        }
     }
 
     private void ResetHappening()
@@ -771,6 +798,10 @@ public class RoundManager : NetworkBehaviour, IAfterTick
             projectileCleaner,
             RPC_ShowRoundEndUI,
             RPC_HideRoundEndUI,
+
+            // FINAL DUEL表示RPCを追加
+            RPC_ShowFinalDuel,
+
             RPC_ShowFinalResultUI,
             RPC_HideFinalResultUI,
             ShowWaitingRoomUI,
@@ -1045,6 +1076,40 @@ public class RoundManager : NetworkBehaviour, IAfterTick
     private void RPC_HideFinalResultUI()
     {
         uiController.HideFinalResultUI();
+    }
+
+    [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+    private void RPC_ShowFinalDuel()
+    {
+        FinalDuelUI ui = finalDuelUI;
+
+        if (ui == null)
+        {
+            ui = FindFirstObjectByType<FinalDuelUI>(
+                FindObjectsInactive.Include
+            );
+        }
+
+        if (ui == null)
+        {
+            Debug.LogWarning("[RoundManager] FinalDuelUI not found.");
+            return;
+        }
+
+        // FINAL DUELの親階層を有効化
+        Transform current = ui.transform;
+
+        while (current != null)
+        {
+            if (!current.gameObject.activeSelf)
+            {
+                current.gameObject.SetActive(true);
+            }
+
+            current = current.parent;
+        }
+
+        ui.ShowFinalDuel();
     }
 
     private void TryStartFirstRound()

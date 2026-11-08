@@ -4,7 +4,7 @@ using UnityEngine;
 
 /// <summary>
 /// StateAuthorityで射撃間隔、逐次装填、弾薬消費とProjectile生成を管理する。
-/// 通常弾・ヘビー弾は即時命中判定、重力弾はProjectile側で衝突判定を行う。
+/// 通常弾・ヘビー弾は即時命中判定を行い、生成したProjectileは視覚表現として使用する。
 /// </summary>
 [RequireComponent(typeof(PlayerHealth))]
 [RequireComponent(typeof(PlayerLook))]
@@ -14,7 +14,6 @@ public class PlayerWeapon : NetworkBehaviour
     private enum ProjectileShotKind
     {
         Normal,
-        GravityBurst,
         Heavy
     }
 
@@ -38,12 +37,6 @@ public class PlayerWeapon : NetworkBehaviour
     [SerializeField] private Transform muzzleTransform;
     [SerializeField] private float muzzleExitOffset = 0.05f;
 
-    [Header("Gravity Burst Ammo")]
-    [SerializeField] private float gravityBurstSpeedMultiplier = 0.75f;
-    [SerializeField] private float gravityBurstDamageMultiplier = 1.0f;
-    [SerializeField] private float gravityBurstGravityAcceleration = 18.0f;
-    [SerializeField] private float gravityBurstExplosionRadius = 3.0f;
-    [SerializeField] private float gravityBurstExplosionDamageMultiplier = 1.0f;
 
     [Header("Heavy Bullet Ammo")]
     [SerializeField] private float heavyBulletSpeedMultiplier = 3.0f;
@@ -214,31 +207,23 @@ public class PlayerWeapon : NetworkBehaviour
         return loadedShotKind;
     }
 
-    private float GetShotSpeedMultiplier(ProjectileShotKind shotKind)
+    private float GetShotSpeedMultiplier(ProjectileShotKind kind)
     {
-        switch (shotKind)
+        switch (kind)
         {
-            case ProjectileShotKind.GravityBurst:
-                return gravityBurstSpeedMultiplier;
-
             case ProjectileShotKind.Heavy:
                 return heavyBulletSpeedMultiplier;
-
             default:
                 return 1.0f;
         }
     }
 
-    private float GetShotDamageMultiplier(ProjectileShotKind shotKind)
+    private float GetShotDamageMultiplier(ProjectileShotKind kind)
     {
-        switch (shotKind)
+        switch (kind)
         {
-            case ProjectileShotKind.GravityBurst:
-                return gravityBurstDamageMultiplier;
-
             case ProjectileShotKind.Heavy:
                 return heavyBulletDamageMultiplier;
-
             default:
                 return 1.0f;
         }
@@ -415,9 +400,8 @@ public class PlayerWeapon : NetworkBehaviour
         Ray aim = GetAimRay(isVrPlayer, out Vector3 up);
         Vector3 fireDirection = aim.direction;
         float exitOffset = isVrPlayer && muzzleTransform != null ? muzzleExitOffset : projectileSpawnDistance;
-        bool isGravityBurst = shotKind == ProjectileShotKind.GravityBurst;
         RaycastHit aimHit = default;
-        if (!isGravityBurst && TryGetAimHit(aim, out aimHit))
+        if (TryGetAimHit(aim, out aimHit))
             exitOffset = Mathf.Min(exitOffset, Mathf.Max(0f, aimHit.distance - 0.01f));
         Vector3 spawnPosition = aim.GetPoint(exitOffset);
         Quaternion spawnRotation = Quaternion.LookRotation(fireDirection, up);
@@ -454,33 +438,14 @@ public class PlayerWeapon : NetworkBehaviour
             projectileSpeedMultiplier *
             GetShotSpeedMultiplier(shotKind);
 
-        if (isGravityBurst)
-        {
-            projectile.Initialize(
-                fireDirection,
-                currentSpeed,
-                projectileLifeTime,
-                currentDamage,
-                playerHealth,
-                true,
-                GetProjectileGravityDirection(),
-                gravityBurstGravityAcceleration,
-                true,
-                gravityBurstExplosionRadius,
-                currentDamage * gravityBurstExplosionDamageMultiplier
-            );
-        }
-        else
-        {
-            projectile.InitializeVisualOnly(
-                fireDirection,
-                currentSpeed,
-                projectileLifeTime,
-                playerHealth
-            );
+        projectile.InitializeVisualOnly(
+            fireDirection,
+            currentSpeed,
+            projectileLifeTime,
+            playerHealth
+        );
 
-            if (aimHit.collider != null) ApplyHitscan(aimHit, currentDamage);
-        }
+        if (aimHit.collider != null) ApplyHitscan(aimHit, currentDamage);
 
         return true;
     }
@@ -605,11 +570,6 @@ public class PlayerWeapon : NetworkBehaviour
         damageDealtMultiplier = Mathf.Clamp(multiplier, 0.0f, 10.0f);
     }
 
-    public void LoadGravityBurstAmmo(int ammoCount)
-    {
-        LoadSpecialAmmo(ProjectileShotKind.GravityBurst, ammoCount);
-    }
-
     public void LoadHeavyBulletAmmo(int ammoCount)
     {
         LoadSpecialAmmo(ProjectileShotKind.Heavy, ammoCount);
@@ -683,21 +643,6 @@ public class PlayerWeapon : NetworkBehaviour
         float damageMultiplier = pendingNextShotDamageMultiplier;
         pendingNextShotDamageMultiplier = 1.0f;
         return damageMultiplier;
-    }
-
-    private Vector3 GetProjectileGravityDirection()
-    {
-        if (playerLook != null && playerLook.ViewUp.sqrMagnitude > 0.0001f)
-        {
-            return -playerLook.ViewUp.normalized;
-        }
-
-        if (Physics.gravity.sqrMagnitude > 0.0001f)
-        {
-            return Physics.gravity.normalized;
-        }
-
-        return Vector3.down;
     }
 
     public void SetInstantReloadEnabled(bool enabled)

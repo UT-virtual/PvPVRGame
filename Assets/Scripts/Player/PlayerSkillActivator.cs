@@ -56,16 +56,6 @@ public sealed class PlayerSkillActivator
                 );
                 break;
 
-            case PlayerSkillType.BulletSpeedUp:
-                ActivateTimedSkill(
-                    slotIndex,
-                    PlayerSkillType.BulletSpeedUp,
-                    settings.BulletSpeedUpDuration,
-                    $"BulletSpeedUp activated for {settings.BulletSpeedUpDuration} seconds. " +
-                    $"BulletSpeedMultiplier={settings.BulletSpeedMultiplier}"
-                );
-                break;
-
             case PlayerSkillType.DamageReduction:
                 ActivateTimedSkill(
                     slotIndex,
@@ -134,9 +124,6 @@ public sealed class PlayerSkillActivator
                 );
                 break;
 
-            case PlayerSkillType.GravityBurstReload:
-                ActivateGravityBurstReload(slotIndex);
-                break;
 
             case PlayerSkillType.HeavyBulletReload:
                 ActivateHeavyBulletReload(slotIndex);
@@ -165,26 +152,7 @@ public sealed class PlayerSkillActivator
         Debug.Log($"[Skill] {GetOwnerName()}: {logMessage}");
     }
 
-    private void ActivateGravityBurstReload(int slotIndex)
-    {
-        beginActiveSkill?.Invoke(
-            slotIndex,
-            PlayerSkillType.GravityBurstReload,
-            settings.GravityBurstReloadDuration
-        );
-
-        if (playerWeapon != null)
-        {
-            playerWeapon.LoadGravityBurstAmmo(settings.GravityBurstReloadAmmoCount);
-        }
-
-        applySkillEffects?.Invoke();
-
-        Debug.Log(
-            $"[Skill] {GetOwnerName()}: GravityBurstReload activated. " +
-            $"Ammo={settings.GravityBurstReloadAmmoCount}"
-        );
-    }
+    
 
     private void ActivateHeavyBulletReload(int slotIndex)
     {
