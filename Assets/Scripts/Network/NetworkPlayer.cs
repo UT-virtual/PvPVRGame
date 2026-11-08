@@ -15,6 +15,8 @@ public class NetworkPlayer : NetworkBehaviour
     [Header("Local Only Objects")]
     [SerializeField] private GameObject[] localOnlyObjects;
 
+    private PlayerAimGuide aimGuide;
+
     public override void Spawned()
     {
         bool isLocalPlayer = Object.HasInputAuthority;
@@ -38,12 +40,25 @@ public class NetworkPlayer : NetworkBehaviour
 
         if (isLocalPlayer)
         {
-            NetworkLauncher launcher = FindFirstObjectByType<NetworkLauncher>();
+            if (aimGuide == null) aimGuide = gameObject.AddComponent<PlayerAimGuide>();
+            aimGuide.enabled = true;
+
+            NetworkTransform networkTransform = GetComponent<NetworkTransform>();
+            if (networkTransform != null)
+            {
+                networkTransform.DisableSharedModeInterpolation = true;
+            }
+
+            NetworkLauncher launcher = NetworkLauncher.Instance;
             PlayerController playerController = GetComponent<PlayerController>();
 
             if (launcher != null && playerController != null)
             {
                 launcher.RegisterLocalPlayer(playerController);
+                launcher.AttachXrOriginToPlayer(transform);
+
+                VRBodyTargetSync bodySync = GetComponent<VRBodyTargetSync>();
+                launcher.ConfigureLocalVrBodySync(bodySync);
             }
 
             StartCoroutine(SetupLocalPlayerAfterSpawn());
@@ -52,16 +67,18 @@ public class NetworkPlayer : NetworkBehaviour
 
     public override void Despawned(NetworkRunner runner, bool hasState)
     {
+        if (aimGuide != null) aimGuide.enabled = false;
         if (!Object.HasInputAuthority)
         {
             return;
         }
 
-        NetworkLauncher launcher = FindFirstObjectByType<NetworkLauncher>();
+        NetworkLauncher launcher = NetworkLauncher.Instance;
         PlayerController playerController = GetComponent<PlayerController>();
 
         if (launcher != null && playerController != null)
         {
+            launcher.DetachXrOriginFromPlayer();
             launcher.UnregisterLocalPlayer(playerController);
         }
     }
@@ -70,19 +87,24 @@ public class NetworkPlayer : NetworkBehaviour
     {
         yield return null;
 
+        NetworkLauncher launcher = NetworkLauncher.Instance;
+
         if (playerCamera == null)
         {
             Debug.LogError($"{name}: Cannot setup camera because PlayerCamera is null.");
         }
         else
         {
+            if (launcher != null)
+            {
+                launcher.ConfigureLocalPlayerCamera(playerCamera);
+            }
+
             playerCamera.SetupLocalCamera();
             playerCamera.UpdateCameraTarget();
         }
 
         yield return null;
-
-        NetworkLauncher launcher = FindFirstObjectByType<NetworkLauncher>();
 
         if (launcher != null)
         {

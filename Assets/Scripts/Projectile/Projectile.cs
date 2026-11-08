@@ -49,7 +49,8 @@ public class Projectile : NetworkBehaviour
     public void InitializeVisualOnly(
         Vector3 direction,
         float speed,
-        float duration)
+        float duration,
+        PlayerHealth projectileOwner = null)
     {
         if (Object == null || !Object.HasStateAuthority)
             return;
@@ -61,7 +62,7 @@ public class Projectile : NetworkBehaviour
         lifeTime = duration;
         timer = 0.0f;
 
-        owner = null;
+        owner = projectileOwner;
         damage = 0.0f;
 
         initialized = true;

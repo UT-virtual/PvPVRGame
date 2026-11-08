@@ -66,6 +66,7 @@ public class PlayerWeapon : NetworkBehaviour
     public NetworkBool NetworkedIsReloading { get; private set; }
 
     public int CurrentAmmo => NetworkedCurrentAmmo;
+    public Transform MuzzleTransform => muzzleTransform;
     public int MaxAmmo => maxAmmo;
     public bool IsReloading => NetworkedIsReloading;
 
@@ -394,22 +395,16 @@ public class PlayerWeapon : NetworkBehaviour
             return false;
         }
 
-        Vector3 fireDirection;
-        Vector3 spawnPosition;
-        Quaternion spawnRotation;
-
-        if (muzzleTransform != null)
-        {
-            fireDirection = muzzleTransform.forward.normalized;
-            spawnPosition = muzzleTransform.position + fireDirection * muzzleExitOffset;
-            spawnRotation = Quaternion.LookRotation(fireDirection, muzzleTransform.up);
-        }
-        else
-        {
-            fireDirection = playerLook.ViewForward.normalized;
-            spawnPosition = playerCamera.CameraPosition + fireDirection * projectileSpawnDistance;
-            spawnRotation = Quaternion.LookRotation(fireDirection, playerLook.ViewUp);
-        }
+        PlayerController controller = GetComponent<PlayerController>();
+        bool isVrPlayer = controller != null && controller.IsCurrentInputVR;
+        Ray aim = GetAimRay(isVrPlayer, out Vector3 up);
+        Vector3 fireDirection = aim.direction;
+        float exitOffset = isVrPlayer && muzzleTransform != null ? muzzleExitOffset : projectileSpawnDistance;
+        RaycastHit aimHit = default;
+        if (TryGetAimHit(aim, out aimHit))
+            exitOffset = Mathf.Min(exitOffset, Mathf.Max(0f, aimHit.distance - 0.01f));
+        Vector3 spawnPosition = aim.GetPoint(exitOffset);
+        Quaternion spawnRotation = Quaternion.LookRotation(fireDirection, up);
 
         NetworkSpawnStatus spawnStatus = Runner.TrySpawn(
             projectilePrefab,
@@ -443,100 +438,107 @@ public class PlayerWeapon : NetworkBehaviour
             projectileSpeedMultiplier *
             GetShotSpeedMultiplier(shotKind);
 
-        // 通常弾・ヘビー弾は発射時に即時命中判定を行う。
-        // 生成した弾丸は見た目専用で、衝突時に消える。
         projectile.InitializeVisualOnly(
             fireDirection,
             currentSpeed,
-            projectileLifeTime
+            projectileLifeTime,
+            playerHealth
         );
 
-        ApplyHitscan(spawnPosition, fireDirection, currentDamage);
+        if (aimHit.collider != null) ApplyHitscan(aimHit, currentDamage);
 
         return true;
     }
 
-    /// <summary>
-    /// 最初の非自身Colliderで止める。通常弾・ヘビー弾の着弾SEはここで通知する。
-    /// </summary>
-    private void ApplyHitscan(
-    Vector3 origin,
-    Vector3 direction,
-    float damage)
+    private Ray GetAimRay(bool vr, out Vector3 up)
     {
-        RaycastHit[] hits = Physics.RaycastAll(
-            origin,
-            direction,
-            raycastMaxDistance,
-            hitScanLayerMask,
-            QueryTriggerInteraction.Ignore
-        );
-
-        Array.Sort(
-            hits,
-            (firstHit, secondHit) =>
-                firstHit.distance.CompareTo(secondHit.distance)
-        );
-
-        foreach (RaycastHit hit in hits)
+        if (vr && muzzleTransform != null)
         {
-            if (hit.collider == null ||
-                hit.collider.transform.root == transform.root)
-            {
+            up = muzzleTransform.up;
+            return new Ray(muzzleTransform.position, muzzleTransform.forward);
+        }
+
+        up = playerLook.ViewUp;
+        return new Ray(playerCamera.CameraPosition, playerLook.ViewForward);
+    }
+
+    public Vector3 GetAimEndpoint(bool vr, out bool isTarget)
+    {
+        Ray aim = GetAimRay(vr, out _);
+        isTarget = false;
+        if (!TryGetAimHit(aim, out RaycastHit hit))
+            return aim.GetPoint(raycastMaxDistance);
+
+        PlayerHealth player = hit.collider.GetComponentInParent<PlayerHealth>();
+        if (player != null)
+        {
+            isTarget = player.Object != null && player.Object.IsValid && !player.IsDead;
+        }
+        else
+        {
+            PracticeTarget practiceTarget = hit.collider.GetComponentInParent<PracticeTarget>();
+            isTarget = practiceTarget != null && practiceTarget.Object != null &&
+                practiceTarget.Object.IsValid && practiceTarget.CanReceiveDamage;
+        }
+        return hit.point;
+    }
+
+    private readonly RaycastHit[] aimHits = new RaycastHit[16];
+
+    private bool TryGetAimHit(Ray aim, out RaycastHit nearest)
+    {
+        int count = Physics.RaycastNonAlloc(aim, aimHits, raycastMaxDistance, hitScanLayerMask, QueryTriggerInteraction.Ignore);
+        RaycastHit[] hits = aimHits;
+        if (count == aimHits.Length)
+        {
+            // A full buffer does not guarantee that it contains the closest hits.
+            hits = Physics.RaycastAll(aim, raycastMaxDistance, hitScanLayerMask, QueryTriggerInteraction.Ignore);
+            count = hits.Length;
+        }
+
+        nearest = default;
+        float nearestDistance = float.PositiveInfinity;
+        for (int i = 0; i < count; i++)
+        {
+            RaycastHit hit = hits[i];
+            if (hit.collider == null || hit.collider.transform.IsChildOf(transform) || hit.distance >= nearestDistance)
                 continue;
-            }
 
-            PlayerHealth targetHealth =
-                hit.collider.GetComponentInParent<PlayerHealth>();
+            nearest = hit;
+            nearestDistance = hit.distance;
+        }
 
-            bool isEnemyHit =
-                targetHealth != null && !targetHealth.IsDead;
+        return nearest.collider != null;
+    }
 
-            if (targetHealth != null)
+    private void ApplyHitscan(RaycastHit hit, float damage)
+    {
+        PlayerHealth targetHealth = hit.collider.GetComponentInParent<PlayerHealth>();
+        bool isEnemyHit = targetHealth != null && !targetHealth.IsDead;
+
+        if (targetHealth != null)
+        {
+            // ハプニング・サドンデス倍率と実効与ダメージの確定はHP側で統一し、特殊弾と二重適用しない。
+            targetHealth.TakeDamage(damage, Object.InputAuthority,
+                RoundManager.Instance != null ? RoundManager.Instance.DamageRoundVersion : 0);
+        }
+        else
+        {
+            // 待機場の練習ターゲットも即時命中判定で扱い、見た目用の弾には加害させない。
+            PracticeTarget practiceTarget = hit.collider.GetComponentInParent<PracticeTarget>();
+            if (practiceTarget != null && practiceTarget.CanReceiveDamage)
             {
-                Debug.Log(
-                    $"[KillDebug] Hitscan hit: " +
-                    $"Shooter={Object.InputAuthority}, " +
-                    $"Target={targetHealth.name}, " +
-                    $"Damage={damage}, " +
-                    $"TargetStateAuthority={targetHealth.Object.HasStateAuthority}"
-                );
-
-                // ダメージ処理は1回だけ呼び出す
-                targetHealth.TakeDamage(
-                    damage,
-                    Object.InputAuthority,
-                    RoundManager.Instance != null
-                        ? RoundManager.Instance.DamageRoundVersion
-                        : 0
-                );
+                practiceTarget.TakeDamage(damage);
+                isEnemyHit = true;
             }
-            else
-            {
-                PracticeTarget practiceTarget =
-                    hit.collider.GetComponentInParent<PracticeTarget>();
+        }
 
-                if (practiceTarget != null &&
-                    practiceTarget.CanReceiveDamage)
-                {
-                    practiceTarget.TakeDamage(damage);
-                    isEnemyHit = true;
-                }
-            }
+        NotifyProjectileImpactEffect(hit.point);
 
-            NotifyProjectileImpactEffect(hit.point);
-
-            PlayerSound playerSound = GetComponent<PlayerSound>();
-
-            if (playerSound != null)
-            {
-                playerSound.NotifyProjectileHitFromServer(
-                    isEnemyHit,
-                    hit.point
-                );
-            }
-
-            return;
+        PlayerSound playerSound = GetComponent<PlayerSound>();
+        if (playerSound != null)
+        {
+            playerSound.NotifyProjectileHitFromServer(isEnemyHit, hit.point);
         }
     }
 
