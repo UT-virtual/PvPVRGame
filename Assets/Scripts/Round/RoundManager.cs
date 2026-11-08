@@ -687,6 +687,12 @@ public class RoundManager : NetworkBehaviour, IAfterTick
             ? TickTimer.CreateFromSeconds(Runner, Mathf.Max(0f, startAfterAllSkillsSelectedDelay))
             : TickTimer.None;
         phase = value;
+
+        // フェーズ確定後に判定し、最初から2人のラウンドでも演出を開始する。
+        if (value == GamePhase.RoundPlaying)
+        {
+            flowController.CheckFinalDuelAtRoundStart();
+        }
     }
 
     private void ResetHappening()
