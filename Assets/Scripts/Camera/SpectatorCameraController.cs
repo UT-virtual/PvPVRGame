@@ -11,6 +11,7 @@ using UnityEngine.InputSystem;
 /// </summary>
 public class SpectatorCameraController : MonoBehaviour
 {
+    public static SpectatorCameraController Instance { get; private set; }
     [Header("Camera")]
     [SerializeField] private CinemachineCamera cinemachineCamera;
 
@@ -54,6 +55,7 @@ public class SpectatorCameraController : MonoBehaviour
 
     private void Awake()
     {
+        Instance = this;
         FindCinemachineCameraIfNeeded();
 
         GameObject targetObject = new GameObject("SpectatorCameraTarget");
@@ -74,6 +76,7 @@ public class SpectatorCameraController : MonoBehaviour
 
     private void OnDestroy()
     {
+        if (Instance == this) Instance = null;
         networkLauncher?.EndVrSpectating();
         RestoreHiddenSpectatedTargetModel();
 
@@ -581,7 +584,12 @@ public class SpectatorCameraController : MonoBehaviour
         hiddenModelTarget = target;
         previousRendererStates.Clear();
 
-        SuppressRenderers(target.BodyRenderers ?? System.Array.Empty<Renderer>());
+        HashSet<Renderer> weapons = new(target.WeaponRenderers ?? System.Array.Empty<Renderer>());
+        foreach (Renderer renderer in target.BodyRenderers ?? System.Array.Empty<Renderer>())
+        {
+            // 武器は体の階層から手・CameraTargetへ付け替えられるため、キャッシュに含まれていても隠さない。
+            if (renderer != null && !weapons.Contains(renderer)) SuppressRenderers(new[] { renderer });
+        }
         if (target.OverheadIconRoot != null)
         {
             // Rootの有効状態はPlayerHealthが死亡・復活時に変更するため、描画だけを抑止する。

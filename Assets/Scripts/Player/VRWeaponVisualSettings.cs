@@ -20,7 +20,10 @@ public class VRWeaponVisualSettings : MonoBehaviour
     public Transform WeaponTransform => weaponTransform;
     [Header("Desktop Presentation")]
     [SerializeField] private Vector3 desktopWeaponLocalPosition = new Vector3(0.25f, -0.25f, 0.5f);
+    [Tooltip("PC表示だけを銃口の前方軸まわりに回転し、モデルの上下を補正します。")]
+    [SerializeField] private float desktopWeaponRoll = 180f;
     public Vector3 DesktopWeaponLocalPosition => desktopWeaponLocalPosition;
+    public float DesktopWeaponRoll => desktopWeaponRoll;
     public Transform WeaponGripParent => weaponGripParent;
     public float WeaponScale => weaponScale;
     public Vector3 WeaponLocalPosition => weaponLocalPosition;

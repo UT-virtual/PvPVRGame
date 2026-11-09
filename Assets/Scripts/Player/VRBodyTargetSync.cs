@@ -142,7 +142,9 @@ public class VRBodyTargetSync : NetworkBehaviour
             weapon.SetParent(playerCamera.CameraTarget, false);
             weapon.localPosition = weaponVisualSettings.DesktopWeaponLocalPosition;
             // Align the actual muzzle axis, rather than assuming the imported mesh faces +Z.
-            weapon.localRotation = Quaternion.Inverse(muzzleRelativeRotation);
+            // 銃口を前へ向けた後、その前方軸まわりにPC専用の上下補正を加える。
+            weapon.localRotation = Quaternion.AngleAxis(weaponVisualSettings.DesktopWeaponRoll, Vector3.forward) *
+                Quaternion.Inverse(muzzleRelativeRotation);
             weapon.localScale = Vector3.one * weaponVisualSettings.WeaponScale;
         }
     }

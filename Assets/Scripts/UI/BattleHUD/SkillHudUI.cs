@@ -21,19 +21,18 @@ public class SkillHudUI : MonoBehaviour
     [SerializeField] private TMP_Text skillNameText;
     [SerializeField] private TMP_Text cooldownText;
 
-    [Header("VR Two Slot Display")]
+    [Header("Two Slot Display")]
     [SerializeField] private GameObject secondSlotRoot;
     [SerializeField] private Image secondIconImage;
     [SerializeField] private Image secondDimOverlay;
     [SerializeField] private TMP_Text secondSkillNameText;
     [SerializeField] private TMP_Text secondCooldownText;
-    [SerializeField] private Vector2 generatedSecondSlotOffset = new Vector2(0.0f, -115.0f);
+    [SerializeField] private Vector2 generatedSecondSlotOffset = new Vector2(180.0f, 0.0f);
 
     [Header("Skill Icons")]
     [SerializeField] private SkillIconEntry[] skillIcons;
 
     private PlayerSkillController skillController;
-    private PlayerController playerController;
     private SkillSlotView firstSlotView;
     private SkillSlotView secondSlotView;
     private bool triedCreateSecondSlot;
@@ -58,7 +57,6 @@ public class SkillHudUI : MonoBehaviour
     )
     {
         skillController = targetSkillController;
-        playerController = targetPlayerController;
         UpdateView();
     }
 
@@ -93,37 +91,17 @@ public class SkillHudUI : MonoBehaviour
     private void UpdateView()
     {
         bool hasController = skillController != null;
-        bool shouldShowVrSlots = hasController &&
-            playerController != null &&
-            playerController.IsCurrentInputVR;
-
-        if (shouldShowVrSlots)
+        if (hasController)
         {
-            UpdateVrView();
+            UpdateTwoSlotView();
             return;
         }
 
         HideSecondSlot();
-
-        PlayerSkillType currentSkill = hasController
-            ? skillController.CurrentSelectedRoundSkill
-            : PlayerSkillType.None;
-        bool hasSkill = currentSkill != PlayerSkillType.None;
-
-        SetSlotVisible(firstSlotView, hasController && hasSkill);
-
-        if (!hasController || !hasSkill)
-        {
-            return;
-        }
-
-        float cooldownRemaining = skillController.CurrentSkillCooldownRemaining;
-        bool canUse = skillController.CanUseCurrentSelectedSkill;
-
-        UpdateSlotView(firstSlotView, currentSkill, canUse, cooldownRemaining);
+        SetSlotVisible(firstSlotView, false);
     }
 
-    private void UpdateVrView()
+    private void UpdateTwoSlotView()
     {
         EnsureSecondSlotView();
 
@@ -251,9 +229,14 @@ public class SkillHudUI : MonoBehaviour
         generatedRoot.name = $"{firstSlotView.Root.name}_Slot2";
 
         RectTransform generatedRect = generatedRoot.GetComponent<RectTransform>();
-        if (generatedRect != null)
+        RectTransform firstRect = firstSlotView.Root.GetComponent<RectTransform>();
+        if (generatedRect != null && firstRect != null)
         {
-            generatedRect.anchoredPosition += generatedSecondSlotOffset;
+            // 元の1枠位置を中心に、番号順で左・右へ並べる。
+            Vector2 spacing = new Vector2(Mathf.Max(180f, Mathf.Abs(generatedSecondSlotOffset.x)), 0f);
+            Vector2 center = firstRect.anchoredPosition;
+            firstRect.anchoredPosition = center - spacing * 0.5f;
+            generatedRect.anchoredPosition = center + spacing * 0.5f;
         }
 
         Transform sourceRoot = firstSlotView.Root.transform;

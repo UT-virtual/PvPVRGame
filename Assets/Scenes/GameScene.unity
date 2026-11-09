@@ -595,6 +595,7 @@ GameObject:
   - component: {fileID: 102678941}
   - component: {fileID: 102678940}
   - component: {fileID: 102678939}
+  - component: {fileID: 900000000024}
   m_Layer: 5
   m_Name: VRBattleHudCanvas
   m_TagString: Untagged
@@ -621,6 +622,7 @@ RectTransform:
   - {fileID: 728277283}
   - {fileID: 1629740341}
   - {fileID: 2133128560}
+  - {fileID: 900000000021}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
@@ -1589,7 +1591,7 @@ MonoBehaviour:
     _items: []
   skillSelectionDuration: 30
   startAfterAllSkillsSelectedDelay: 3
-  selectableRoundSkills: 0100000002000000030000000400000005000000060000000700000008000000090000000a0000000c0000000d000000
+  selectableRoundSkills: 0100000002000000030000000400000005000000060000000700000008000000090000000a000000
   maxRoundCount: 5
   nextRoundDelay: 5
   returnToWaitingDelay: 5
@@ -1601,8 +1603,9 @@ MonoBehaviour:
   battleStartUI: {fileID: 1276669041}
   roundEndUI: {fileID: 1629740342}
   finalResultUI: {fileID: 2133128561}
+  finalDuelUI: {fileID: 0}
   countDebugSpectatorDummiesAsAlive: 0
-  roundEffectUI: {fileID: 0}
+  roundEffectUI: {fileID: 900000000024}
   _CurrentRound: 0
   _TotalRoundCount: 0
   _SkillSelectionVersion: 0
@@ -1661,7 +1664,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 1}
   m_AnchorMax: {x: 1, y: 1}
-  m_AnchoredPosition: {x: 0.0053494433, y: -0.006173247}
+  m_AnchoredPosition: {x: 0.0130695235, y: -0.009779349}
   m_SizeDelta: {x: -183, y: 0}
   m_Pivot: {x: 0, y: 1}
 --- !u!114 &223972608
@@ -1877,7 +1880,7 @@ MonoBehaviour:
   spawnPointsRoot: {fileID: 1177401946}
   spawnPoints: []
   shuffleSpawnPointsOnRoundStart: 1
-  planetCenter: {fileID: 0}
+  planetCenter: {fileID: 350687577}
   alignToPlanetSurface: 1
 --- !u!4 &260137356
 Transform:
@@ -2287,15 +2290,15 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: 5110394550287685901, guid: 6efab54670793466cb5125952d5cd355, type: 3}
       propertyPath: m_LocalScale.x
-      value: 80
+      value: 29
       objectReference: {fileID: 0}
     - target: {fileID: 5110394550287685901, guid: 6efab54670793466cb5125952d5cd355, type: 3}
       propertyPath: m_LocalScale.y
-      value: 80
+      value: 29
       objectReference: {fileID: 0}
     - target: {fileID: 5110394550287685901, guid: 6efab54670793466cb5125952d5cd355, type: 3}
       propertyPath: m_LocalScale.z
-      value: 80
+      value: 29
       objectReference: {fileID: 0}
     - target: {fileID: 5110394550287685901, guid: 6efab54670793466cb5125952d5cd355, type: 3}
       propertyPath: m_LocalPosition.x
@@ -3248,7 +3251,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: 607, y: -55}
+  m_AnchoredPosition: {x: -29.2, y: -210}
   m_SizeDelta: {x: 100, y: 100}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &729612838
@@ -6659,7 +6662,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!114 &1576002492
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -7895,8 +7898,8 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 1320048003}
   m_HandleRect: {fileID: 1320048002}
   m_Direction: 0
-  m_Value: 1
-  m_Size: 0.99998105
+  m_Value: 0
+  m_Size: 0.99996626
   m_NumberOfSteps: 0
   m_OnValueChanged:
     m_PersistentCalls:
@@ -8998,7 +9001,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 9fffcfc657aced448aeedabf26a45329, type: 3}
-  m_Name:
+  m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::FinalDuelUI
   finalDuelImage: {fileID: 900000000009}
   displayDuration: 3
@@ -9050,7 +9053,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: fe87c0e1cc204ed48ad3b37840f39efc, type: 3}
-  m_Name:
+  m_Name: 
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Image
   m_Material: {fileID: 0}
   m_Color: {r: 1, g: 1, b: 1, a: 1}
@@ -9125,7 +9128,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: fe87c0e1cc204ed48ad3b37840f39efc, type: 3}
-  m_Name:
+  m_Name: 
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Image
   m_Material: {fileID: 0}
   m_Color: {r: 1, g: 1, b: 1, a: 1}
@@ -9200,11 +9203,102 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: cf58660a831efd1418818a9be23ef6df, type: 3}
-  m_Name:
+  m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::KillNotificationUI
   killImage: {fileID: 900000000005}
   displayDuration: 1.5
   fadeDuration: 0.25
+--- !u!1 &900000000020
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 900000000021}
+  - component: {fileID: 900000000023}
+  - component: {fileID: 900000000022}
+  m_Layer: 5
+  m_Name: RoundEffectImage
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!224 &900000000021
+RectTransform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 900000000020}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 102678938}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+  m_AnchorMin: {x: 0.5, y: 0.5}
+  m_AnchorMax: {x: 0.5, y: 0.5}
+  m_AnchoredPosition: {x: 0, y: 100}
+  m_SizeDelta: {x: 600, y: 180}
+  m_Pivot: {x: 0.5, y: 0.5}
+--- !u!114 &900000000022
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 900000000020}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fe87c0e1cc204ed48ad3b37840f39efc, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Image
+  m_Material: {fileID: 0}
+  m_Color: {r: 1, g: 1, b: 1, a: 1}
+  m_RaycastTarget: 0
+  m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
+  m_Maskable: 1
+  m_OnCullStateChanged:
+    m_PersistentCalls:
+      m_Calls: []
+  m_Sprite: {fileID: 0}
+  m_Type: 0
+  m_PreserveAspect: 1
+  m_FillCenter: 1
+  m_FillMethod: 4
+  m_FillAmount: 1
+  m_FillClockwise: 1
+  m_FillOrigin: 0
+  m_UseSpriteMesh: 0
+  m_PixelsPerUnitMultiplier: 1
+--- !u!222 &900000000023
+CanvasRenderer:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 900000000020}
+  m_CullTransparentMesh: 1
+--- !u!114 &900000000024
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 102678937}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3507725f985888b42afc31063bd549b0, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::RoundEffectUI
+  imageObject: {fileID: 900000000020}
+  effectImage: {fileID: 900000000022}
+  banJumpSprite: {fileID: 21300000, guid: 0eb0bac9472a5e2488a2f4ba14247ea3, type: 3}
+  health1Sprite: {fileID: 21300000, guid: d2af3b40f15ac11429a77a52cf6689f0, type: 3}
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0
