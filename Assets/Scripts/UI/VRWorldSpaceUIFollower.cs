@@ -6,6 +6,7 @@ public class VRWorldSpaceUIFollower : MonoBehaviour
 {
     // RoundBattleStatusの生成Canvasと、Scene内の既存Canvasで同じ奥行きを使う。
     public const float SharedDistance = 2.0f;
+    public const float SharedVrCanvasScale = 0.0015f;
     [SerializeField] private Transform targetCamera;
 
     [Header("Placement")]
@@ -34,10 +35,10 @@ public class VRWorldSpaceUIFollower : MonoBehaviour
         depthConfigured = true;
         if (!LocalPlayModeController.IsVirtualReality) return;
 
-        // 旧1m Canvasを遠ざけても、画面上の大きさと上下位置は維持する。
-        float ratio = SharedDistance / Mathf.Max(0.01f, distance);
-        transform.localScale *= ratio;
-        verticalOffset *= ratio;
+        // 距離比で拡大せず、ラウンドUIと同じVR用スケールに統一する。
+        transform.localScale = Vector3.one * SharedVrCanvasScale;
+        // Canvas中心の上下位置は従来の距離補正を維持する。
+        verticalOffset *= SharedDistance / Mathf.Max(0.01f, distance);
         distance = SharedDistance;
     }
 

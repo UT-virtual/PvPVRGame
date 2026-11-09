@@ -164,7 +164,7 @@ public sealed class RoundBattleStatusUI : MonoBehaviour
         if (vr)
         {
             canvasRect.sizeDelta = new Vector2(1280f, 720f);
-            canvasRect.localScale = Vector3.one * 0.0015f;
+            canvasRect.localScale = Vector3.one * VRWorldSpaceUIFollower.SharedVrCanvasScale;
             canvas.worldCamera = Camera.main;
         }
         else
