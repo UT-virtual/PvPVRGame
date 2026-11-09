@@ -19,7 +19,7 @@ Unity / Photon Fusionで開発した、球体フィールドを舞台とする�
 | 接続人数 | 最大5人（観戦者を含む） |
 | 主な担当 | プレイヤー制御 / 戦闘 / スキル / ラウンド進行 / ネットワーク関連機能 / 観戦機能 |
 
-- **プレイ映像:** https://youtu.be/cO3BRzCSSEk
+- **プレイ映像:** [https://youtu.be/cO3BRzCSSEk](https://youtu.be/C6q8tB6lVwI)
 - **GitHub:** https://github.com/UT-virtual/PvPVRGame/tree/feature/kusaka0914
 - **ポートフォリオサイト（他の制作物も紹介しています）:** https://kusaka0914.github.io
 
