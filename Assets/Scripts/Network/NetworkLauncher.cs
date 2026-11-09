@@ -205,6 +205,16 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
         if (Instance != this || !LocalPlayModeController.IsReady || !presentationReady) return;
         // Tracking and spectator switching must continue without a combatant avatar.
         inputCollector.UpdateHmdAndLook();
+        RoundManager round = RoundManager.Instance;
+        if (IsConnected && round != null && round.IsNetworkReady && round.IsRoundPlaying &&
+            Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame)
+        {
+            inputCollector.ClearPendingInput();
+            skillSelectionInputController.ResetSkillSelectionInputState();
+            round.RPC_RequestReturnToWaiting(round.DamageRoundVersion);
+            // ホストでは即座に待機へ戻るため、同じEscを待機中の役割切替にも使わない。
+            return;
+        }
         UpdateRoleSelection();
         if (sessionController.CanReconnectFromWaitingRoom() && inputCollector.ReadReconnectPressed())
         {

@@ -341,7 +341,7 @@ public class RoundManager : NetworkBehaviour, IAfterTick
         Debug.Log($"[RoundManager] Round Effect: {effect}");
         if (roundEffectUI != null)
         {
-            roundEffectUI.ShowEffect(effect, 3.0f);
+            roundEffectUI.ShowEffect(effect, roundEffectDisplayDuration);
         }
         // ここでRoundEffect UIを表示
     }
@@ -899,6 +899,19 @@ public class RoundManager : NetworkBehaviour, IAfterTick
         }
     }
 
+    /// <summary>接続者のEsc要求で試合を中断する。Runnerや参加者の接続は維持する。</summary>
+    [Rpc(RpcSources.All, RpcTargets.StateAuthority, HostMode = RpcHostMode.SourceIsHostPlayer)]
+    public void RPC_RequestReturnToWaiting(int roundVersion, RpcInfo info = default)
+    {
+        if (!IsNetworkReady || !Object.HasStateAuthority || !IsRoundPlaying ||
+            roundVersion != DamageRoundVersion || info.Source == PlayerRef.None ||
+            !ConnectedParticipants.ContainsKey(info.Source)) return;
+
+        flowController.AbortMatchToWaiting();
+        RPC_HideKillNotification();
+        RPC_HideFinalDuel();
+    }
+
     public bool IsPlayerReady(PlayerHealth player)
     {
         return readyController.IsPlayerReady(player);
@@ -1076,6 +1089,14 @@ public class RoundManager : NetworkBehaviour, IAfterTick
     private void RPC_HideFinalResultUI()
     {
         uiController.HideFinalResultUI();
+    }
+
+    [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+    private void RPC_HideFinalDuel()
+    {
+        FinalDuelUI ui = finalDuelUI != null ? finalDuelUI :
+            FindFirstObjectByType<FinalDuelUI>(FindObjectsInactive.Include);
+        if (ui != null) ui.HideFinalDuel();
     }
 
     [Rpc(RpcSources.StateAuthority, RpcTargets.All)]

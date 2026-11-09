@@ -16,6 +16,16 @@ public class FinalDuelUI : MonoBehaviour
 
     private void Awake()
     {
+        HideFinalDuel();
+    }
+
+    public void HideFinalDuel()
+    {
+        if (displayCoroutine != null)
+        {
+            StopCoroutine(displayCoroutine);
+            displayCoroutine = null;
+        }
         if (finalDuelImage != null)
         {
             Color color = finalDuelImage.color;

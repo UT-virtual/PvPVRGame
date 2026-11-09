@@ -3,8 +3,8 @@ using Fusion;
 using UnityEngine;
 
 /// <summary>
-/// StateAuthorityで射撃間隔、逐次装填、弾薬消費とProjectile生成を管理する。
-/// 通常弾・ヘビー弾は即時命中判定を行い、生成したProjectileは視覚表現として使用する。
+/// StateAuthorityで射撃間隔、逐次装填、弾薬消費と即時命中判定を管理する。
+/// 射撃時のレーザーと着弾演出はRPCで全端末へ通知する。
 /// </summary>
 [RequireComponent(typeof(PlayerHealth))]
 [RequireComponent(typeof(PlayerLook))]
@@ -18,10 +18,9 @@ public class PlayerWeapon : NetworkBehaviour
     }
 
     [Header("Shoot")]
-    [SerializeField] private NetworkPrefabRef projectilePrefab;
+    [SerializeField] private GameObject muzzleFlashPrefab;
     [SerializeField] private GameObject hitEffectPrefab;
     [SerializeField] private float projectileSpeed = 18.0f;
-    [SerializeField] private float projectileLifeTime = 3.0f;
     [SerializeField] private float projectileDamage = 1.0f;
     [SerializeField] private float projectileSpawnDistance = 0.8f;
     [SerializeField] private float raycastMaxDistance = 100.0f;
@@ -384,70 +383,61 @@ public class PlayerWeapon : NetworkBehaviour
     }
 
     /// <summary>
-    /// 発射用Prefabが生成できた後にダメージ強化を消費する。
-    /// 通常弾・ヘビー弾はRaycastで即時命中判定し、生成弾は視覚専用にする。
+    /// 通常弾・ヘビー弾は即時命中判定し、射撃の軌跡だけを全端末に通知する。
     /// </summary>
     private bool FireProjectile(ProjectileShotKind shotKind)
     {
-        if (!projectilePrefab.IsValid)
-        {
-            Debug.LogError($"{name}: Projectile Prefab is not assigned.");
-            return false;
-        }
-
         PlayerController controller = GetComponent<PlayerController>();
         bool isVrPlayer = controller != null && controller.IsCurrentInputVR;
-        Ray aim = GetAimRay(isVrPlayer, out Vector3 up);
-        Vector3 fireDirection = aim.direction;
+        Ray aim = GetAimRay(isVrPlayer, out Vector3 aimUp);
         float exitOffset = isVrPlayer && muzzleTransform != null ? muzzleExitOffset : projectileSpawnDistance;
         RaycastHit aimHit = default;
         if (TryGetAimHit(aim, out aimHit))
             exitOffset = Mathf.Min(exitOffset, Mathf.Max(0f, aimHit.distance - 0.01f));
-        Vector3 spawnPosition = aim.GetPoint(exitOffset);
-        Quaternion spawnRotation = Quaternion.LookRotation(fireDirection, up);
-
-        NetworkSpawnStatus spawnStatus = Runner.TrySpawn(
-            projectilePrefab,
-            out NetworkObject projectileObject,
-            spawnPosition,
-            spawnRotation,
-            Object.InputAuthority
-        );
-
-        if (spawnStatus != NetworkSpawnStatus.Spawned || projectileObject == null)
-        {
-            Debug.LogWarning($"{name}: Projectile spawn failed: {spawnStatus}");
-            return false;
-        }
-
-        Projectile projectile = projectileObject.GetComponent<Projectile>();
-        if (projectile == null)
-        {
-            Runner.Despawn(projectileObject);
-            return false;
-        }
-
         float currentDamage =
             projectileDamage *
             damageDealtMultiplier *
             GetShotDamageMultiplier(shotKind) *
             ConsumeNextShotDamageMultiplier();
 
-        float currentSpeed =
-            projectileSpeed *
-            projectileSpeedMultiplier *
-            GetShotSpeedMultiplier(shotKind);
-
-        projectile.InitializeVisualOnly(
-            fireDirection,
-            currentSpeed,
-            projectileLifeTime,
-            playerHealth
-        );
+        Vector3 endpoint = aimHit.collider != null ? aimHit.point : aim.GetPoint(raycastMaxDistance);
+        Vector3 muzzle = muzzleTransform != null ? muzzleTransform.position : aim.GetPoint(exitOffset);
+        RPC_ShowShotEffects(muzzle, endpoint, Quaternion.LookRotation(aim.direction, aimUp));
 
         if (aimHit.collider != null) ApplyHitscan(aimHit, currentDamage);
 
         return true;
+    }
+
+    [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+    private void RPC_ShowShotEffects(Vector3 origin, Vector3 endpoint, Quaternion rotation)
+    {
+        // 弾の子にあった光だけを複製する。弾本体や通信・衝突コンポーネントは生成しない。
+        if (muzzleFlashPrefab != null)
+        {
+            Vector3 position = muzzleTransform != null ? muzzleTransform.position : origin;
+            GameObject flash = Instantiate(muzzleFlashPrefab, position, rotation);
+            flash.transform.localScale = muzzleFlashPrefab.transform.lossyScale;
+            ParticleSystem particles = flash.GetComponent<ParticleSystem>();
+            if (particles != null)
+            {
+                ParticleSystem.MainModule main = particles.main;
+                main.loop = false;
+                main.stopAction = ParticleSystemStopAction.Destroy;
+                particles.Play(true);
+            }
+            else
+            {
+                Destroy(flash, 2f);
+            }
+        }
+
+        // 本人は常時の照準ガイドを使う。観戦端末の除外はGuide側で行う。
+        if (Object.HasInputAuthority) return;
+
+        PlayerAimGuide guide = GetComponent<PlayerAimGuide>();
+        if (guide == null) guide = gameObject.AddComponent<PlayerAimGuide>();
+        guide.ShowShot(origin, endpoint);
     }
 
     private Ray GetAimRay(bool vr, out Vector3 up)
@@ -465,6 +455,13 @@ public class PlayerWeapon : NetworkBehaviour
     public Vector3 GetAimEndpoint(bool vr, out bool isTarget)
     {
         Ray aim = GetAimRay(vr, out _);
+        // PCの代理PlayerLookには入力が来ないため、観戦用に同期済みの視点を使う。
+        PlayerController controller = GetComponent<PlayerController>();
+        if (!vr && Object != null && Object.IsValid && !Object.HasInputAuthority &&
+            !Object.HasStateAuthority && controller != null && controller.HasSpectatorView)
+        {
+            aim = new Ray(controller.NetworkedSpectatorCameraPosition, controller.NetworkedSpectatorViewForward);
+        }
         isTarget = false;
         if (!TryGetAimHit(aim, out RaycastHit hit))
             return aim.GetPoint(raycastMaxDistance);

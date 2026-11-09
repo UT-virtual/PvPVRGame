@@ -33,6 +33,8 @@ public class WaitingRoomUI : MonoBehaviour
 
     private void Awake()
     {
+        // フォント参照は残し、接続人数と準備操作の案内は表示しない。
+        if (playerCountText != null) playerCountText.gameObject.SetActive(false);
         if (readyOperationText == null && waitingRoomPanel != null)
         {
             // 既存Sceneの固定案内も役割で制御する。スキル選択側の同名テキストは対象にしない。
@@ -115,10 +117,7 @@ public class WaitingRoomUI : MonoBehaviour
                 roundManagerNotReadyYet
             );
 
-        bool isCombatant = canShowByRoundManager && hasLocalPlayer &&
-            roundManager.ConnectedParticipants.TryGet(roundManager.Runner.LocalPlayer, out ParticipantRole role) &&
-            role == ParticipantRole.Combatant && (networkLauncher == null || networkLauncher.IsLocalCombatant);
-        SetReadyOperationVisible(shouldShow && isCombatant);
+        SetReadyOperationVisible(false);
         SetPanelVisible(shouldShow);
 
         if (shouldShow)

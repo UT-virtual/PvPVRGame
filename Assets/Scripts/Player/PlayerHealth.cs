@@ -27,6 +27,7 @@ public class PlayerHealth : NetworkBehaviour
 
     public GameObject OverheadIconRoot => overheadIconRoot;
     public Renderer[] BodyRenderers => renderers;
+    public Renderer[] WeaponRenderers => weaponRenderers;
 
     private Renderer[] weaponRenderers;
 

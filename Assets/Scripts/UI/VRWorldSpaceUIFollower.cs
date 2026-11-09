@@ -4,10 +4,12 @@ using Unity.XR.CoreUtils;
 [DefaultExecutionOrder(10000)]
 public class VRWorldSpaceUIFollower : MonoBehaviour
 {
+    // RoundBattleStatusの生成Canvasと、Scene内の既存Canvasで同じ奥行きを使う。
+    public const float SharedDistance = 2.0f;
     [SerializeField] private Transform targetCamera;
 
     [Header("Placement")]
-    [SerializeField] private float distance = 2.0f;
+    [SerializeField] private float distance = SharedDistance;
     [SerializeField] private float verticalOffset = -0.2f;
 
     [Header("Follow")]
@@ -17,6 +19,27 @@ public class VRWorldSpaceUIFollower : MonoBehaviour
 
     private Vector3 smoothedForward;
     private bool initialized;
+    private bool depthConfigured;
+
+    private void Awake()
+    {
+        // 頭上HPなどのワールドUIではなく、この画面用Canvasだけを対象にする。
+        if (GetComponent<ScreenUIForeground>() == null) gameObject.AddComponent<ScreenUIForeground>();
+    }
+
+    private void ConfigureVrDepthIfReady()
+    {
+        // Awake順やXR起動の待ち時間に依存せず、選択モード確定後に一度だけ適用する。
+        if (depthConfigured || !LocalPlayModeController.IsReady) return;
+        depthConfigured = true;
+        if (!LocalPlayModeController.IsVirtualReality) return;
+
+        // 旧1m Canvasを遠ざけても、画面上の大きさと上下位置は維持する。
+        float ratio = SharedDistance / Mathf.Max(0.01f, distance);
+        transform.localScale *= ratio;
+        verticalOffset *= ratio;
+        distance = SharedDistance;
+    }
 
     public void SetTargetCamera(Transform cameraTransform)
     {
@@ -26,6 +49,7 @@ public class VRWorldSpaceUIFollower : MonoBehaviour
 
     private void LateUpdate()
     {
+        ConfigureVrDepthIfReady();
         Transform cameraTransform = ResolveActiveCameraTransform();
         if (cameraTransform == null)
         {

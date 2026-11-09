@@ -38,11 +38,13 @@ public class NetworkPlayer : NetworkBehaviour
         SetLocalOnlyObjects(isLocalPlayer);
         SetLocalVisual(isLocalPlayer);
 
+        // 未射撃の代理プレイヤーも観戦対象になれる。表示対象の制限はGuide側で行う。
+        if (aimGuide == null) aimGuide = GetComponent<PlayerAimGuide>();
+        if (aimGuide == null) aimGuide = gameObject.AddComponent<PlayerAimGuide>();
+        aimGuide.enabled = true;
+
         if (isLocalPlayer)
         {
-            if (aimGuide == null) aimGuide = gameObject.AddComponent<PlayerAimGuide>();
-            aimGuide.enabled = true;
-
             NetworkTransform networkTransform = GetComponent<NetworkTransform>();
             if (networkTransform != null)
             {

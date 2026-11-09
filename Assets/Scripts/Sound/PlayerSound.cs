@@ -73,6 +73,15 @@ public class PlayerSound : NetworkBehaviour
 
     public override void Spawned()
     {
+        if (audioSource != null && !Object.HasInputAuthority)
+        {
+            // 他人の発砲位置は聞き分けられるが、遠方ほど小さくなる。
+            audioSource.spatialBlend = 1f;
+            audioSource.rolloffMode = AudioRolloffMode.Logarithmic;
+            audioSource.minDistance = 2f;
+            audioSource.maxDistance = 40f;
+        }
+
         hasInitializedHealth = true;
         if (playerHealth != null)
         {
@@ -142,6 +151,12 @@ public class PlayerSound : NetworkBehaviour
 
     private void UpdateReloadLoop()
     {
+        if (Object == null || !Object.HasInputAuthority)
+        {
+            StopReloadingSound();
+            return;
+        }
+
         if (playerWeapon == null || reloadAudioSource == null)
         {
             return;
@@ -207,6 +222,13 @@ public class PlayerSound : NetworkBehaviour
     [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
     private void RPC_PlaySound(SoundEvent soundEvent)
     {
+        // ジャンプと装填は操作本人だけが聞く。発砲・死亡は従来どおり配信する。
+        if (soundEvent != SoundEvent.Fire && soundEvent != SoundEvent.Died &&
+            !Object.HasInputAuthority)
+        {
+            return;
+        }
+
         switch (soundEvent)
         {
             case SoundEvent.Jump:

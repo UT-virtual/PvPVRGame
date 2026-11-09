@@ -46,7 +46,9 @@ public class OtherPlayerHealthBar : NetworkBehaviour
             return;
 
         // 自分のHPバーは非表示
-        if (Object.HasInputAuthority)
+        SpectatorCameraController spectator = SpectatorCameraController.Instance;
+        if (Object.HasInputAuthority ||
+            (spectator != null && spectator.IsSpectatingActive && spectator.CurrentSpectatorTarget == playerHealth))
         {
             SetBarVisible(false);
             return;

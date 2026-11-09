@@ -11,21 +11,57 @@ public sealed class PlayerAimGuide : MonoBehaviour
 
     private PlayerWeapon weapon;
     private PlayerHealth health;
+    private PlayerController controller;
     private LineRenderer laser;
     private Material laserMaterial;
     private Texture2D laserEdgeTexture;
+    private LineRenderer shotLaser;
+    private Material shotMaterial;
+    private float shotUntil;
+
+    public void ShowShot(Vector3 origin, Vector3 endpoint)
+    {
+        if (IsSpectating()) return;
+        if (laser == null) CreateLaser();
+        if (shotLaser == null)
+        {
+            GameObject root = new GameObject("Shot Laser");
+            root.transform.SetParent(transform, false);
+            shotLaser = root.AddComponent<LineRenderer>();
+            shotLaser.useWorldSpace = true;
+            shotLaser.positionCount = 2;
+            shotLaser.startWidth = shotLaser.endWidth = 0.025f;
+            shotLaser.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            shotLaser.receiveShadows = false;
+            shotMaterial = new Material(Graphic.defaultGraphicMaterial);
+            shotMaterial.mainTexture = laserEdgeTexture;
+            shotMaterial.color = new Color(0.5f, 1f, 0.85f, 0.9f);
+            shotLaser.sharedMaterial = shotMaterial;
+        }
+        shotLaser.SetPosition(0, origin);
+        shotLaser.SetPosition(1, endpoint);
+        shotUntil = Time.unscaledTime + 0.08f;
+        shotLaser.enabled = true;
+    }
 
     private void Awake()
     {
         weapon = GetComponent<PlayerWeapon>();
         health = GetComponent<PlayerHealth>();
+        controller = GetComponent<PlayerController>();
     }
 
     private void LateUpdate()
     {
+        if (shotLaser != null) shotLaser.enabled = Time.unscaledTime < shotUntil && !IsSpectating();
         RoundManager round = RoundManager.Instance;
+        SpectatorCameraController spectator = SpectatorCameraController.Instance;
+        bool watching = spectator != null && spectator.IsSpectatingActive;
+        bool isViewedPlayer = watching
+            ? spectator.CurrentSpectatorTarget == health
+            : health != null && health.Object != null && health.Object.IsValid && health.Object.HasInputAuthority;
         bool visible = weapon != null && health != null && health.Object != null &&
-            health.Object.IsValid && health.Object.HasInputAuthority && !health.IsDead &&
+            health.Object.IsValid && isViewedPlayer && !health.IsDead &&
             (round == null || round.CanUseWeapons);
         if (!visible)
         {
@@ -41,7 +77,9 @@ public sealed class PlayerAimGuide : MonoBehaviour
         }
 
         if (laser == null) CreateLaser();
-        Vector3 endpoint = weapon.GetAimEndpoint(LocalPlayModeController.IsVirtualReality,
+        // 観戦端末のモードではなく、観戦対象自身のPC／VR入力モードで照準する。
+        bool vr = watching && controller != null ? (bool)controller.IsCurrentInputVR : LocalPlayModeController.IsVirtualReality;
+        Vector3 endpoint = weapon.GetAimEndpoint(vr,
             out bool isTarget);
         Color32 color = isTarget ? TargetColor : DefaultColor;
         laser.SetPosition(0, muzzle.position);
@@ -98,11 +136,25 @@ public sealed class PlayerAimGuide : MonoBehaviour
         if (laser != null) laser.enabled = false;
     }
 
-    private void OnDisable() => Hide();
+    private static bool IsSpectating()
+    {
+        NetworkLauncher launcher = NetworkLauncher.Instance;
+        SpectatorCameraController spectator = SpectatorCameraController.Instance;
+        return (launcher != null && launcher.IsDedicatedSpectator) ||
+            (spectator != null && spectator.IsSpectatingActive);
+    }
+
+    private void OnDisable()
+    {
+        Hide();
+        if (shotLaser != null) shotLaser.enabled = false;
+        shotUntil = 0f;
+    }
 
     private void OnDestroy()
     {
         if (laserMaterial != null) Destroy(laserMaterial);
+        if (shotMaterial != null) Destroy(shotMaterial);
         if (laserEdgeTexture != null) Destroy(laserEdgeTexture);
     }
 }
