@@ -4,13 +4,15 @@ Unity / Photon Fusionで開発した、球体フィールドを舞台とする�
 
 プレイヤーは惑星の表面に沿って移動し、射撃やラウンドごとに選択するスキルを使って戦います。PC・VRの入力に対応するほか、対戦に参加しない端末からプレイヤー視点で観戦できる仕組みも実装しています。
 
-大学サークルでのチーム制作作品です。私はチームリーダーとして進捗管理・担当調整を行いながら、主にプレイヤー制御、戦闘、スキル、ラウンド進行、ネットワーク機能などを担当しました。
+東京大学のサークル「UT-virtual」でのチーム制作作品です。私はチームリーダーとして進捗管理・担当調整を行いながら、主にプレイヤー制御、戦闘、スキル、ラウンド進行、ネットワーク機能などを担当しました。
 
 ### 制作情報
 
 | 項目 | 内容 |
-| --- | --- |
+| :---- | :---- |
 | 制作形態 | チーム制作 |
+| 制作期間 | 2026.6 ~ 2026.11 |
+| 制作人数 | 6人 |
 | 役割 | チームリーダー / ゲームプログラマー |
 | 開発環境 | Unity 6000.3.17f1 |
 | 言語 | C# |
@@ -19,12 +21,107 @@ Unity / Photon Fusionで開発した、球体フィールドを舞台とする�
 | 接続人数 | 最大5人（観戦者を含む） |
 | 主な担当 | プレイヤー制御 / 戦闘 / スキル / ラウンド進行 / ネットワーク関連機能 / 観戦機能 |
 
-- **プレイ映像:** [https://youtu.be/cO3BRzCSSEk](https://youtu.be/C6q8tB6lVwI)
-- **GitHub:** https://github.com/UT-virtual/PvPVRGame/tree/feature/kusaka0914
-- **ポートフォリオサイト（他の制作物も紹介しています）:** https://kusaka0914.github.io
+- **プレイ映像:** [https\://youtu.be/C6q8tB6lVwI](https://youtu.be/C6q8tB6lVwI)  
+- **GitHub:** [https\://github.com/UT-virtual/PvPVRGame/tree/feature/kusaka0914](https://github.com/UT-virtual/PvPVRGame/tree/feature/kusaka0914)  
+- **ポートフォリオサイト（他の制作物も紹介しています）:** [https\://kusaka0914.github.io](https://kusaka0914.github.io)
 
 ---
+## 制作コンセプト
 
+VRならではの没入感と、周囲の人も一緒に楽しめる対戦体験を目指して開発しています。
+
+通常の平面ステージとは異なり、球体の表面を移動できるフィールドを採用しました。逃げた敵に対して反対に移動することで迎え撃てるという特徴があります。
+
+また、対戦を繰り返しても展開が単調にならないよう、ラウンドごとに2種類のスキルを選択する仕組みを設けています。
+
+展示での利用も想定し、ゲームに参加していない人がプレイヤーの視点を切り替えながら観戦できる機能を実装しています。
+
+---
+## ゲームの特徴
+
+- **球体地形での移動・戦闘** — 惑星の表面に沿って移動し、さまざまな方向から攻撃できる  
+- **最大4人のオンラインPvP** — Photon Fusionを利用したHost / Client方式の対戦  
+- **ラウンドごとのスキル選択** — 候補から2種類のスキルを選び、戦闘中に使用できる  
+- **特殊弾を含む射撃システム** — 弾薬・リロードなどに対応  
+- **ラウンド制の試合進行** — 準備、スキル選択、戦闘、結果表示を管理  
+- **PC・VR入力への対応** — キーボード・ゲームパッド・VRコントローラーの入力を扱う  
+- **観戦者モード** — 対戦に参加せず、生存プレイヤーの視点を切り替えて観戦したり、対戦中のプレイヤーに対して特殊効果を与えるハプニング投票を行ったりできる
+
+---
+## 目次
+
+- [起動・操作方法](#起動操作方法)
+- [チーム制作での担当範囲](#チーム制作での担当範囲)
+- [コードを見る方へ ― まずこの3箇所](#コードを見る方へ--まずこの3箇所)
+- [その他の実装](#その他の実装)
+- [設計について](#設計について)
+- [使用技術](#使用技術)
+- [コード構成](#コード構成)
+
+---
+## 起動・操作方法
+
+### Windows実行ビルドの起動
+
+1. 配布した `CosmicSphereArena.zip` をダウンロードし、ZIPを展開します。
+2. 展開したフォルダ内の `PvPVRGame.exe` を起動します。
+3. 接続が完了したら、待機画面から試合を始められます。
+
+Windows実行ビルドは、起動引数を付けなければデスクトップモードで動作する構成です。**VR機器は不要**です。
+
+本作はPhoton Fusionを使用したオンラインゲームのため、起動・対戦にはインターネット接続が必要です。
+
+### 基本操作（PC・キーボード／マウス）
+
+| 操作 | キーボード・マウス |
+| --- | --- |
+| 移動 | W / A / S / D |
+| 視点操作 | マウス |
+| 射撃 | マウス左クリック |
+| ジャンプ | Space |
+| リロード | K |
+| 準備完了（待機中） | Enter |
+| スキル選択 | W / A / S / D で候補を選び、Enterで決定 |
+| スキル切り替え（戦闘中） | Q |
+| スキル発動（戦闘中） | U |
+| 対戦者／観戦者の切り替え（待機中） | Esc |
+| 観戦対象の切り替え | A / D |
+| 観戦者の投票候補の選択 | W / S または ↑ / ↓ |
+| 観戦者の投票確定 | Enter |
+| 待機中・切断後の再接続 | R |
+
+※ スキルは各ラウンドの開始前に2種類を選択します。  
+※ 観戦者への切り替えは、試合中ではなく待機中に行います。  
+
+### 1人で確認できる内容
+
+本作はオンラインPvPゲームですが、**1人でも試合を開始でき、制限時間によって試合が終了します**。
+
+1つの実行ビルドを起動するだけで、準備完了、スキル選択、移動・射撃・スキルの使用、制限時間によるラウンド終了、結果表示までのゲーム進行を確認できます。
+
+ただし、対戦相手がいないため、他プレイヤーへの命中・ダメージ、HP減少、死亡、対人戦の勝敗などは十分に確認できません。
+
+### 2つの実行ビルドで確認できる内容
+
+プレイヤー同士の戦闘やオンライン同期を確認する場合は、Windows実行ビルドを2つ起動してください。
+
+1. 1つ目の `PvPVRGame.exe` を起動し、Hostとして接続します。
+2. 2つ目の `PvPVRGame.exe` を起動し、Clientとして**同じルーム**に接続します。
+3. 両プレイヤーで準備完了操作を行い、試合を開始します。
+4. 射撃による命中・ダメージ、HP減少、死亡処理、同期などを確認できます。
+
+### Unityプロジェクトから起動する場合
+
+- **Unityバージョン:** `6000.3.17f1`
+- **標準シーン:** `Assets/Scenes/GameScene.unity`
+- **必要な設定:** Photon Fusionの接続設定
+
+1. Unity Hubでプロジェクトを開きます。
+2. `GameScene` を開きます。
+3. `NetworkLauncher` に付いている `LocalPlayModeController` のEditor Modeを **Desktop** に設定します。
+4. Photon Fusionの必要な接続設定を確認し、Unity EditorでPlayします。
+
+---
 ## チーム制作での担当範囲
 
 本作は大学サークルでのチーム制作です。私はチームリーダーとして開発全体の進行管理を担当し、プログラム面ではプレイヤー制御・戦闘・ネットワーク処理・ラウンド進行など、ゲームプレイの中心となる処理を主に実装しました。
@@ -33,31 +130,31 @@ Unity / Photon Fusionで開発した、球体フィールドを舞台とする�
 
 **チームリーダー**
 
-- メンバーごとの担当範囲の整理
-- 実装の優先順位づけ・締切の設定
+- メンバーごとの担当範囲の整理  
+- 実装の優先順位づけ・締切の設定  
 - 進捗確認・タスク調整
 
 **プログラム実装**
 
-- プレイヤー制御・移動・射撃・弾薬管理・スキル
-- カメラ制御・観戦機能
-- エフェクト効果・アイテム効果
-- Photon Fusionによる通信・入力収集・状態同期・参加者管理
-- 弾の移動・衝突・ダメージ判定
+- プレイヤー制御・移動・射撃・弾薬管理・スキル  
+- カメラ制御・観戦機能  
+- エフェクト効果・アイテム効果  
+- Photon Fusionによる通信・入力収集・状態同期・参加者管理  
+- 弾の移動・衝突・ダメージ判定  
 - ラウンド進行・スキル選択・得点・勝敗判定
 
 ### 他メンバーの担当
 
-- **VR対応**
-   - PlayerプレハブへのFinal IKの導入・設定など
-- **グラフィックプログラミング**
-   - シェーダーなどの描画表現に関する実装
-- **サウンド実装**
-   - 射撃・ジャンプ・リロード・死亡など、ゲーム内の動作に応じた効果音の再生制御
-   - ゲームロジックとの連携処理を含む、サウンド機能全般の実装
-- **UI実装**
-   - HP・弾薬・スキル・待機画面・ラウンド結果などのUI
-   - ゲーム状態に応じた表示更新や、ゲームロジックとの連携処理を含むUI機能全般の実装
+- **VR対応**  
+  - PlayerプレハブへのFinal IKの導入・設定など  
+- **グラフィックプログラミング**  
+  - シェーダーなどの描画表現に関する実装  
+- **サウンド実装**  
+  - 射撃・ジャンプ・リロード・死亡など、ゲーム内の動作に応じた効果音の再生制御  
+  - ゲームロジックとの連携処理を含む、サウンド機能全般の実装  
+- **UI実装**  
+  - HP・弾薬・スキル・待機画面・ラウンド結果などのUI  
+  - ゲーム状態に応じた表示更新や、ゲームロジックとの連携処理を含むUI機能全般の実装
 
 ### チームでの機能連携
 
@@ -67,40 +164,13 @@ Unity / Photon Fusionで開発した、球体フィールドを舞台とする�
 
 HP・スキル・ラウンド進行についても、私が担当するゲーム状態の管理に対して、他メンバーがUIや演出を連携させる形で開発しました。
 
-担当範囲はディレクトリ単位ではなく機能単位で分けており、同じスクリプト内にも複数メンバーの実装が含まれる場合があります。
-
 ---
-
-## 制作コンセプト
-
-VRならではの没入感と、周囲の人も一緒に楽しめる対戦体験を目指して開発しています。
-
-通常の平面ステージとは異なり、球体の表面を移動できるフィールドを採用しました。プレイヤーごとに上方向が変化するため、惑星の反対側や側面からも移動・攻撃できることが特徴です。
-
-また、対戦を繰り返しても展開が単調にならないよう、ラウンドごとに2種類のスキルを選択する仕組みを設けています。
-
-展示での利用も想定し、ゲームに参加していない人がプレイヤーの視点を切り替えながら観戦できる機能を実装しています。
-
----
-
-## ゲームの特徴
-
-- **球体地形での移動・戦闘** — 惑星の表面に沿って移動し、さまざまな方向から攻撃できる
-- **最大4人のオンラインPvP** — Photon Fusionを利用したHost / Client方式の対戦
-- **ラウンドごとのスキル選択** — 候補から2種類のスキルを選び、戦闘中に使用できる
-- **特殊弾を含む射撃システム** — 弾薬・リロード・特殊弾・範囲攻撃などに対応
-- **ラウンド制の試合進行** — 準備、スキル選択、戦闘、結果表示を管理
-- **PC・VR入力への対応** — キーボード・ゲームパッド・VRコントローラーの入力を扱う
-- **観戦者モード** — 対戦に参加せず、生存プレイヤーの視点を切り替えて観戦できる
-
----
-
 ## コードを見る方へ ― まずこの3箇所
 
 短時間でコードを確認いただく場合は、以下の3つをご覧ください。
 
-1. **球体地形上での移動・姿勢制御** — 3D数学・物理判定・キャラクター制御
-2. **Photon Fusionによるオンライン対戦の同期設計** — Authority・入力処理・状態同期
+1. **球体地形上での移動・姿勢制御** — 3D数学・物理判定・キャラクター制御  
+2. **Photon Fusionによるオンライン対戦の同期設計** — Authority・入力処理・状態同期  
 3. **ラウンド進行とスキルシステムの設計** — 状態遷移・責務分離・複数機能の連携
 
 ### 1. 球体地形上での移動・姿勢制御
@@ -131,7 +201,7 @@ VRならではの没入感と、周囲の人も一緒に楽しめる対戦体験
 
 まず、`SphereCast`を使って足元の地面を検出し、接地位置と法線を取得します。
 
-```text
+```
 
 接地判定
 
@@ -165,16 +235,16 @@ VRならではの没入感と、周囲の人も一緒に楽しめる対戦体験
 
 #### 関連コード
 
-- [PlayerMove.cs](Assets/Scripts/Player/PlayerMove.cs)
-   - `ProbeGround`
-   - `UpdateAimBasis`
-   - `MoveOnSurface`
-   - `MoveOnSurfaceVR`
-   - `AlignToSurface`
-   - `ApplyGravityAndJump`
-- [PlayerController.cs](Assets/Scripts/Player/PlayerController.cs)
-   - `ApplyMovementInput`
-- [PlayerLook.cs](Assets/Scripts/Player/PlayerLook.cs)
+- [PlayerMove.cs](Assets/Scripts/Player/PlayerMove.cs)  
+  - `ProbeGround`  
+  - `UpdateAimBasis`  
+  - `MoveOnSurface`  
+  - `MoveOnSurfaceVR`  
+  - `AlignToSurface`  
+  - `ApplyGravityAndJump`  
+- [PlayerController.cs](Assets/Scripts/Player/PlayerController.cs)  
+  - `ApplyMovementInput`  
+- [PlayerLook.cs](Assets/Scripts/Player/PlayerLook.cs)  
 - [PlayerCamera.cs](Assets/Scripts/Camera/PlayerCamera.cs)
 
 地形に依存する移動・姿勢・重力の処理を`PlayerMove`へ集約し、ネットワーク入力の取得やAuthority判定は`PlayerController`側に分離しています。
@@ -201,7 +271,7 @@ VRならではの没入感と、周囲の人も一緒に楽しめる対戦体験
 
 Photon FusionのHost方式を利用し、主要なゲーム状態をStateAuthority側で確定する構成にしています。
 
-```text
+```
 
 InputAuthority側
 
@@ -253,16 +323,16 @@ HP・弾薬・スキル状態などの継続的な状態は同期プロパティ
 
 #### 関連コード
 
-- [NetworkInputCollector.cs](Assets/Scripts/Network/NetworkInputCollector.cs)
-   - `UpdateHmdAndLook`
-   - `QueueGameplayButtons`
-   - `CollectInput`
-- [PlayerNetworkInput.cs](Assets/Scripts/Network/PlayerNetworkInput.cs)
-- [PlayerController.cs](Assets/Scripts/Player/PlayerController.cs)
-   - `FixedUpdateNetwork`
-   - `SimulatePlayer`
-- [PlayerHealth.cs](Assets/Scripts/Player/PlayerHealth.cs)
-- [PlayerWeapon.cs](Assets/Scripts/Player/PlayerWeapon.cs)
+- [NetworkInputCollector.cs](Assets/Scripts/Network/NetworkInputCollector.cs)  
+  - `UpdateHmdAndLook`  
+  - `QueueGameplayButtons`  
+  - `CollectInput`  
+- [PlayerNetworkInput.cs](Assets/Scripts/Network/PlayerNetworkInput.cs)  
+- [PlayerController.cs](Assets/Scripts/Player/PlayerController.cs)  
+  - `FixedUpdateNetwork`  
+  - `SimulatePlayer`  
+- [PlayerHealth.cs](Assets/Scripts/Player/PlayerHealth.cs)  
+- [PlayerWeapon.cs](Assets/Scripts/Player/PlayerWeapon.cs)  
 - [NetworkSessionController.cs](Assets/Scripts/Network/NetworkSessionController.cs)
 
 ネットワーク接続・入力収集・プレイヤー生成・ゲームプレイ処理を別クラスに分離し、それぞれの変更が他の処理へ広がりにくい構成にしています。
@@ -289,7 +359,7 @@ HP・弾薬・スキル状態などの継続的な状態は同期プロパティ
 
 試合の進行状態を明確に分け、`RoundManager`を各機能の窓口としています。
 
-```text
+```
 
 WaitingForReady
 
@@ -322,7 +392,7 @@ WaitingForReady
 具体的な処理は、次のクラスへ分担しています。
 
 | クラス | 責務 |
-| --- | --- |
+| :---- | :---- |
 | `RoundReadyController` | 準備完了状態の管理 |
 | `RoundSkillSelectionController` | スキル選択の進行・確定 |
 | `RoundSkillOptionBuilder` | 選択候補の抽選 |
@@ -343,8 +413,8 @@ WaitingForReady
 
 プレイヤー側のスキル機能についても、次のように責務を分けています。
 
-- `PlayerSkillController`：2つのスキル枠、発動状態、効果時間、クールダウン
-- `PlayerSkillActivator`：スキル発動時の一度限りの処理
+- `PlayerSkillController`：2つのスキル枠、発動状態、効果時間、クールダウン  
+- `PlayerSkillActivator`：スキル発動時の一度限りの処理  
 - `PlayerSkillEffectApplier`：発動中の移動・武器・HPなどへの継続効果
 
 継続効果は現在有効なスキルの組み合わせからパラメータを再計算し、効果終了後は通常の値へ戻す構成です。
@@ -353,22 +423,137 @@ WaitingForReady
 
 #### 関連コード
 
-- [RoundManager.cs](Assets/Scripts/Round/RoundManager.cs)
-- [RoundFlowController.cs](Assets/Scripts/Round/RoundFlowController.cs)
-   - `CheckRoundEnd`
-   - `AbortMatchToWaiting`
-- [RoundSkillSelectionController.cs](Assets/Scripts/Round/RoundSkillSelectionController.cs)
-   - `HandleRequestSelectSkillBySlot`
-   - `TryFinishSkillSelection`
-- [RoundSkillOptionBuilder.cs](Assets/Scripts/Round/RoundSkillOptionBuilder.cs)
-- [PlayerSkillController.cs](Assets/Scripts/Player/PlayerSkillController.cs)
-- [PlayerSkillActivator.cs](Assets/Scripts/Player/PlayerSkillActivator.cs)
+- [RoundManager.cs](Assets/Scripts/Round/RoundManager.cs)  
+- [RoundFlowController.cs](Assets/Scripts/Round/RoundFlowController.cs)  
+  - `CheckRoundEnd`  
+  - `AbortMatchToWaiting`  
+- [RoundSkillSelectionController.cs](Assets/Scripts/Round/RoundSkillSelectionController.cs)  
+  - `HandleRequestSelectSkillBySlot`  
+  - `TryFinishSkillSelection`  
+- [RoundSkillOptionBuilder.cs](Assets/Scripts/Round/RoundSkillOptionBuilder.cs)  
+- [PlayerSkillController.cs](Assets/Scripts/Player/PlayerSkillController.cs)  
+- [PlayerSkillActivator.cs](Assets/Scripts/Player/PlayerSkillActivator.cs)  
 - [PlayerSkillEffectApplier.cs](Assets/Scripts/Player/PlayerSkillEffectApplier.cs)
 
 試合中に人数が不足した場合には、進行中の処理を停止し、残った参加者の得点・準備・スキル状態を初期化して待機状態へ戻す処理も設けています。
 
 ---
+## その他の実装
 
+<summary><strong>対戦者と観戦者を分離した参加者管理</strong></summary>
+
+<details>
+
+### 主なコード
+
+- [NetworkParticipantRegistry.cs](Assets/Scripts/Network/NetworkParticipantRegistry.cs)  
+- [NetworkPlayerSpawner.cs](Assets/Scripts/Network/NetworkPlayerSpawner.cs)  
+- [LocalParticipantRoleController.cs](Assets/Scripts/Network/LocalParticipantRoleController.cs)
+
+接続している端末を、対戦者と観戦者に分けて管理しています。
+
+観戦者にもネットワーク上の接続者IDは存在しますが、プレイヤーキャラクターは生成しません。
+
+そのため、観戦者はHP・スキル・得点・勝敗判定に含まれません。
+
+役割変更はサーバー側で検証し、対戦人数上限や待機フェーズであるかを確認したうえで、キャラクターの生成・破棄を行います。
+
+同じ役割要求が再送されても、生成・破棄を繰り返さないようにしています。
+
+</details>
+
+<summary><strong>死亡後・観戦専用端末で共通利用するカメラ</strong></summary>
+
+<details>
+
+### 主なコード
+
+- [SpectatorCameraController.cs](Assets/Scripts/Camera/SpectatorCameraController.cs)  
+- [PlayerController.cs](Assets/Scripts/Player/PlayerController.cs)  
+  - `UpdateNetworkedSpectatorView`  
+
+死亡したプレイヤーと観戦専用端末で、プレイヤー視点の観戦処理を共通利用しています。
+
+- 生存プレイヤーを観戦対象として列挙  
+- コントローラーやキーボードで対象を切り替え  
+- 同期されたカメラ位置・向きへ追従  
+- 観戦対象のモデルや頭上アイコンをローカル表示から一時的に除外  
+- 観戦対象に応じたHUDへ切り替え  
+- 復活・観戦終了時にカメラと表示状態を復元
+
+プレイヤーの観戦用視点は、StateAuthority側で同期する位置・方向を参照しています。
+
+</details>
+
+<summary><strong>射撃・弾薬・リロード・特殊弾</strong></summary>
+
+<details>
+
+### 主なコード
+
+- [PlayerWeapon.cs](Assets/Scripts/Player/PlayerWeapon.cs)  
+- [Projectile.cs](Assets/Scripts/Projectile/Projectile.cs)
+
+射撃機能では、射撃間隔・残弾・リロード状態を管理しています。
+
+弾の生成に成功した場合だけ弾薬を消費し、StateAuthority側で命中・ダメージ処理を行います。
+
+通常弾に加え、重力の影響を受ける特殊弾や、着弾時に周囲へダメージを与える弾を実装しています。
+
+範囲ダメージでは、同じプレイヤーの複数Colliderによってダメージが重複しないよう、処理済みの対象を管理しています。
+
+</details>
+
+<summary><strong>PC・VR入力の共通処理</strong></summary>
+
+<details>
+
+### 主なコード
+
+- [NetworkInputCollector.cs](Assets/Scripts/Network/NetworkInputCollector.cs)  
+- [PlayerNetworkInput.cs](Assets/Scripts/Network/PlayerNetworkInput.cs)  
+
+キーボード・ゲームパッド・VRコントローラーから取得した入力を、共通のネットワーク入力データへまとめています。
+
+VRでは、HMDや左右コントローラーの位置・回転を入力データとして扱い、身体の表示制御に利用しています。
+
+Editor上でVR入力を確認するためのシミュレーション処理も実装しています。
+
+</details>
+
+<summary><strong>HP・死亡・ラウンドごとのリスポーン</strong></summary>
+
+<details>
+
+### 主なコード
+
+- [PlayerHealth.cs](Assets/Scripts/Player/PlayerHealth.cs)  
+- [RoundSpawnController.cs](Assets/Scripts/Round/RoundSpawnController.cs)
+
+HPの減少・回復・死亡をStateAuthority側で処理しています。
+
+死亡後はプレイヤー操作・表示状態を切り替え、次ラウンドではHP・移動状態・武器状態などを初期化してリスポーンさせます。
+
+リスポーン位置は複数の候補から選択し、同じラウンドでプレイヤー同士が重なりにくいように配置しています。
+
+</details>
+
+<summary><strong>透視スキルとプレイヤー描画の制御</strong></summary>
+
+<details>
+
+### 主なコード
+
+- [XRayVisionController.cs](Assets/Scripts/Effect/XRayVisionController.cs)  
+- [PlayerSkillController.cs](Assets/Scripts/Player/PlayerSkillController.cs)
+
+透視スキルの発動状態に応じて、他プレイヤーの表示方法を変更します。
+
+表示を変更する対象のRendererと元のMaterial情報を管理し、効果終了時に元の表示へ戻す処理を実装しています。
+
+</details>
+
+---
 ## 設計について
 
 チーム開発で機能追加や調整を進めやすくするため、**変更理由の異なる処理を1つのクラスへ集中させないこと**を意識しています。
@@ -377,21 +562,21 @@ WaitingForReady
 
 `PlayerController`を操作処理の窓口とし、各機能を専用コンポーネントへ分けています。
 
-- `PlayerMove`：移動・接地・重力・ジャンプ
-- `PlayerLook`：視点方向
-- `PlayerCamera`：カメラ制御
-- `PlayerWeapon`：射撃・弾薬・リロード
-- `PlayerHealth`：HP・死亡・リスポーン
+- `PlayerMove`：移動・接地・重力・ジャンプ  
+- `PlayerLook`：視点方向  
+- `PlayerCamera`：カメラ制御  
+- `PlayerWeapon`：射撃・弾薬・リロード  
+- `PlayerHealth`：HP・死亡・リスポーン  
 - `PlayerSkillController`：スキル状態管理
 
 ### ネットワーク機能の分離
 
 ネットワークについても、
 
-- セッションの開始・終了・再接続
-- PC・VR入力の収集
-- プレイヤーの生成・破棄
-- 対戦者・観戦者の役割管理
+- セッションの開始・終了・再接続  
+- PC・VR入力の収集  
+- プレイヤーの生成・破棄  
+- 対戦者・観戦者の役割管理  
 - ゲーム状態の確定・同期
 
 を分けています。
@@ -407,132 +592,10 @@ WaitingForReady
 また、UnityのInspectorから調整するパラメータは`SerializeField`で管理し、コードを変更せず調整できるようにしています。
 
 ---
-
-## その他の実装
-
-以下では、自身の担当機能に加え、チームメンバーが担当した関連機能も紹介しています。各機能の担当範囲は「チーム制作での担当範囲」をご参照ください。
-
-<details>
-
-<summary><strong>対戦者と観戦者を分離した参加者管理</strong></summary>
-
-### 主なコード
-
-- [NetworkParticipantRegistry.cs](Assets/Scripts/Network/NetworkParticipantRegistry.cs)
-- [NetworkPlayerSpawner.cs](Assets/Scripts/Network/NetworkPlayerSpawner.cs)
-- [LocalParticipantRoleController.cs](Assets/Scripts/Network/LocalParticipantRoleController.cs)
-
-接続している端末を、対戦者と観戦者に分けて管理しています。
-
-観戦者にもネットワーク上の接続者IDは存在しますが、プレイヤーキャラクターは生成しません。
-
-そのため、観戦者はHP・スキル・得点・勝敗判定に含まれません。
-
-役割変更はサーバー側で検証し、対戦人数上限や待機フェーズであるかを確認したうえで、キャラクターの生成・破棄を行います。
-
-同じ役割要求が再送されても、生成・破棄を繰り返さないようにしています。
-
-</details>
-
-<details>
-
-<summary><strong>死亡後・観戦専用端末で共通利用するカメラ</strong></summary>
-
-### 主なコード
-
-- [SpectatorCameraController.cs](Assets/Scripts/Camera/SpectatorCameraController.cs)
-- [PlayerController.cs](Assets/Scripts/Player/PlayerController.cs)
-   - `UpdateNetworkedSpectatorView`
-- [BattleHudBinder.cs](Assets/Scripts/UI/BattleHUD/BattleHudBinder.cs)
-
-死亡したプレイヤーと観戦専用端末で、プレイヤー視点の観戦処理を共通利用しています。
-
-- 生存プレイヤーを観戦対象として列挙
-- コントローラーやキーボードで対象を切り替え
-- 同期されたカメラ位置・向きへ追従
-- 観戦対象のモデルや頭上アイコンをローカル表示から一時的に除外
-- 観戦対象に応じたHUDへ切り替え
-- 復活・観戦終了時にカメラと表示状態を復元
-
-プレイヤーの観戦用視点は、StateAuthority側で同期する位置・方向を参照しています。
-
-</details>
-
-<details>
-
-<summary><strong>射撃・弾薬・リロード・特殊弾</strong></summary>
-
-### 主なコード
-
-- [PlayerWeapon.cs](Assets/Scripts/Player/PlayerWeapon.cs)
-- [Projectile.cs](Assets/Scripts/Projectile/Projectile.cs)
-
-射撃機能では、射撃間隔・残弾・リロード状態を管理しています。
-
-弾の生成に成功した場合だけ弾薬を消費し、StateAuthority側で命中・ダメージ処理を行います。
-
-通常弾に加え、重力の影響を受ける特殊弾や、着弾時に周囲へダメージを与える弾を実装しています。
-
-範囲ダメージでは、同じプレイヤーの複数Colliderによってダメージが重複しないよう、処理済みの対象を管理しています。
-
-</details>
-
-<details>
-
-<summary><strong>PC・VR入力の共通処理</strong></summary>
-
-### 主なコード
-
-- [NetworkInputCollector.cs](Assets/Scripts/Network/NetworkInputCollector.cs)
-- [PlayerNetworkInput.cs](Assets/Scripts/Network/PlayerNetworkInput.cs)
-- [VRBodyTargetSync.cs](Assets/Scripts/Player/VRBodyTargetSync.cs)
-
-キーボード・ゲームパッド・VRコントローラーから取得した入力を、共通のネットワーク入力データへまとめています。
-
-VRでは、HMDや左右コントローラーの位置・回転を入力データとして扱い、身体の表示制御に利用しています。
-
-Editor上でVR入力を確認するためのシミュレーション処理も実装しています。
-
-</details>
-
-<details>
-
-<summary><strong>HP・死亡・ラウンドごとのリスポーン</strong></summary>
-
-### 主なコード
-
-- [PlayerHealth.cs](Assets/Scripts/Player/PlayerHealth.cs)
-- [RoundSpawnController.cs](Assets/Scripts/Round/RoundSpawnController.cs)
-
-HPの減少・回復・死亡をStateAuthority側で処理しています。
-
-死亡後はプレイヤー操作・表示状態を切り替え、次ラウンドではHP・移動状態・武器状態などを初期化してリスポーンさせます。
-
-リスポーン位置は複数の候補から選択し、同じラウンドでプレイヤー同士が重なりにくいように配置しています。
-
-</details>
-
-<details>
-
-<summary><strong>透視スキルとプレイヤー描画の制御</strong></summary>
-
-### 主なコード
-
-- [XRayVisionController.cs](Assets/Scripts/Effect/XRayVisionController.cs)
-- [PlayerSkillController.cs](Assets/Scripts/Player/PlayerSkillController.cs)
-
-透視スキルの発動状態に応じて、他プレイヤーの表示方法を変更します。
-
-表示を変更する対象のRendererと元のMaterial情報を管理し、効果終了時に元の表示へ戻す処理を実装しています。
-
-</details>
-
----
-
 ## 使用技術
 
 | 分野 | 使用技術 |
-| --- | --- |
+| :---- | :---- |
 | Game Engine | Unity 6000.3.17f1 |
 | Language | C# |
 | Networking | Photon Fusion |
@@ -546,7 +609,11 @@ HPの減少・回復・死亡をStateAuthority側で処理しています。
 
 <details>
 
+&nbsp;
+
 <summary><strong>詳細を見る</strong></summary>
+
+&nbsp;
 
 **Unity / C#**
 
@@ -568,13 +635,14 @@ PC・ゲームパッド・VRコントローラーといった複数の入力方�
 
 </details>
 
----
+&nbsp;
 
+---
 ## コード構成
 
 主要なゲームプログラムは`Assets/Scripts/`以下に配置しています。
 
-```text
+```
 
 Assets/Scripts/
 
@@ -643,39 +711,8 @@ Assets/Scripts/
 各機能の内部処理を専用クラスに分離し、`NetworkLauncher`、`PlayerController`、`RoundManager`などの窓口から連携させています。
 
 ---
-
-## 実行方法
-
-### 必要環境
-
-- Unity 6000.3.17f1
-- Photon Fusionの利用に必要な設定
-- PCで実行する場合は対応する入力デバイス
-
-### PC向けシーン
-
-`Assets/Scenes/ForPCMainScene.unity`
-
-### 起動手順
-
-1. Unity Hubからプロジェクトを開く
-2. `ForPCMainScene`を開く
-3. Photon Fusionの必要な設定を確認する
-4. Unity EditorでPlayする
-5. Host / Clientとして対戦ルームに接続する
-
-`NetworkLauncher`では自動接続や手動接続を設定できます。
-
-複数端末で対戦する場合は、同じルームへ接続して参加します。
-
-観戦専用端末も同じルームへ接続し、対戦者とは別の役割で参加できます。
-
-※本READMEでは、リポジトリ上で確認できるPC向けシーンを案内しています。VR機器別のセットアップ・ビルド手順は、使用環境での確認が必要です。
-
 ## 補足
 
-本リポジトリにはUnityプロジェクトに必要な外部ライブラリやアセットも含まれています。
+本リポジトリのプログラムを評価いただく場合は、主に [Assets/Scripts](Assets/Scripts/) をご確認ください。
 
-プログラムの設計・実装を評価いただく場合は、主に[Assets/Scripts](Assets/Scripts)をご確認ください。
-
-特に重点的に取り組んだ実装については、上記の「コードを見る方へ ― まずこの3箇所」にまとめています。
+実装の要点は「コードを見る方へ ― まずこの3箇所」にまとめています。
