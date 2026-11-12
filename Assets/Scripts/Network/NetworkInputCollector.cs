@@ -338,13 +338,15 @@ public sealed class NetworkInputCollector
 
     public bool ReadReconnectPressed()
     {
+    /*
         bool gripsHeld = IsVRActive && IsXrButtonHeld("<XRController>{LeftHand}/gripButton") &&
             IsXrButtonHeld("<XRController>{RightHand}/gripButton");
         bool vrPressed = gripsHeld && !wasReconnectGripHeld;
         wasReconnectGripHeld = gripsHeld;
         return vrPressed ||
             (Keyboard.current != null && Keyboard.current.rKey.wasPressedThisFrame) ||
-            (Gamepad.current != null && Gamepad.current.startButton.wasPressedThisFrame);
+            (Gamepad.current != null && Gamepad.current.startButton.wasPressedThisFrame);*/
+            return false;
     }
 
     private static bool IsXrButtonHeld(string path) =>

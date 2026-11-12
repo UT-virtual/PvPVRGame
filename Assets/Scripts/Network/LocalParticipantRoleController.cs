@@ -42,11 +42,10 @@ public sealed class LocalParticipantRoleController
 
     public void Update()
     {
-        bool rightHeld = LocalPlayModeController.IsVirtualReality && IsRoleButtonHeld("<XRController>{RightHand}/primaryButton");
+       
         bool toggleRole = (Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame) ||
-            (Gamepad.current != null && Gamepad.current.buttonNorth.wasPressedThisFrame) || (rightHeld && !rightRoleButtonHeld);
-        rightRoleButtonHeld = rightHeld;
-
+            (Gamepad.current != null && Gamepad.current.buttonNorth.wasPressedThisFrame);
+        
         if (CanChooseRole && !IsRoleRequestPending)
         {
             if (LocalRole == ParticipantRole.Unselected && Time.unscaledTime >= automaticAssignmentAt)
@@ -73,9 +72,6 @@ public sealed class LocalParticipantRoleController
             }
         }
     }
-
-    private static bool IsRoleButtonHeld(string path) =>
-        InputSystem.FindControl(path) is UnityEngine.InputSystem.Controls.ButtonControl button && button.isPressed;
 
     /// <summary>
     /// 役割を要求し、サーバーの受理通知までローカルの役割を変えない。再送には同じ要求番号を使う。
