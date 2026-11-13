@@ -8,6 +8,8 @@ using UnityEngine;
 /// 同期する試合フェーズと、準備・スキル選択・戦闘・結果表示をつなぐ窓口を持つ。
 /// StateAuthority側の参加者管理と進行を各Controllerへ委譲し、各端末のUIは同期フェーズと結果通知RPCで更新する。
 /// </summary>
+/// 
+
 public class RoundManager : NetworkBehaviour, IAfterTick
 {
     public static RoundManager Instance { get; private set; }
@@ -109,6 +111,8 @@ public class RoundManager : NetworkBehaviour, IAfterTick
     [Header("Debug Spectator Dummy")]
     [SerializeField] private bool countDebugSpectatorDummiesAsAlive = false;
 
+    [Header("Debug Final Result")]
+    [SerializeField] private TeamColor debugFinalResultWinnerTeam = TeamColor.Red;
     [Header("Round Effect UI")]
     [SerializeField] private RoundEffectUI roundEffectUI;
 
@@ -1206,4 +1210,27 @@ public class RoundManager : NetworkBehaviour, IAfterTick
     {
         debugLogger.LogSpawnPointSettings(spawnController.GetAvailableSpawnPoints());
     }
+
+#if UNITY_EDITOR
+    [ContextMenu("Test Final Result UI")]
+    private void TestFinalResultUI()
+    {
+        if (Object == null || !Object.HasStateAuthority)
+        {
+            Debug.LogWarning(
+                "[RoundManager] Final Result test can only be executed by State Authority."
+            );
+            return;
+        }
+
+        int winnerTeamMask = 1 << (int)debugFinalResultWinnerTeam;
+
+        Debug.Log(
+            $"[RoundManager] Testing Final Result UI. " +
+            $"Winner={debugFinalResultWinnerTeam}, Mask={winnerTeamMask}"
+        );
+
+        RPC_ShowFinalResultUI(winnerTeamMask);
+    }
+#endif
 }
