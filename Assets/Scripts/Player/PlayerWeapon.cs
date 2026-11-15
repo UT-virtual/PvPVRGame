@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Fusion;
 using UnityEngine;
 
@@ -393,20 +394,20 @@ public class PlayerWeapon : NetworkBehaviour
         bool isVrPlayer = controller != null && controller.IsCurrentInputVR;
         Ray aim = GetAimRay(isVrPlayer, out Vector3 aimUp);
         float exitOffset = isVrPlayer && muzzleTransform != null ? muzzleExitOffset : projectileSpawnDistance;
-        RaycastHit aimHit = default;
-        if (TryGetAimHit(aim, out aimHit))
-            exitOffset = Mathf.Min(exitOffset, Mathf.Max(0f, aimHit.distance - 0.01f));
+        AimHit aimHit = default;
+        if (TryGetAimHit(aim, out aimHit, compensate: true))
+            exitOffset = Mathf.Min(exitOffset, Mathf.Max(0f, aimHit.Distance - 0.01f));
         float currentDamage =
             projectileDamage *
             damageDealtMultiplier *
             GetShotDamageMultiplier(shotKind) *
             ConsumeNextShotDamageMultiplier();
 
-        Vector3 endpoint = aimHit.collider != null ? aimHit.point : aim.GetPoint(raycastMaxDistance);
+        Vector3 endpoint = aimHit.HasHit ? aimHit.Point : aim.GetPoint(raycastMaxDistance);
         Vector3 muzzle = muzzleTransform != null ? muzzleTransform.position : aim.GetPoint(exitOffset);
         RPC_ShowShotEffects(muzzle, endpoint, Quaternion.LookRotation(aim.direction, aimUp));
 
-        if (aimHit.collider != null) ApplyHitscan(aimHit, currentDamage);
+        if (aimHit.HasHit) ApplyHitscan(aimHit, currentDamage);
 
         return true;
     }
@@ -466,26 +467,36 @@ public class PlayerWeapon : NetworkBehaviour
             aim = new Ray(controller.NetworkedSpectatorCameraPosition, controller.NetworkedSpectatorViewForward);
         }
         isTarget = false;
-        if (!TryGetAimHit(aim, out RaycastHit hit))
+        if (!TryGetAimHit(aim, out AimHit hit))
             return aim.GetPoint(raycastMaxDistance);
 
-        PlayerHealth player = hit.collider.GetComponentInParent<PlayerHealth>();
+        PlayerHealth player = hit.Player;
         if (player != null)
         {
             isTarget = player.Object != null && player.Object.IsValid && !player.IsDead;
         }
         else
         {
-            PracticeTarget practiceTarget = hit.collider.GetComponentInParent<PracticeTarget>();
+            PracticeTarget practiceTarget = hit.Collider != null ? hit.Collider.GetComponentInParent<PracticeTarget>() : null;
             isTarget = practiceTarget != null && practiceTarget.Object != null &&
                 practiceTarget.Object.IsValid && practiceTarget.CanReceiveDamage;
         }
-        return hit.point;
+        return hit.Point;
+    }
+
+    private struct AimHit
+    {
+        public Collider Collider;
+        public PlayerHealth Player;
+        public Vector3 Point;
+        public float Distance;
+        public bool HasHit => Collider != null || Player != null;
     }
 
     private readonly RaycastHit[] aimHits = new RaycastHit[16];
+    private readonly List<LagCompensatedHit> compensatedHits = new(8);
 
-    private bool TryGetAimHit(Ray aim, out RaycastHit nearest)
+    private bool TryGetAimHit(Ray aim, out AimHit nearest, bool compensate = false)
     {
         int count = Physics.RaycastNonAlloc(aim, aimHits, raycastMaxDistance, hitScanLayerMask, QueryTriggerInteraction.Ignore);
         RaycastHit[] hits = aimHits;
@@ -504,16 +515,47 @@ public class PlayerWeapon : NetworkBehaviour
             if (hit.collider == null || hit.collider.transform.IsChildOf(transform) || hit.distance >= nearestDistance)
                 continue;
 
-            nearest = hit;
+            PlayerHealth player = hit.collider.GetComponentInParent<PlayerHealth>();
+            // 専用Hitboxを持つプレイヤーの現在の移動Colliderを、巻き戻し判定へ混ぜない。
+            if (player != null && player.ShotHitbox != null) continue;
+            nearest = new AimHit { Collider = hit.collider, Player = player, Point = hit.point, Distance = hit.distance };
             nearestDistance = hit.distance;
         }
 
-        return nearest.collider != null;
+        if (compensate && Object != null && Object.HasStateAuthority && Runner.LagCompensation != null)
+        {
+            Runner.LagCompensation.RaycastAll(aim.origin, aim.direction, raycastMaxDistance,
+                Object.InputAuthority, compensatedHits, hitScanLayerMask, clearHits: true,
+                options: HitOptions.SubtickAccuracy | HitOptions.IgnoreInputAuthority);
+            foreach (LagCompensatedHit hit in compensatedHits)
+            {
+                PlayerHealth player = hit.Hitbox != null ? hit.Hitbox.GetComponentInParent<PlayerHealth>() : null;
+                if (!IsShotTarget(player) || hit.Distance >= nearestDistance) continue;
+                nearest = new AimHit { Player = player, Point = hit.Point, Distance = hit.Distance };
+                nearestDistance = hit.Distance;
+            }
+        }
+        else
+        {
+            // クライアントの照準ガイドには、表示中の現在姿勢と同じカプセルを使う。
+            foreach (PlayerShotHitbox hitbox in PlayerShotHitbox.Active)
+            {
+                if (hitbox == null || !IsShotTarget(hitbox.Owner) ||
+                    (hitScanLayerMask.value & (1 << hitbox.gameObject.layer)) == 0 ||
+                    !hitbox.RaycastCurrent(aim, raycastMaxDistance, out float distance) || distance >= nearestDistance) continue;
+                nearest = new AimHit { Player = hitbox.Owner, Point = aim.GetPoint(distance), Distance = distance };
+                nearestDistance = distance;
+            }
+        }
+        return nearest.HasHit;
     }
 
-    private void ApplyHitscan(RaycastHit hit, float damage)
+    private bool IsShotTarget(PlayerHealth player) => player != null && player != playerHealth &&
+        player.Object != null && player.Object.IsValid && player.Object.Runner == Runner && !player.IsDead;
+
+    private void ApplyHitscan(AimHit hit, float damage)
     {
-        PlayerHealth targetHealth = hit.collider.GetComponentInParent<PlayerHealth>();
+        PlayerHealth targetHealth = hit.Player;
         bool isEnemyHit = targetHealth != null && !targetHealth.IsDead;
 
         if (targetHealth != null)
@@ -525,7 +567,7 @@ public class PlayerWeapon : NetworkBehaviour
         else
         {
             // 待機場の練習ターゲットも即時命中判定で扱い、見た目用の弾には加害させない。
-            PracticeTarget practiceTarget = hit.collider.GetComponentInParent<PracticeTarget>();
+            PracticeTarget practiceTarget = hit.Collider != null ? hit.Collider.GetComponentInParent<PracticeTarget>() : null;
             if (practiceTarget != null && practiceTarget.CanReceiveDamage)
             {
                 practiceTarget.TakeDamage(damage);
@@ -533,12 +575,12 @@ public class PlayerWeapon : NetworkBehaviour
             }
         }
 
-        NotifyProjectileImpactEffect(hit.point);
+        NotifyProjectileImpactEffect(hit.Point);
 
         PlayerSound playerSound = GetComponent<PlayerSound>();
         if (playerSound != null)
         {
-            playerSound.NotifyProjectileHitFromServer(isEnemyHit, hit.point);
+            playerSound.NotifyProjectileHitFromServer(isEnemyHit, hit.Point);
         }
     }
 
