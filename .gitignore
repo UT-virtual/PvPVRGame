@@ -108,3 +108,7 @@ InitTestScene*.unity*
 
 .vscode/
 .DS_Store
+
+# Optional per-developer Hot Reload installation (not a shared dependency)
+/Packages/com.singularitygroup.hotreload/
+/Packages/com.singularitygroup.hotreload.meta
