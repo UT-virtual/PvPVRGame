@@ -1,10 +1,6 @@
 using TMPro;
 using UnityEngine;
 
-/// <summary>
-/// 同期された選択フェーズと候補、ローカルの選択段階・カーソルをカードUIへ反映する。
-/// 残り時間は表示開始からの端末内の目安で、時間切れの確定は進行側が行う。
-/// </summary>
 public class SkillSelectUI : MonoBehaviour
 {
     [SerializeField] private GameObject panelRoot;
@@ -19,6 +15,21 @@ public class SkillSelectUI : MonoBehaviour
 
     private void Awake()
     {
+        if (operationText != null) operationText.gameObject.SetActive(false);
+        if (titleText != null && timerText != null)
+        {
+            RectTransform title = titleText.rectTransform;
+            RectTransform timer = timerText.rectTransform;
+            timer.anchorMin = title.anchorMin;
+            timer.anchorMax = title.anchorMax;
+            timer.pivot = title.pivot;
+            timer.sizeDelta = title.sizeDelta;
+            // 文字の中央はRectTransformだけでなくTMPの余白にも左右される。
+            // 見出しと同じ描画領域にそろえて、残り秒数をその真上へ置く。
+            timerText.margin = titleText.margin;
+            timerText.alignment = titleText.alignment;
+            timer.anchoredPosition = title.anchoredPosition + Vector2.up * (title.rect.height + 10f);
+        }
         SetVisible(false);
     }
 
@@ -26,9 +37,7 @@ public class SkillSelectUI : MonoBehaviour
     {
         RoundManager roundManager = RoundManager.Instance;
 
-        EnsureNetworkLauncher();
         bool shouldShow =
-            networkLauncher != null && networkLauncher.IsLocalCombatant &&
             roundManager != null &&
             roundManager.IsSkillSelecting;
 
@@ -110,9 +119,9 @@ public class SkillSelectUI : MonoBehaviour
 
     private void SetSkillSelectionControlsVisible(bool visible)
     {
-        if (operationText != null && operationText.gameObject.activeSelf != visible)
+        if (operationText != null && operationText.gameObject.activeSelf)
         {
-            operationText.gameObject.SetActive(visible);
+            operationText.gameObject.SetActive(false);
         }
 
         if (skillCards == null)

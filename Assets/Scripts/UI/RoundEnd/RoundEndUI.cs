@@ -4,11 +4,14 @@ using UnityEngine;
 using UnityEngine.UI;
 
 /// <summary>
-/// 勝者と累積勝利数を表示し、表示を閉じると生成したスコア行を破棄する。
-/// ネットワーク経路ではRoundManagerのRPCからチーム別の集計値を受け取る。
+/// 勝者、確定した撃破数優先の順位、累積勝利数を表示する。
+/// 結果RPCと同期スナップショットの到着順が異なっても、対象ラウンドの記録を待って描画する。
 /// </summary>
 public class RoundEndUI : MonoBehaviour
 {
+    private const float FinalRankingScale = 1.25f;
+    private const float FinalRankingTop = 224f;
+    private const float ResultHorizontalPadding = 40f;
     [Header("Root")]
     [SerializeField] private GameObject root;
 
@@ -23,10 +26,106 @@ public class RoundEndUI : MonoBehaviour
     [SerializeField] private GameObject scoreEntryPrefab;
 
     private readonly List<GameObject> scoreEntryObjects = new();
+    private int networkResultRound;
+    private int rankingRevision = -1;
+    private RoundDamageRankingUI finalDamageRanking;
+    private readonly int[] teamWins = new int[4];
+    private int resultTeamMask;
+    private bool rankingShowsHealth;
 
     private void Awake()
     {
         Hide();
+    }
+
+    private void LateUpdate()
+    {
+        RoundManager manager = RoundManager.Instance;
+        if (networkResultRound == 0 || manager == null || !manager.IsNetworkReady) return;
+        bool showHealth = manager.ConnectedParticipants.TryGet(manager.Runner.LocalPlayer,
+            out ParticipantRole role) && role == ParticipantRole.Spectator;
+        if (
+            !manager.HasFinalDamageRanking || manager.DamageRoundNumber != networkResultRound ||
+            (finalDamageRanking != null && rankingRevision == manager.DamageRevision && rankingShowsHealth == showHealth) ||
+            scoreContentRoot == null) return;
+
+        if (finalDamageRanking == null)
+        {
+            BuildFinalRanking(manager.DamageEntryCount);
+        }
+
+        if (finalDamageRanking == null) return;
+        finalDamageRanking.Refresh(manager, showHealth);
+        rankingRevision = manager.DamageRevision;
+        rankingShowsHealth = showHealth;
+    }
+
+    private void BuildFinalRanking(int entryCount)
+    {
+        RectTransform panel = scoreContentRoot.parent as RectTransform;
+        if (panel == null) return;
+
+        ClearScoreEntries();
+        // 背景パネルを基準に配置し、Sceneの一覧幅やLayoutGroupによる位置ずれを防ぐ。
+        scoreContentRoot.gameObject.SetActive(false);
+        float width = panel.rect.width - ResultHorizontalPadding * 2f;
+        float rankingHeight = RoundDamageRankingUI.GetPreferredHeight(entryCount, FinalRankingScale);
+        float contentHeight = rankingHeight + 64f;
+        panel.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, FinalRankingTop + contentHeight + 32f);
+
+        ConfigureResultText(roundEndText, 36f, 32f, width, 44f);
+        ConfigureResultText(winSuffixText, 44f, 84f, 260f, 64f);
+        ConfigureResultText(scoreTitleText, 30f, 168f, width, 40f);
+        if (scoreTitleText != null) scoreTitleText.text = "最終順位";
+        if (winSuffixText != null && winnerColorIcon != null && winnerColorIcon.gameObject.activeSelf)
+        {
+            winSuffixText.rectTransform.anchoredPosition += new Vector2(24f, 0f);
+            RectTransform icon = winnerColorIcon.rectTransform;
+            SetTopCenteredRect(icon, new Vector2(44f, 44f), new Vector2(-88f, -94f));
+        }
+
+        finalDamageRanking = RoundDamageRankingUI.Create(panel,
+            scoreTitleText != null ? scoreTitleText.font : null,
+            winnerColorIcon != null ? winnerColorIcon.sprite : null, width, FinalRankingScale, entryCount);
+        RectTransform rankingRect = (RectTransform)finalDamageRanking.transform;
+        SetTopCenteredRect(rankingRect, new Vector2(width, contentHeight), new Vector2(0f, -FinalRankingTop));
+        finalDamageRanking.GetComponent<LayoutElement>().preferredHeight = contentHeight;
+        scoreEntryObjects.Add(finalDamageRanking.gameObject);
+
+        TMP_Text wins = RoundDamageRankingUI.CreateText("MatchWins", finalDamageRanking.transform,
+            scoreTitleText != null ? scoreTitleText.font : null, 26f,
+            new Vector2(0f, -rankingHeight - 12f), new Vector2(width, 48f));
+        wins.alignment = TextAlignmentOptions.Center;
+        wins.enableAutoSizing = true;
+        wins.fontSizeMin = 22f;
+        wins.fontSizeMax = 26f;
+        wins.overflowMode = TextOverflowModes.Ellipsis;
+        wins.text = "累計勝利数：";
+        for (int i = 0; i < teamWins.Length; i++)
+        {
+            if ((resultTeamMask & (1 << i)) == 0) continue;
+            string color = ColorUtility.ToHtmlStringRGB(RoundDamageRankingUI.GetTeamColor(i));
+            wins.text += $" <color=#{color}>■</color> {teamWins[i]}勝";
+        }
+    }
+
+    private static void ConfigureResultText(TMP_Text text, float fontSize, float top, float width, float height)
+    {
+        if (text == null) return;
+        SetTopCenteredRect(text.rectTransform, new Vector2(width, height), new Vector2(0f, -top));
+        text.fontSize = fontSize;
+        text.enableAutoSizing = false;
+        text.textWrappingMode = TextWrappingModes.NoWrap;
+        text.alignment = TextAlignmentOptions.Center;
+    }
+
+    private static void SetTopCenteredRect(RectTransform rect, Vector2 size, Vector2 position)
+    {
+        rect.anchorMin = rect.anchorMax = new Vector2(0.5f, 1f);
+        rect.pivot = new Vector2(0.5f, 1f);
+        rect.localScale = Vector3.one;
+        rect.sizeDelta = size;
+        rect.anchoredPosition = position;
     }
 
     public void Show(
@@ -37,6 +136,7 @@ public class RoundEndUI : MonoBehaviour
     )
     {
         SetVisible(true);
+        networkResultRound = 0;
 
         if (roundEndText != null)
         {
@@ -49,7 +149,7 @@ public class RoundEndUI : MonoBehaviour
 
     /// <summary>
     /// 結果RPCで受け取った勝者と各チームの累積勝利数を表示する。
-    /// winnerTeamIndexが負なら勝者なし、teamMaskのビットが立つチームだけ一覧へ追加する。
+    /// winnerTeamIndexが負なら引き分け。最終順位は対象ラウンドの同期スナップショットを待って表示する。
     /// </summary>
     public void ShowTeamScores(
     int roundNumber,
@@ -63,17 +163,26 @@ public class RoundEndUI : MonoBehaviour
     {
         SetVisible(true);
 
+        networkResultRound = roundNumber;
+        resultTeamMask = teamMask;
+        teamWins[0] = redWins;
+        teamWins[1] = blueWins;
+        teamWins[2] = greenWins;
+        teamWins[3] = yellowWins;
+
         if (roundEndText != null)
         {
             roundEndText.text = $"ラウンド{roundNumber}終了";
         }
 
         ApplyWinnerByTeamIndex(winnerTeamIndex);
-        RefreshScoreListByTeam(teamMask, redWins, blueWins, greenWins, yellowWins);
+        ClearScoreEntries();
+        if (scoreTitleText != null) scoreTitleText.text = "最終順位";
     }
 
     public void Hide()
     {
+        networkResultRound = 0;
         ClearScoreEntries();
         SetVisible(false);
     }
@@ -89,7 +198,7 @@ public class RoundEndUI : MonoBehaviour
 
             if (winSuffixText != null)
             {
-                winSuffixText.text = "勝者なし";
+                winSuffixText.text = "引き分け";
             }
 
             return;
@@ -169,10 +278,14 @@ public class RoundEndUI : MonoBehaviour
 
     private void ClearScoreEntries()
     {
+        if (scoreContentRoot != null) scoreContentRoot.gameObject.SetActive(true);
+        finalDamageRanking = null;
+        rankingRevision = -1;
         foreach (GameObject entryObject in scoreEntryObjects)
         {
             if (entryObject != null)
             {
+                entryObject.SetActive(false);
                 Destroy(entryObject);
             }
         }
@@ -227,7 +340,7 @@ public class RoundEndUI : MonoBehaviour
 
             if (winSuffixText != null)
             {
-                winSuffixText.text = "勝者なし";
+                winSuffixText.text = "引き分け";
             }
 
             return;
@@ -245,61 +358,6 @@ public class RoundEndUI : MonoBehaviour
         {
             winSuffixText.text = "の勝利";
         }
-    }
-
-    private void RefreshScoreListByTeam(
-        int teamMask,
-        int redWins,
-        int blueWins,
-        int greenWins,
-        int yellowWins
-    )
-    {
-        ClearScoreEntries();
-
-        if (scoreTitleText != null)
-        {
-            scoreTitleText.text = "現在の勝利数";
-        }
-
-        if (scoreContentRoot == null || scoreEntryPrefab == null)
-        {
-            Debug.LogWarning("[RoundEndUI] scoreContentRoot or scoreEntryPrefab is null.");
-            return;
-        }
-
-        CreateScoreEntryIfTeamExists(teamMask, TeamColor.Red, redWins);
-        CreateScoreEntryIfTeamExists(teamMask, TeamColor.Blue, blueWins);
-        CreateScoreEntryIfTeamExists(teamMask, TeamColor.Green, greenWins);
-        CreateScoreEntryIfTeamExists(teamMask, TeamColor.Yellow, yellowWins);
-    }
-
-    private void CreateScoreEntryIfTeamExists(
-        int teamMask,
-        TeamColor team,
-        int winCount
-    )
-    {
-        int bit = 1 << (int)team;
-
-        if ((teamMask & bit) == 0)
-        {
-            return;
-        }
-
-        GameObject entryObject = Instantiate(scoreEntryPrefab, scoreContentRoot);
-        entryObject.SetActive(true);
-        scoreEntryObjects.Add(entryObject);
-
-        RoundEndScoreEntryUI entryUI = entryObject.GetComponent<RoundEndScoreEntryUI>();
-
-        if (entryUI == null)
-        {
-            Debug.LogWarning("[RoundEndUI] RoundEndScoreEntryUI was not found on scoreEntryPrefab.");
-            return;
-        }
-
-        entryUI.Setup(GetTeamColor(team), winCount);
     }
 
     private Color GetTeamColor(PlayerHealth player)

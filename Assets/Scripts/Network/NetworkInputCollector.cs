@@ -3,10 +3,6 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.InputSystem.Controls;
 
-/// <summary>
-/// ローカル端末の入力とXR姿勢を収集し、NetworkLauncher.OnInputに渡すPlayerNetworkInputを構築する。
-/// 視点は毎フレーム即時反映し、ゲーム状態の変更はPlayerController側に委ねる。
-/// </summary>
 public sealed class NetworkInputCollector
 {
     private readonly InputActionReference moveAction;
@@ -36,7 +32,6 @@ public sealed class NetworkInputCollector
     private Vector2 editorHmdEuler;
     private Quaternion currentHMD = Quaternion.identity;
 
-    // UpdateとOnInputは呼び出し間隔が異なるため、視点差分は加算し、単発操作は送信まで保持する。
     private Vector2 queuedLookInput;
     private bool jumpQueued;
     private bool reloadQueued;
@@ -47,27 +42,22 @@ public sealed class NetworkInputCollector
     private bool selectSkill3Queued;
     private bool selectSkill4Queued;
     private bool switchSkillQueued;
+    //wayo??L
     private bool wasBothVrTriggerPressed;
     private bool wasLeftTriggerPressed;
     private bool activateSkill1Queued;
     private bool activateSkill2Queued;
     private bool wasLeftVrTriggerPressedForSkill;
+    private bool wasReconnectGripHeld;
+
+    private Transform xrHmd;
+    private Transform xrLeftController;
+    private Transform xrRightController;
 
     public PlayerController LocalPlayerController { get; private set; }
+    public Vector2 LastMoveInput { get; private set; }
 
-    private bool IsVRActive
-    {
-        get
-        {
-#if UNITY_EDITOR
-            if (forceVrSimulationInEditor)
-            {
-                return true;
-            }
-#endif
-            return UnityEngine.XR.XRSettings.isDeviceActive;
-        }
-    }
+    private bool IsVRActive => LocalPlayModeController.IsVirtualReality;
 
     public NetworkInputCollector(
         InputActionReference moveAction,
@@ -115,6 +105,16 @@ public sealed class NetworkInputCollector
         this.editorHmdRotationSpeed = editorHmdRotationSpeed;
     }
 
+    public void SetXrTransforms(
+        Transform hmd,
+        Transform leftController,
+        Transform rightController)
+    {
+        xrHmd = hmd;
+        xrLeftController = leftController;
+        xrRightController = rightController;
+    }
+
     public void EnableActions()
     {
         EnableAction(moveAction);
@@ -153,14 +153,12 @@ public sealed class NetworkInputCollector
         DisableAction(reloadAction);
     }
 
-    /// <summary>
-    /// 毎フレームの視点差分を蓄積し、登録済みのローカルプレイヤーへ同時に反映する。
-    /// </summary>
     public void UpdateHmdAndLook()
     {
         UpdateHMD();
 
         Vector2 lookInput = ReadLookInput();
+        LastMoveInput = ReadMoveInput();
 
         queuedLookInput += lookInput;
 
@@ -170,10 +168,6 @@ public sealed class NetworkInputCollector
         }
     }
 
-    /// <summary>
-    /// フレームで検出した単発操作を、次のCollectInputまで保持する。
-    /// 複数フレームで同じ操作が起きた場合は1つのフラグにまとめる。
-    /// </summary>
     public void QueueGameplayButtons()
     {
         if (ReadJumpPressed())
@@ -201,6 +195,7 @@ public sealed class NetworkInputCollector
             switchSkillQueued = true;
         }
 
+        //wayo??L
         if (ReadVrSkillActivation(out int skillSlot))
         {
             if (skillSlot == 0)
@@ -214,10 +209,7 @@ public sealed class NetworkInputCollector
         }
     }
 
-    /// <summary>
-    /// 左トリガーの押下開始時に、左手の向きから発動するスキル枠を決める。
-    /// 水平に近い向きは発動せず、押し続けても再判定しない。
-    /// </summary>
+    //wayo??L
     private bool ReadVrSkillActivation(out int skillSlot)
     {
         skillSlot = -1;
@@ -236,45 +228,73 @@ public sealed class NetworkInputCollector
             return false;
         }
 
-        Quaternion leftRotation = ReadQuaternionAction(leftHandRotationAction);
-        Vector3 aimDirection = leftRotation * Vector3.forward;
+        Quaternion leftRotation = xrLeftController != null
+            ? xrLeftController.rotation
+            : ReadQuaternionAction(leftHandRotationAction);
 
-        const float directionThreshold = 0.6f;
+        Vector3 aim = (leftRotation * (Vector3.forward - new Vector3(0, 0, 0.2f))).normalized;
+        Vector3 up = xrHmd != null ? xrHmd.up : Vector3.up;
+        float vertical = Vector3.Dot(aim, up);
 
-        if (aimDirection.y > directionThreshold)
+        const float directionThreshold = 0.5f;
+
+        if (vertical < -directionThreshold)
         {
-            skillSlot = 0; // 上向き → スキル1
+            skillSlot = 0;
             return true;
         }
 
-        if (aimDirection.y < -directionThreshold)
+        if (vertical > directionThreshold)
         {
-            skillSlot = 1; // 下向き → スキル2
+            skillSlot = 1;
             return true;
         }
 
-        return false; // 横を向いているなど → 発動しない
+        return false; // ??????????????? ?? ?????????
     }
 
-    /// <summary>
-    /// NetworkLauncher.OnInputから呼び、保持した操作と最新の姿勢・移動・射撃状態をFusionへ渡す。
-    /// 送信データを設定した後に単発操作と視点差分を消費する。
-    /// </summary>
     public void CollectInput(NetworkInput input)
     {
         PlayerNetworkInput data = new PlayerNetworkInput();
 
         data.IsVR = IsVRActive;
         data.HMDRotation = currentHMD;
-        data.HMDPosition = ReadVector3Action(hmdPositionAction);
 
-        data.LeftHandPosition = ReadVector3Action(leftHandPositionAction);
-        data.LeftHandRotation = ReadQuaternionAction(leftHandRotationAction);
-        data.HasLeftHand = HasActionValue(leftHandPositionAction) ? (byte)1 : (byte)0;
+        if (IsVRActive && xrHmd != null)
+        {
+            data.HMDPosition = xrHmd.position;
+            data.HMDRotation = xrHmd.rotation;
+        }
+        else if (IsVRActive)
+        {
+            data.HMDPosition = ReadVector3Action(hmdPositionAction);
+        }
 
-        data.RightHandPosition = ReadVector3Action(rightHandPositionAction);
-        data.RightHandRotation = ReadQuaternionAction(rightHandRotationAction);
-        data.HasRightHand = HasActionValue(rightHandPositionAction) ? (byte)1 : (byte)0;
+        if (IsVRActive && xrLeftController != null)
+        {
+            data.LeftHandPosition = xrLeftController.position;
+            data.LeftHandRotation = xrLeftController.rotation;
+            data.HasLeftHand = 1;
+        }
+        else if (IsVRActive)
+        {
+            data.LeftHandPosition = ReadVector3Action(leftHandPositionAction);
+            data.LeftHandRotation = ReadQuaternionAction(leftHandRotationAction);
+            data.HasLeftHand = HasActionValue(leftHandPositionAction) ? (byte)1 : (byte)0;
+        }
+
+        if (IsVRActive && xrRightController != null)
+        {
+            data.RightHandPosition = xrRightController.position;
+            data.RightHandRotation = xrRightController.rotation;
+            data.HasRightHand = 1;
+        }
+        else if (IsVRActive)
+        {
+            data.RightHandPosition = ReadVector3Action(rightHandPositionAction);
+            data.RightHandRotation = ReadQuaternionAction(rightHandRotationAction);
+            data.HasRightHand = HasActionValue(rightHandPositionAction) ? (byte)1 : (byte)0;
+        }
 
         data.MoveInput = ReadMoveInput();
         data.LookInput = queuedLookInput;
@@ -305,6 +325,7 @@ public sealed class NetworkInputCollector
         buttons.Set((int)PlayerInputButton.SelectSkill3, selectSkill3Queued);
         buttons.Set((int)PlayerInputButton.SelectSkill4, selectSkill4Queued);
 
+        //wayo??L
         buttons.Set((int)PlayerInputButton.ActivateSkill1, activateSkill1Queued);
         buttons.Set((int)PlayerInputButton.ActivateSkill2, activateSkill2Queued);
 
@@ -317,12 +338,26 @@ public sealed class NetworkInputCollector
 
     public bool ReadReconnectPressed()
     {
-        if (Keyboard.current != null && Keyboard.current.rKey.wasPressedThisFrame)
-        {
-            return true;
-        }
+        bool gripsHeld = IsVRActive && IsXrButtonHeld("<XRController>{LeftHand}/gripButton") &&
+            IsXrButtonHeld("<XRController>{RightHand}/gripButton");
+        bool vrPressed = gripsHeld && !wasReconnectGripHeld;
+        wasReconnectGripHeld = gripsHeld;
+        return vrPressed ||
+            (Keyboard.current != null && Keyboard.current.rKey.wasPressedThisFrame) ||
+            (Gamepad.current != null && Gamepad.current.startButton.wasPressedThisFrame);
+    }
 
-        return false;
+    private static bool IsXrButtonHeld(string path) =>
+        InputSystem.FindControl(path) is ButtonControl button && button.isPressed;
+
+    public void ResetLocalState()
+    {
+        LocalPlayerController = null;
+        LastMoveInput = Vector2.zero;
+        ClearQueuedInputs();
+        wasBothVrTriggerPressed = false;
+        wasLeftTriggerPressed = false;
+        wasLeftVrTriggerPressedForSkill = false;
     }
 
     public void RegisterLocalPlayer(PlayerController playerController)
@@ -336,10 +371,6 @@ public sealed class NetworkInputCollector
         Debug.Log($"[NetworkInputCollector] Registered local player: {playerController.name}");
     }
 
-    /// <summary>
-    /// 現在の入力先と一致する場合だけ参照を解除する。
-    /// 再接続などで旧プレイヤーの破棄が遅れても、新しい登録を消さない。
-    /// </summary>
     public bool UnregisterLocalPlayer(PlayerController playerController)
     {
         if (playerController == null)
@@ -362,21 +393,6 @@ public sealed class NetworkInputCollector
         return true;
     }
 
-    /// <summary>
-    /// セッション終了時に入力先と未送信操作を消去し、再接続先へ古い入力を持ち越さない。
-    /// </summary>
-    public void ResetLocalState()
-    {
-        LocalPlayerController = null;
-        ClearQueuedInputs();
-        wasBothVrTriggerPressed = false;
-        wasLeftTriggerPressed = false;
-        wasLeftVrTriggerPressedForSkill = false;
-    }
-
-    /// <summary>
-    /// 役割変更前の押下や視点差分を破棄する。生成済みのローカルプレイヤー参照は維持する。
-    /// </summary>
     public void ClearPendingInput() => ClearQueuedInputs();
 
     private void ClearQueuedInputs()
@@ -392,6 +408,7 @@ public sealed class NetworkInputCollector
         selectSkill3Queued = false;
         selectSkill4Queued = false;
 
+        //wayo??L
         activateSkill1Queued = false;
         activateSkill2Queued = false;
     }
@@ -419,7 +436,7 @@ public sealed class NetworkInputCollector
     private void UpdateHMD()
     {
 #if UNITY_EDITOR
-        if (forceVrSimulationInEditor && useKeyboardHmdSimulationInEditor)
+        if (IsVRActive && forceVrSimulationInEditor && useKeyboardHmdSimulationInEditor)
         {
             if (Keyboard.current != null)
             {
@@ -447,8 +464,6 @@ public sealed class NetworkInputCollector
             editorHmdEuler.x = Mathf.Clamp(editorHmdEuler.x, -85.0f, 85.0f);
             currentHMD = Quaternion.Euler(editorHmdEuler.x, editorHmdEuler.y, 0.0f);
 
-
-
             return;
         }
 #endif
@@ -459,6 +474,12 @@ public sealed class NetworkInputCollector
             return;
         }
 
+        if (xrHmd != null)
+        {
+            currentHMD = xrHmd.rotation;
+            return;
+        }
+
         if (hmdRotationAction == null || hmdRotationAction.action == null)
         {
             currentHMD = Quaternion.identity;
@@ -466,8 +487,6 @@ public sealed class NetworkInputCollector
         }
 
         currentHMD = hmdRotationAction.action.ReadValue<Quaternion>();
-
-
     }
 
     private Vector2 ReadMoveInput()
@@ -493,7 +512,7 @@ public sealed class NetworkInputCollector
         }
 
 #if UNITY_EDITOR
-        if (forceVrSimulationInEditor)
+        if (IsVRActive && forceVrSimulationInEditor)
         {
             return Vector2.zero;
         }
@@ -540,18 +559,12 @@ public sealed class NetworkInputCollector
 
             if (Mouse.current != null && lookAction.action.activeControl?.device == Mouse.current)
             {
-                // マウスはフレーム内の変位なので、速度入力のスティックと異なりdeltaTimeを掛けない。
                 return rawLook * mouseLookSpeed;
             }
 
             return rawLook * gamepadLookSpeed * Time.deltaTime;
         }
 
-        return ReadFallbackLookInput();
-    }
-
-    private Vector2 ReadFallbackLookInput()
-    {
         Vector2 lookInput = Vector2.zero;
 
         if (Mouse.current != null)
@@ -635,6 +648,7 @@ public sealed class NetworkInputCollector
     {
         bool readyPressed = false;
 
+        //wayo??L
         if (IsVRActive)
         {
             bool bothPressed = AreBothVrTriggersPressed();
@@ -665,7 +679,6 @@ public sealed class NetworkInputCollector
             if (leftTriggerPressed && !wasLeftTriggerPressed)
             {
                 readyPressed = true;
-                // ゲームパッドの左トリガーは準備とリロードを兼用し、実行可否は受信側のフェーズ判定に従う。
                 reloadQueued = true;
             }
 
@@ -679,6 +692,7 @@ public sealed class NetworkInputCollector
         return readyPressed;
     }
 
+    //wayo??L
     private static bool IsXrTriggerHeld(string handPath)
     {
         InputControl triggerButton = InputSystem.FindControl($"{handPath}/triggerButton");
@@ -691,7 +705,7 @@ public sealed class NetworkInputCollector
 
     private bool AreBothVrTriggersPressed()
     {
-        return IsXrTriggerHeld("<XRController>{leftHand}") &&
+        return IsXrTriggerHeld("<XRController>{LeftHand}") &&
             IsXrTriggerHeld("<XRController>{RightHand}");
     }
 

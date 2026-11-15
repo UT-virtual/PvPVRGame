@@ -2,10 +2,6 @@ using System.Collections;
 using Fusion;
 using UnityEngine;
 
-/// <summary>
-/// InputAuthorityを持つプレイヤーだけのカメラ・ローカル専用オブジェクトを有効にする。
-/// Spawned／Despawnedで入力先を登録・解除し、自分のモデルの表示も切り替える。
-/// </summary>
 [RequireComponent(typeof(NetworkObject))]
 public class NetworkPlayer : NetworkBehaviour
 {
@@ -18,6 +14,8 @@ public class NetworkPlayer : NetworkBehaviour
 
     [Header("Local Only Objects")]
     [SerializeField] private GameObject[] localOnlyObjects;
+
+    private PlayerAimGuide aimGuide;
 
     public override void Spawned()
     {
@@ -40,14 +38,29 @@ public class NetworkPlayer : NetworkBehaviour
         SetLocalOnlyObjects(isLocalPlayer);
         SetLocalVisual(isLocalPlayer);
 
+        // 未射撃の代理プレイヤーも観戦対象になれる。表示対象の制限はGuide側で行う。
+        if (aimGuide == null) aimGuide = GetComponent<PlayerAimGuide>();
+        if (aimGuide == null) aimGuide = gameObject.AddComponent<PlayerAimGuide>();
+        aimGuide.enabled = true;
+
         if (isLocalPlayer)
         {
-            NetworkLauncher launcher = FindFirstObjectByType<NetworkLauncher>();
+            NetworkTransform networkTransform = GetComponent<NetworkTransform>();
+            if (networkTransform != null)
+            {
+                networkTransform.DisableSharedModeInterpolation = true;
+            }
+
+            NetworkLauncher launcher = NetworkLauncher.Instance;
             PlayerController playerController = GetComponent<PlayerController>();
 
             if (launcher != null && playerController != null)
             {
                 launcher.RegisterLocalPlayer(playerController);
+                launcher.AttachXrOriginToPlayer(transform);
+
+                VRBodyTargetSync bodySync = GetComponent<VRBodyTargetSync>();
+                launcher.ConfigureLocalVrBodySync(bodySync);
             }
 
             StartCoroutine(SetupLocalPlayerAfterSpawn());
@@ -56,26 +69,27 @@ public class NetworkPlayer : NetworkBehaviour
 
     public override void Despawned(NetworkRunner runner, bool hasState)
     {
+        if (aimGuide != null) aimGuide.enabled = false;
         if (!Object.HasInputAuthority)
         {
             return;
         }
 
-        NetworkLauncher launcher = FindFirstObjectByType<NetworkLauncher>();
+        NetworkLauncher launcher = NetworkLauncher.Instance;
         PlayerController playerController = GetComponent<PlayerController>();
 
         if (launcher != null && playerController != null)
         {
+            launcher.DetachXrOriginFromPlayer();
             launcher.UnregisterLocalPlayer(playerController);
         }
     }
 
-    /// <summary>
-    /// 生成直後のフレームを避けてローカルカメラを設定し、さらに1フレーム後に待機UIへ生成を通知する。
-    /// </summary>
     private IEnumerator SetupLocalPlayerAfterSpawn()
     {
         yield return null;
+
+        NetworkLauncher launcher = NetworkLauncher.Instance;
 
         if (playerCamera == null)
         {
@@ -83,13 +97,16 @@ public class NetworkPlayer : NetworkBehaviour
         }
         else
         {
+            if (launcher != null)
+            {
+                launcher.ConfigureLocalPlayerCamera(playerCamera);
+            }
+
             playerCamera.SetupLocalCamera();
             playerCamera.UpdateCameraTarget();
         }
 
         yield return null;
-
-        NetworkLauncher launcher = FindFirstObjectByType<NetworkLauncher>();
 
         if (launcher != null)
         {

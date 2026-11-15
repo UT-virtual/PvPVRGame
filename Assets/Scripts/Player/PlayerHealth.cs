@@ -1,10 +1,10 @@
 using System;
+using System.Collections.Generic;
 using Fusion;
 using UnityEngine;
 
 /// <summary>
 /// StateAuthorityでHP・生死・準備・チームを管理し、同期プロパティとRPCを通じて表示へ反映する。
-/// 死亡をRoundManagerへ通知し、ラウンド復活時には移動状態・位置・弾薬も復旧する。
 /// </summary>
 [RequireComponent(typeof(NetworkObject))]
 [RequireComponent(typeof(NetworkTransform))]
@@ -27,6 +27,7 @@ public class PlayerHealth : NetworkBehaviour
 
     public GameObject OverheadIconRoot => overheadIconRoot;
     public Renderer[] BodyRenderers => renderers;
+    public Renderer[] WeaponRenderers => weaponRenderers;
 
     private Renderer[] weaponRenderers;
 
@@ -46,37 +47,6 @@ public class PlayerHealth : NetworkBehaviour
     public bool HasTeamAssigned => NetworkedTeamIndex >= 0;
     public TeamColor Team => (TeamColor)NetworkedTeamIndex;
 
-    /// <summary>
-    /// 準備状態の同期フラグを更新する。NetworkObjectがある場合はStateAuthorityに限る。
-    /// </summary>
-    public void SetReadyState(bool ready)
-    {
-        if (Object != null && !Object.HasStateAuthority)
-        {
-            return;
-        }
-
-        NetworkedIsReady = ready;
-    }
-
-    /// <summary>
-    /// 結果表示・待機UI・頭上アイコンのチーム色を同期する。NetworkObjectがある場合はStateAuthorityに限る。
-    /// </summary>
-    public void SetTeam(TeamColor team)
-    {
-        if (Object != null && !Object.HasStateAuthority)
-        {
-            return;
-        }
-
-        NetworkedTeamIndex = (int)team;
-        PlayerIdentity identity = GetComponent<PlayerIdentity>();
-        if (identity != null)
-        {
-            identity.SetIdentity(identity.PlayerNumber, NetworkedTeamIndex);
-        }
-    }
-
     private NetworkTransform networkTransform;
     private CharacterController characterController;
     private PlayerMove playerMove;
@@ -90,6 +60,14 @@ public class PlayerHealth : NetworkBehaviour
 
     private bool delayedDamageActive;
     private float delayedDamageTotal;
+    private readonly List<PendingDamage> pendingDamage = new();
+
+    private struct PendingDamage
+    {
+        public PlayerRef Attacker;
+        public int RoundVersion;
+        public float Amount;
+    }
 
     private Vector3 originalVisualRootScale = Vector3.one;
     private bool hasOriginalVisualRootScale;
@@ -117,6 +95,7 @@ public class PlayerHealth : NetworkBehaviour
         {
             renderers = visualRoot.GetComponentsInChildren<Renderer>(true);
             colliders = visualRoot.GetComponentsInChildren<Collider>(true);
+
             originalVisualRootScale = visualRoot.transform.localScale;
             hasOriginalVisualRootScale = true;
         }
@@ -128,11 +107,12 @@ public class PlayerHealth : NetworkBehaviour
 
         if (weaponVisualRoot != null)
         {
-            weaponRenderers = weaponVisualRoot.GetComponentsInChildren<Renderer>(true);
+            weaponRenderers =
+                weaponVisualRoot.GetComponentsInChildren<Renderer>(true);
         }
         else
         {
-            weaponRenderers = System.Array.Empty<Renderer>();
+            weaponRenderers = Array.Empty<Renderer>();
         }
 
         if (characterController != null)
@@ -152,7 +132,11 @@ public class PlayerHealth : NetworkBehaviour
             NetworkedIsDead = false;
             NetworkedIsReady = false;
             NetworkedTeamIndex = -1;
+
             damageTakenMultiplier = 1.0f;
+            delayedDamageActive = false;
+            delayedDamageTotal = 0f;
+            pendingDamage.Clear();
         }
 
         ApplyAliveState(!NetworkedIsDead);
@@ -163,10 +147,11 @@ public class PlayerHealth : NetworkBehaviour
             return;
         }
 
-        // 観戦確認用ダミーなど操作所有者のないオブジェクトは通常のラウンド参加者へ登録しない。
         if (Object.InputAuthority == PlayerRef.None)
         {
-            Debug.Log($"Skip round registration: {gameObject.name} has no InputAuthority");
+            Debug.Log(
+                $"Skip round registration: {gameObject.name} has no InputAuthority"
+            );
             return;
         }
 
@@ -176,7 +161,9 @@ public class PlayerHealth : NetworkBehaviour
         }
         else
         {
-            Debug.LogWarning($"{gameObject.name}: RoundManager.Instance is null");
+            Debug.LogWarning(
+                $"{gameObject.name}: RoundManager.Instance is null"
+            );
         }
     }
 
@@ -203,6 +190,36 @@ public class PlayerHealth : NetworkBehaviour
         OnHealthChanged?.Invoke(NetworkedCurrentHealth, maxHealth);
     }
 
+    public void SetReadyState(bool ready)
+    {
+        if (Object != null && !Object.HasStateAuthority)
+        {
+            return;
+        }
+
+        NetworkedIsReady = ready;
+    }
+
+    public void SetTeam(TeamColor team)
+    {
+        if (Object != null && !Object.HasStateAuthority)
+        {
+            return;
+        }
+
+        NetworkedTeamIndex = (int)team;
+
+        PlayerIdentity identity = GetComponent<PlayerIdentity>();
+
+        if (identity != null)
+        {
+            identity.SetIdentity(
+                identity.PlayerNumber,
+                NetworkedTeamIndex
+            );
+        }
+    }
+
     public void SetDamageTakenMultiplier(float multiplier)
     {
         if (Object != null && !Object.HasStateAuthority)
@@ -213,10 +230,6 @@ public class PlayerHealth : NetworkBehaviour
         damageTakenMultiplier = Mathf.Clamp(multiplier, 0.0f, 10.0f);
     }
 
-    /// <summary>
-    /// StateAuthority側で被ダメージを保留する状態を切り替える。
-    /// 解除時は軽減済みの蓄積値をまとめて適用するため、死亡が発生し得る。
-    /// </summary>
     public void SetDelayedDamageMode(bool active)
     {
         if (Object != null && !Object.HasStateAuthority)
@@ -239,20 +252,68 @@ public class PlayerHealth : NetworkBehaviour
 
     private void ApplyDelayedDamage()
     {
+        RoundManager roundManager = RoundManager.Instance;
+
+        if (roundManager != null &&
+            (!roundManager.IsNetworkReady ||
+             !roundManager.CanApplyCombatDamage(roundManager.DamageRoundVersion)))
+        {
+            delayedDamageTotal = 0f;
+            pendingDamage.Clear();
+            return;
+        }
+
         if (delayedDamageTotal <= 0.0f)
         {
             delayedDamageTotal = 0.0f;
+            pendingDamage.Clear();
             return;
         }
 
         if (IsDead)
         {
             delayedDamageTotal = 0.0f;
+            pendingDamage.Clear();
             return;
         }
 
         float damageToApply = delayedDamageTotal;
         delayedDamageTotal = 0.0f;
+
+        float remainingHealth = CurrentHealth;
+
+        foreach (PendingDamage hit in pendingDamage)
+        {
+            float effectiveDamage = Mathf.Min(
+                remainingHealth,
+                hit.Amount
+            );
+
+            bool wasKilled =
+                effectiveDamage > 0f &&
+                remainingHealth - effectiveDamage <= 0f;
+
+            RoundManager.Instance?.RecordEffectiveDamage(
+                hit.Attacker,
+                this,
+                effectiveDamage,
+                hit.RoundVersion,
+                wasKilled
+            );
+
+            if (wasKilled && hit.Attacker != PlayerRef.None)
+            {
+                Debug.Log(
+                    $"[KillDebug] Delayed damage kill. Attacker={hit.Attacker}"
+                );
+
+                RPC_ShowKillNotification(hit.Attacker);
+            }
+
+            remainingHealth -= effectiveDamage;
+        }
+
+        pendingDamage.Clear();
 
         ApplyDamageImmediately(
             damageToApply,
@@ -261,20 +322,62 @@ public class PlayerHealth : NetworkBehaviour
         );
     }
 
-    private void ApplyDamageImmediately(float actualDamage, float baseDamage, string reason)
+    private void ApplyDamageImmediately(
+        float actualDamage,
+        float baseDamage,
+        string reason,
+        PlayerRef attacker = default,
+        int roundVersion = 0)
     {
-        NetworkedCurrentHealth -= actualDamage;
-        NetworkedCurrentHealth = Mathf.Max(NetworkedCurrentHealth, 0.0f);
+        float healthBefore = CurrentHealth;
 
-        NotifyHealthChanged();
+        NetworkedCurrentHealth -= actualDamage;
+        NetworkedCurrentHealth = Mathf.Max(
+            NetworkedCurrentHealth,
+            0.0f
+        );
+
+        bool wasKilled =
+            healthBefore > 0f && CurrentHealth <= 0f;
 
         Debug.Log(
-            $"{gameObject.name} HP: {NetworkedCurrentHealth:0.00}/{maxHealth:0.00}, " +
+            $"[KillDebug] Damage result: " +
+            $"Victim={gameObject.name}, " +
+            $"Before={healthBefore}, " +
+            $"After={CurrentHealth}, " +
+            $"WasKilled={wasKilled}, " +
+            $"Attacker={attacker}, " +
             $"Reason={reason}, " +
-            $"BaseDamage={baseDamage:0.00}, " +
-            $"ActualDamage={actualDamage:0.00}, " +
-            $"DamageTakenMultiplier={damageTakenMultiplier:0.00}"
+            $"StateAuthority={Object.HasStateAuthority}"
         );
+
+        RoundManager.Instance?.RecordEffectiveDamage(
+            attacker,
+            this,
+            healthBefore - CurrentHealth,
+            roundVersion,
+            wasKilled
+        );
+
+        if (wasKilled)
+        {
+            if (attacker != PlayerRef.None)
+            {
+                Debug.Log(
+                    $"[KillDebug] Sending kill notification to {attacker}"
+                );
+
+                RPC_ShowKillNotification(attacker);
+            }
+            else
+            {
+                Debug.LogWarning(
+                    "[KillDebug] Attacker is PlayerRef.None"
+                );
+            }
+        }
+
+        NotifyHealthChanged();
 
         if (NetworkedCurrentHealth <= 0.0f)
         {
@@ -283,55 +386,88 @@ public class PlayerHealth : NetworkBehaviour
     }
 
     /// <summary>
-    /// 保存した初期値を基準に、表示モデルとCharacterControllerの寸法を一緒に変更する。
-    /// Authorityによる制限は設けず、各端末のスキル効果反映から呼ばれる。
-    /// </summary>
-    public void SetBodySizeMultiplier(float multiplier)
-    {
-        multiplier = Mathf.Clamp(multiplier, 0.2f, 2.0f);
-
-        if (visualRoot != null && hasOriginalVisualRootScale)
-        {
-            visualRoot.transform.localScale = originalVisualRootScale * multiplier;
-        }
-
-        if (characterController != null && hasOriginalCharacterControllerValues)
-        {
-            characterController.height = originalCharacterControllerHeight * multiplier;
-            characterController.radius = originalCharacterControllerRadius * multiplier;
-            characterController.center = originalCharacterControllerCenter * multiplier;
-        }
-    }
-
-    /// <summary>
-    /// StateAuthority側で正のダメージに軽減倍率を掛け、HP減少または保留分への加算を行う。
-    /// HPが尽きると死亡状態を通知し、ラウンド進行へ死亡イベントを送る。
+    /// 攻撃者を指定しないダメージ。
     /// </summary>
     public void TakeDamage(float damage)
     {
+        Debug.Log(
+            $"[KillDebug] TakeDamage called without attacker: " +
+            $"Target={name}, Damage={damage}"
+        );
+
+        RoundManager roundManager = RoundManager.Instance;
+
+        TakeDamage(
+            damage,
+            PlayerRef.None,
+            roundManager != null && roundManager.IsNetworkReady
+                ? roundManager.DamageRoundVersion
+                : 0
+        );
+    }
+
+    /// <summary>
+    /// 攻撃者を指定するダメージ。
+    /// </summary>
+    public void TakeDamage(
+        float damage,
+        PlayerRef attacker,
+        int roundVersion)
+    {
+        Debug.Log(
+            $"[KillDebug] TakeDamage called: " +
+            $"Target={name}, " +
+            $"Attacker={attacker}, " +
+            $"StateAuthority={Object.HasStateAuthority}, " +
+            $"Damage={damage}, " +
+            $"RoundVersion={roundVersion}"
+        );
+
         if (Object != null && !Object.HasStateAuthority)
         {
+            Debug.Log("[KillDebug] Rejected: not StateAuthority.");
             return;
         }
 
         if (IsDead)
         {
+            Debug.Log("[KillDebug] Rejected: target is already dead.");
             return;
         }
 
         if (damage <= 0.0f)
         {
+            Debug.Log("[KillDebug] Rejected: damage is zero or negative.");
             return;
         }
 
-        float actualDamage = damage * damageTakenMultiplier;
+        RoundManager roundManager = RoundManager.Instance;
+
+        if (roundManager != null &&
+            !roundManager.CanApplyCombatDamage(roundVersion))
+        {
+            Debug.Log(
+                $"[KillDebug] Rejected: combat damage not allowed. " +
+                $"RoundVersion={roundVersion}"
+            );
+            return;
+        }
+
+        float actualDamage =
+            damage *
+            damageTakenMultiplier *
+            (roundManager != null
+                ? roundManager.AttackDamageMultiplier
+                : 1f);
+
         actualDamage = Mathf.Max(actualDamage, 0.0f);
 
         if (actualDamage <= 0.0f)
         {
             Debug.Log(
                 $"{gameObject.name} damage ignored. " +
-                $"BaseDamage={damage}, Multiplier={damageTakenMultiplier}"
+                $"BaseDamage={damage}, " +
+                $"Multiplier={damageTakenMultiplier}"
             );
             return;
         }
@@ -340,10 +476,18 @@ public class PlayerHealth : NetworkBehaviour
         {
             delayedDamageTotal += actualDamage;
 
+            pendingDamage.Add(new PendingDamage
+            {
+                Attacker = attacker,
+                RoundVersion = roundVersion,
+                Amount = actualDamage
+            });
+
             Debug.Log(
                 $"{gameObject.name} delayed damage stored. " +
                 $"Stored={delayedDamageTotal:0.00}, " +
-                $"Incoming={actualDamage:0.00}"
+                $"Incoming={actualDamage:0.00}, " +
+                $"Attacker={attacker}"
             );
 
             return;
@@ -352,14 +496,12 @@ public class PlayerHealth : NetworkBehaviour
         ApplyDamageImmediately(
             actualDamage,
             damage,
-            "TakeDamage"
+            "TakeDamage",
+            attacker,
+            roundVersion
         );
     }
 
-    /// <summary>
-    /// StateAuthority側で生存者のHPを上限まで回復する。
-    /// 回復不能またはHPが増えなかった場合はfalseを返し、回復アイテムの消費判定に使う。
-    /// </summary>
     public bool Heal(float amount)
     {
         if (Object != null && !Object.HasStateAuthority)
@@ -367,12 +509,7 @@ public class PlayerHealth : NetworkBehaviour
             return false;
         }
 
-        if (IsDead)
-        {
-            return false;
-        }
-
-        if (amount <= 0.0f)
+        if (IsDead || amount <= 0.0f)
         {
             return false;
         }
@@ -385,16 +522,38 @@ public class PlayerHealth : NetworkBehaviour
         float beforeHealth = NetworkedCurrentHealth;
 
         NetworkedCurrentHealth += amount;
-        NetworkedCurrentHealth = Mathf.Min(NetworkedCurrentHealth, maxHealth);
+        NetworkedCurrentHealth = Mathf.Min(
+            NetworkedCurrentHealth,
+            maxHealth
+        );
 
         NotifyHealthChanged();
 
         Debug.Log(
             $"{gameObject.name} healed: " +
-            $"{beforeHealth:0.00} -> {NetworkedCurrentHealth:0.00}/{maxHealth:0.00}"
+            $"{beforeHealth:0.00} -> " +
+            $"{NetworkedCurrentHealth:0.00}/{maxHealth:0.00}"
         );
 
         return NetworkedCurrentHealth > beforeHealth;
+    }
+
+    public void SetHealthToOne()
+    {
+        if (Object == null || !Object.HasStateAuthority)
+        {
+            return;
+        }
+
+        if (IsDead)
+        {
+            return;
+        }
+
+        NetworkedCurrentHealth = 1.0f;
+        NotifyHealthChanged();
+
+        Debug.Log($"{gameObject.name} HP set to 1");
     }
 
     private void Die()
@@ -414,10 +573,38 @@ public class PlayerHealth : NetworkBehaviour
         OnDied?.Invoke(this);
     }
 
-    /// <summary>
-    /// StateAuthority側でHPと被ダメージ倍率を戻し、位置の確定・全端末の復活後処理・弾薬補充を行う。
-    /// spawnPointがnullなら現在の位置と回転を維持する。
-    /// </summary>
+    [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+    private void RPC_ShowKillNotification(PlayerRef attacker)
+    {
+        // キルしたプレイヤーの画面だけに表示する
+        if (Runner.LocalPlayer != attacker)
+        {
+            return;
+        }
+
+        KillNotificationUI[] notifications =
+            FindObjectsByType<KillNotificationUI>(
+                FindObjectsInactive.Include,
+                FindObjectsSortMode.None
+            );
+
+        foreach (KillNotificationUI ui in notifications)
+        {
+            if (ui == null)
+            {
+                continue;
+            }
+
+            // UIが非アクティブなら有効化
+            if (!ui.gameObject.activeSelf)
+            {
+                ui.gameObject.SetActive(true);
+            }
+
+            ui.ShowKillNotification();
+        }
+    }
+
     public void RespawnForRound(Transform spawnPoint)
     {
         if (Object != null && !Object.HasStateAuthority)
@@ -436,9 +623,11 @@ public class PlayerHealth : NetworkBehaviour
 
         NetworkedCurrentHealth = maxHealth;
         NetworkedIsDead = false;
+
         damageTakenMultiplier = 1.0f;
         delayedDamageActive = false;
         delayedDamageTotal = 0.0f;
+        pendingDamage.Clear();
 
         NotifyHealthChanged();
 
@@ -448,23 +637,30 @@ public class PlayerHealth : NetworkBehaviour
             $"Position={respawnPosition}"
         );
 
-        ApplyAuthoritativeTeleport(respawnPosition, respawnRotation);
+        ApplyAuthoritativeTeleport(
+            respawnPosition,
+            respawnRotation
+        );
 
-        RPC_AfterRespawn(respawnPosition, respawnRotation);
+        RPC_AfterRespawn(
+            respawnPosition,
+            respawnRotation
+        );
 
         if (playerWeapon != null)
         {
             playerWeapon.RefillAmmoImmediately();
         }
 
-        Debug.Log($"{gameObject.name} respawned. HP: {NetworkedCurrentHealth:0.00}/{maxHealth:0.00}");
+        Debug.Log(
+            $"{gameObject.name} respawned. " +
+            $"HP: {NetworkedCurrentHealth:0.00}/{maxHealth:0.00}"
+        );
     }
 
-    /// <summary>
-    /// CharacterControllerを一時停止し、NetworkTransform.Teleportで復活位置を確定する。
-    /// NetworkTransformがない場合のみTransformを直接設定する。
-    /// </summary>
-    private void ApplyAuthoritativeTeleport(Vector3 position, Quaternion rotation)
+    private void ApplyAuthoritativeTeleport(
+        Vector3 position,
+        Quaternion rotation)
     {
         if (!Object.HasStateAuthority)
         {
@@ -472,7 +668,8 @@ public class PlayerHealth : NetworkBehaviour
         }
 
         bool wasCharacterControllerEnabled =
-            characterController != null && characterController.enabled;
+            characterController != null &&
+            characterController.enabled;
 
         if (characterController != null)
         {
@@ -490,7 +687,8 @@ public class PlayerHealth : NetworkBehaviour
 
         if (characterController != null)
         {
-            characterController.enabled = wasCharacterControllerEnabled;
+            characterController.enabled =
+                wasCharacterControllerEnabled;
         }
 
         Debug.Log(
@@ -501,12 +699,10 @@ public class PlayerHealth : NetworkBehaviour
         );
     }
 
-    /// <summary>
-    /// StateAuthorityから全端末へ復活後処理を通知する。
-    /// 生存表示を戻して移動座標系を再構築し、InputAuthority側ではカメラと待機UIも更新する。
-    /// </summary>
     [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
-    private void RPC_AfterRespawn(Vector3 position, Quaternion rotation)
+    private void RPC_AfterRespawn(
+        Vector3 position,
+        Quaternion rotation)
     {
         ApplyAliveState(true);
         NotifyHealthChanged();
@@ -514,18 +710,23 @@ public class PlayerHealth : NetworkBehaviour
         if (!Object.HasStateAuthority)
         {
             bool wasCharacterControllerEnabled =
-                characterController != null && characterController.enabled;
+                characterController != null &&
+                characterController.enabled;
 
             if (characterController != null)
             {
                 characterController.enabled = false;
             }
 
-            transform.SetPositionAndRotation(position, rotation);
+            transform.SetPositionAndRotation(
+                position,
+                rotation
+            );
 
             if (characterController != null)
             {
-                characterController.enabled = wasCharacterControllerEnabled;
+                characterController.enabled =
+                    wasCharacterControllerEnabled;
             }
         }
 
@@ -541,7 +742,8 @@ public class PlayerHealth : NetworkBehaviour
 
         if (Object.HasInputAuthority)
         {
-            NetworkLauncher launcher = FindFirstObjectByType<NetworkLauncher>();
+            NetworkLauncher launcher =
+                FindFirstObjectByType<NetworkLauncher>();
 
             if (launcher != null)
             {
@@ -562,7 +764,8 @@ public class PlayerHealth : NetworkBehaviour
         StartCoroutine(CheckPositionAfterRespawn(0.5f));
     }
 
-    private System.Collections.IEnumerator CheckPositionAfterRespawn(float delay)
+    private System.Collections.IEnumerator CheckPositionAfterRespawn(
+        float delay)
     {
         yield return new WaitForSeconds(delay);
 
@@ -584,17 +787,29 @@ public class PlayerHealth : NetworkBehaviour
 
     private void ApplyAliveState(bool alive)
     {
-        // 生存中でも自分の一人称モデルと頭上アイコンは隠す。武器は別の表示規則を使う。
-        bool shouldShowBodyModel = alive && !Object.HasInputAuthority;
-        bool shouldShowWeapon = alive;
-        bool shouldShowOverheadIcon = alive && !Object.HasInputAuthority;
+        bool shouldShowBodyModel =
+            alive && !Object.HasInputAuthority;
 
-        SetRenderersEnabled(renderers, shouldShowBodyModel);
-        SetRenderersEnabled(weaponRenderers, shouldShowWeapon);
+        bool shouldShowWeapon = alive;
+
+        bool shouldShowOverheadIcon =
+            alive && !Object.HasInputAuthority;
+
+        SetRenderersEnabled(
+            renderers,
+            shouldShowBodyModel
+        );
+
+        SetRenderersEnabled(
+            weaponRenderers,
+            shouldShowWeapon
+        );
 
         if (overheadIconRoot != null)
         {
-            overheadIconRoot.SetActive(shouldShowOverheadIcon);
+            overheadIconRoot.SetActive(
+                shouldShowOverheadIcon
+            );
         }
 
         if (colliders != null)
@@ -614,7 +829,38 @@ public class PlayerHealth : NetworkBehaviour
         }
     }
 
-    private void SetRenderersEnabled(Renderer[] targetRenderers, bool enabled)
+    public void SetBodySizeMultiplier(float multiplier)
+    {
+        multiplier = Mathf.Clamp(multiplier, 0.2f, 2.0f);
+
+        if (visualRoot != null && hasOriginalVisualRootScale)
+        {
+            visualRoot.transform.localScale =
+                originalVisualRootScale * multiplier;
+        }
+
+        if (characterController != null &&
+            hasOriginalCharacterControllerValues)
+        {
+            characterController.height =
+                originalCharacterControllerHeight * multiplier;
+
+            characterController.radius =
+                originalCharacterControllerRadius * multiplier;
+
+            characterController.center =
+                originalCharacterControllerCenter * multiplier;
+        }
+    }
+
+    public void SetBodySizeMultiplierPublic(float multiplier)
+    {
+        SetBodySizeMultiplier(multiplier);
+    }
+
+    private void SetRenderersEnabled(
+        Renderer[] targetRenderers,
+        bool enabled)
     {
         if (targetRenderers == null)
         {

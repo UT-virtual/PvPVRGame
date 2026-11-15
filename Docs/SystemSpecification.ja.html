@@ -1,0 +1,528 @@
+<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>PvPVRGame 現行実装仕様書</title><style>
+:root{color-scheme:light;--ink:#1f2933;--muted:#536170;--line:#d9e0e7;--paper:#fff;--wash:#f4f6f8;--accent:#245781}
+*{box-sizing:border-box}html{scroll-behavior:smooth;scroll-padding-top:24px}body{margin:0;font-family:"Yu Gothic UI","Meiryo",system-ui,sans-serif;font-size:15px;line-height:1.95;color:var(--ink);background:var(--paper)}a{color:var(--accent);text-decoration-thickness:1px;text-underline-offset:3px}aside{position:fixed;inset:0 auto 0 0;width:264px;background:var(--wash);border-right:1px solid var(--line);padding:26px 18px;overflow:auto}aside .brand{font-weight:700;font-size:18px;margin-bottom:4px}aside .sub{font-size:12px;color:var(--muted);margin-bottom:22px}nav a{display:flex;gap:10px;padding:7px 4px;text-decoration:none;color:var(--ink);font-size:13px;line-height:1.6}nav a span{font-variant-numeric:tabular-nums;color:var(--muted);min-width:20px}nav a:hover{background:var(--line)}main{margin-left:264px;padding:36px 44px 80px;max-width:1390px}header{border-bottom:1px solid var(--line);padding-bottom:22px;margin-bottom:32px}.eyebrow{font-size:12px;letter-spacing:.08em;color:var(--muted)}.title{font-size:28px;line-height:1.5;margin:8px 0 12px}.intro{max-width:850px;color:var(--muted)}.quick{display:flex;gap:12px;flex-wrap:wrap;margin:16px 0}.quick a{border:1px solid var(--line);padding:6px 12px;text-decoration:none;font-size:13px}h1{font-size:24px;line-height:1.5;margin:20px 0 14px}h2{font-size:22px;line-height:1.6;margin:52px 0 18px;padding-top:10px;border-top:1px solid var(--line)}h3{font-size:17px;margin:28px 0 12px}p{margin:12px 0}li{padding-left:4px;margin:7px 0}ul,ol{padding-left:25px}code{font-family:Consolas,"Yu Gothic UI",monospace;font-size:.88em;overflow-wrap:anywhere;background:var(--wash);padding:1px 4px;border-radius:3px}.diagram{background:var(--wash);padding:22px;overflow:auto;border-left:3px solid var(--accent);line-height:1.9}.diagram code{padding:0;white-space:pre;background:none}.table-wrap{overflow:auto;margin:18px 0 24px}table{width:100%;border-collapse:collapse;font-size:13px;line-height:1.8}th{background:var(--wash);font-weight:600;text-align:left;white-space:nowrap}th,td{padding:11px 12px;border-bottom:1px solid var(--line);vertical-align:top}td{min-width:85px}td:first-child{min-width:145px}#doc{max-width:1120px}footer{margin-top:48px;padding-top:18px;border-top:1px solid var(--line);color:var(--muted);font-size:12px}.tools{display:flex;gap:10px;align-items:center}.tools button{font:inherit;font-size:12px;border:1px solid var(--line);background:var(--paper);padding:5px 10px;color:var(--ink);cursor:pointer}@media(max-width:950px){aside{position:static;width:auto;max-height:260px;border-right:0;border-bottom:1px solid var(--line)}nav{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}main{margin-left:0;padding:24px 20px}.title{font-size:24px}}@media print{aside,.tools,.quick{display:none}main{margin:0;padding:0;max-width:none}body{font-size:10pt;line-height:1.7}h2{break-after:avoid;font-size:17pt}h3{break-after:avoid}table{font-size:8pt}tr{break-inside:avoid}.table-wrap{overflow:visible}a{color:inherit}pre{white-space:pre-wrap}.diagram code{white-space:pre-wrap}header{margin:0 0 20px}.title{font-size:22pt}}
+</style></head><body><aside><div class="brand">PvPVRGame</div><div class="sub">現行実装仕様書 · v1.1<br>2026-10-24 / 共通構成</div><nav aria-label="章の一覧"><a href="#sec-01"><span>01</span>ゲームとシステムの全体像</a><a href="#sec-02"><span>02</span>文書の対象と確認状態</a><a href="#sec-03"><span>03</span>Scene・Prefab・配置する部品</a><a href="#sec-04"><span>04</span>ゲームルールと試合の状態</a><a href="#sec-05"><span>05</span>起動から次の試合までの実行シナリオ</a><a href="#sec-06"><span>06</span>Desktop／VRの起動・Camera・身体</a><a href="#sec-07"><span>07</span>ネットワークの責務とライフサイクル</a><a href="#sec-08"><span>08</span>入力仕様と処理タイミング</a><a href="#sec-09"><span>09</span>移動・HP・射撃・アイテム</a><a href="#sec-10"><span>10</span>スキル仕様</a><a href="#sec-11"><span>11</span>UI・音・観戦</a><a href="#sec-12"><span>12</span>現在の設定値と変更場所</a><a href="#sec-13"><span>13</span>ビルドと複数端末テスト</a><a href="#sec-14"><span>14</span>検証ツールと受け入れ条件</a><a href="#sec-15"><span>15</span>現行の制限・未決定事項</a><a href="#sec-16"><span>16</span>不具合調査の入口</a><a href="#sec-17"><span>17</span>何を変えるとき、どこを読むか</a><a href="#sec-18"><span>18</span>全ゲームスクリプト索引</a><a href="#sec-19"><span>19</span>更新方法・根拠ファイル</a></nav></aside><main><header><div class="eyebrow">CURRENT IMPLEMENTATION / DESKTOP + VR</div><div class="title">コードの全体像を、プレイの流れから。</div><div class="intro">起動から次の試合までの実行経路、各部品の責務、実際の保存設定をまとめています。実装確認済みと実機未検証の項目を区別しています。</div><div class="quick"><a href="#sec-01">全体を把握する</a><a href="#sec-05">プレイ中の処理を追う</a><a href="#sec-17">変更する場所を探す</a><a href="#sec-18">61本のスクリプト索引</a></div><div class="tools"><button type="button" onclick="window.print()">印刷 / PDFに保存</button><a href="SystemSpecification.ja.md">Markdown原稿</a></div></header><article id="doc"><h1>PvPVRGame 現行実装仕様書</h1>
+<p>版：1.1 / 更新日：2026-10-30（全体調査：2026-10-24） / 対象：Desktop・VR共通化後の作業ツリー</p>
+<p>この文書は「今あるコードがどのように組み合わさり、いつ動くか」を説明する実装仕様書です。理想の完成仕様ではありません。ゲームのルール、実際の保存設定、ソフトウェアの責務、未検証事項を分けて記載します。</p>
+<p><strong>最初に読む順番：1章の全体像 → 4章の試合の流れ → 5章の一連の実行 → 17章の修正場所。細部が必要になったら、18章の全スクリプト索引へ進んでください。</strong></p>
+<p>2026-10-30の復旧修正・検証とレビュー訂正は<a href="RecoveryChanges.ja.md">再接続・VR観戦の修正</a>を参照してください。</p>
+<h2>目次</h2>
+<ol>
+<li><a href="#sec-01">ゲームとシステムの全体像</a></li>
+<li><a href="#sec-02">文書の対象と確認状態</a></li>
+<li><a href="#sec-03">Scene・Prefab・配置する部品</a></li>
+<li><a href="#sec-04">ゲームルールと試合の状態</a></li>
+<li><a href="#sec-05">起動から次の試合までの実行シナリオ</a></li>
+<li><a href="#sec-06">Desktop／VRの起動・Camera・身体</a></li>
+<li><a href="#sec-07">ネットワークの責務とライフサイクル</a></li>
+<li><a href="#sec-08">入力仕様と処理タイミング</a></li>
+<li><a href="#sec-09">移動・HP・射撃・アイテム</a></li>
+<li><a href="#sec-10">スキル仕様</a></li>
+<li><a href="#sec-11">UI・音・観戦</a></li>
+<li><a href="#sec-12">現在の設定値と変更場所</a></li>
+<li><a href="#sec-13">ビルドと複数端末テスト</a></li>
+<li><a href="#sec-14">検証ツールと受け入れ条件</a></li>
+<li><a href="#sec-15">現行の制限・未決定事項</a></li>
+<li><a href="#sec-16">不具合調査の入口</a></li>
+<li><a href="#sec-17">何を変えるとき、どこを読むか</a></li>
+<li><a href="#sec-18">全ゲームスクリプト索引</a></li>
+<li><a href="#sec-19">更新方法・根拠ファイル</a></li>
+</ol>
+<a id="sec-01"></a>
+<h2>1. ゲームとシステムの全体像</h2>
+<p>惑星表面を移動し、射撃とラウンドごとに選ぶ2つのスキルを使って戦うネットワーク対戦ゲームです。WindowsのDesktop、PC接続のVR、Quest単体のVRを、共通のゲームシーンで動かす構成です。現時点で全環境の実機動作が確認済みという意味ではありません。</p>
+<p>中心になるのは、次の3つです。</p>
+<ul>
+<li><strong>NetworkLauncher：接続するまでと、自分の操作環境を準備する入口。</strong></li>
+<li><strong>RoundManager：待機、選択、戦闘、結果を切り替える試合の司令塔。</strong></li>
+<li><strong>PlayerController：1人分の入力を移動・射撃・スキルへ振り分ける実行窓口。</strong></li>
+</ul>
+<pre class="diagram"><code>各端末の準備                         全員で共有するゲーム
+LocalPlayModeController             RoundManager
+  ├─ Desktop：PC入力・PC Camera       ├─ Ready → 選択 → 開始待ち
+  └─ VR：XR・HMD・左右の手            └─ 戦闘 → 結果 → 次ラウンド
+          ↓                                  ↓
+NetworkLauncher → NetworkRunner → GamePlayerを人数分生成
+                                        ↓
+                              PlayerController
+                              ├─ Move / Look / Camera
+                              ├─ Weapon → Projectile → Health
+                              └─ Skill / 頭と手 / 表示・音</code></pre>
+<p><strong>自分の端末で変わるもの</strong>は、入力装置、Camera、Audio Listener、XRの利用、ローカルUIです。<strong>参加者で共有するもの</strong>は、ゲームシーン、生成するプレイヤー、位置・HP・弾数・スキル状態、試合のphaseです。</p>
+<a id="sec-02"></a>
+<h2>2. 文書の対象と確認状態</h2>
+<p>対象はAssets/Scripts配下のゲームスクリプト、GameScene、GamePlayer、Editorの検証ツール、ビルド・XR設定です。Photon、XRI、FinalIKなどのライブラリ内部全体は対象外ですが、ゲーム側から使う役割は説明します。</p>
+<ul>
+<li><strong>実装確認</strong>：2026-10-24時点のコード・Scene・Prefabの保存内容を確認。</li>
+<li><strong>保存値</strong>：Inspectorで保存された値。C#フィールドの初期値より優先されます。</li>
+<li><strong>前回の機械検証</strong>：2026-10-23にEditor／Windows向けC#コンパイル、起動モード8ケース、Scene／Prefabのローカル参照を確認。</li>
+<li><strong>未検証</strong>：Unityでの完全なビルド・FusionのIL後処理・Play動作・実際のPhoton通信・HMD操作・Androidビルド。前回のUnityバッチ起動は既存Editorがプロジェクトを開いていたため拒否されました。</li>
+</ul>
+<p>この文書を作るためにゲームの処理は変更していません。過去の実行ログだけで、現行改修の不具合修正が実証されたとは扱いません。</p>
+<h3>2.1 主な依存関係</h3>
+<div class="table-wrap"><table><thead><tr><th scope="col">項目</th><th scope="col">版</th><th scope="col">用途</th></tr></thead><tbody>
+<tr><td>Unity Editor</td><td>6000.3.17f1</td><td>ProjectVersionに保存されたEditor版</td></tr>
+<tr><td>Photon Fusion</td><td>2.0.12</td><td>接続・NetworkObject・入力・状態同期</td></tr>
+<tr><td>FinalIK / VRIK</td><td>導入済み（版未確定）</td><td>VRの頭・手ターゲットから身体姿勢を作る</td></tr>
+<tr><td>URP</td><td>17.3.0</td><td>描画</td></tr>
+<tr><td>Cinemachine</td><td>3.1.7</td><td>PC・観戦Camera</td></tr>
+<tr><td>Input System</td><td>1.19.0</td><td>Input Actionsと入力取得</td></tr>
+<tr><td>XR Interaction Toolkit</td><td>3.3.2</td><td>XR Origin・コントローラー構成</td></tr>
+<tr><td>OpenXR</td><td>1.16.1</td><td>XRデバイスとの接続</td></tr>
+<tr><td>Meta XR SDK</td><td>203.0.0</td><td>Quest関連機能</td></tr>
+</tbody></table></div>
+<p>Photon Fusion 2.0.12はAssets/Photon以下の導入物とFUSION_2_0_12定義を確認しています。FinalIKはAssets/Plugins/RootMotion以下にあり、パッケージマニフェストだけでは版を確定できないため、正確な版は記載しません。</p>
+<a id="sec-03"></a>
+<h2>3. Scene・Prefab・配置する部品</h2>
+<h3>3.1 正式な共通構成</h3>
+<ul>
+<li><strong>GameScene.unity</strong>：共通ゲームシーン。MainSceneを複製し、管理系・地形・UI・XR Originを引き継いでいます。</li>
+<li><strong>GamePlayer.prefab</strong>：Hostが全員に生成する共通プレイヤー。Player.prefabを複製し、PC表示とVR身体同期を両方持たせています。</li>
+<li><strong>MainScene / ForPCMainScene</strong>：既存の比較・検証用シーン。現在の標準起動先ではありません。</li>
+<li><strong>Player / PCPlayer</strong>：既存Prefab。GameSceneの標準生成先ではありません。</li>
+</ul>
+<p>EditorBuildSettingsではGameSceneだけが有効で、Build Indexは0です。WindowsとAndroidで同じ一覧を使います。個別Build ProfileのScene Listが有効なら、そちらも確認してください。同じIndexに別のゲームシーンを割り当てる構成は採用しません。</p>
+<h3>3.2 Scene側とPlayer側を分ける</h3>
+<p>Scene側にはNetworkLauncher、LocalPlayModeController、RoundManager、HealthItemSpawner、SpectatorCameraController、各種UI、BgmManager、PC用Camera／Cinemachine、XR Originを置きます。</p>
+<p>Player側にはNetworkObject、NetworkTransform、NetworkPlayer、PlayerController、CharacterController、PlayerMove、PlayerLook、PlayerCamera、PlayerWeapon、PlayerHealth、PlayerSkillController、PlayerIdentity、VRBodyTargetSync、VRWeaponVisualSettings、PlayerSound、XRayVisionControllerなどを置きます。子オブジェクトには見た目、武器、CameraTarget、頭・手のターゲット、頭上アイコンや一部HUDがあります。</p>
+<p>SceneのXR Originは端末ごとに存在し、自分のプレイヤーへだけ取り付けます。相手のHMDをそのまま生成するのではなく、相手の頭・手の位置をネットワークで受け取ってアバターへ反映します。</p>
+<h3>3.3 Inspectorに付けないクラス</h3>
+<p>NetworkSessionController、NetworkPlayerSpawner、NetworkInputCollector、NetworkConnectionUIController、LocalSkillSelectionInputControllerはNetworkLauncherがnewで作ります。Round系の補助Controller、Registry、CalculatorなどはRoundManagerが作ります。</p>
+<p>これらは通常のC#クラスです。UnityがUpdateを自動呼び出しする部品ではなく、所有者のメソッドから呼ばれて動きます。時間待ちが必要な場合は、所有者のMonoBehaviourを通じてCoroutineを開始します。</p>
+<a id="sec-04"></a>
+<h2>4. ゲームルールと試合の状態</h2>
+<p>RoundManager.phaseはNetworked状態です。Host側が状態を変え、各端末のRoundManager.Renderが変化を検出してUIへ反映します。</p>
+<pre class="diagram"><code>WaitingForReady
+    ↓ 必要人数を満たし、登録プレイヤー全員がReady
+SkillSelecting
+    ↓ 全員が2つ選択、または締切で不足分を自動選択
+RoundStarting
+    ↓ スキル適用・開始待ち
+RoundPlaying
+    ↓ 死亡通知を受け、生存者が1人以下
+RoundEnding
+    ├─ 残りラウンドあり → SkillSelecting
+    └─ 最終ラウンド終了 → MatchFinished → WaitingForReady</code></pre>
+<h3>4.1 各状態の操作と仕事</h3>
+<div class="table-wrap"><table><thead><tr><th scope="col">状態</th><th scope="col">主な仕事</th><th scope="col">移動</th><th scope="col">武器・スキル使用</th><th scope="col">次へ進む条件</th></tr></thead><tbody>
+<tr><td>WaitingForReady</td><td>登録、Ready、待機一覧</td><td>可</td><td>不可</td><td>人数条件＋全員Ready</td></tr>
+<tr><td>SkillSelecting</td><td>候補配布、選択、再配置</td><td>不可</td><td>通常戦闘操作は不可</td><td>全員完了または締切</td></tr>
+<tr><td>RoundStarting</td><td>選択スキル適用、開始演出</td><td>不可</td><td>不可</td><td>開始待ち終了</td></tr>
+<tr><td>RoundPlaying</td><td>戦闘、HP、弾、アイテム</td><td>可</td><td>可</td><td>死亡時に生存1人以下</td></tr>
+<tr><td>RoundEnding</td><td>得点、ラウンド結果</td><td>不可</td><td>不可</td><td>結果表示待ち終了</td></tr>
+<tr><td>MatchFinished</td><td>最終結果、状態リセット</td><td>不可</td><td>不可</td><td>待機へ戻る時間経過</td></tr>
+</tbody></table></div>
+<p>待機・戦闘・結果は同じゲームシーン内の状態です。通常のラウンド進行で別Sceneへ順に移動する構造ではありません。通信に参加するときのFusionシーン同期とは区別してください。</p>
+<h3>4.2 人数、色、勝敗</h3>
+<p>接続要求の上限はNetworkSessionController.StartGameのPlayerCount=8。開始条件の最少人数はGameSceneでは1で、開発用に1人でもReadyから開始できます。複数人の本来の対戦条件に変更する場合はRoundManagerのminPlayersToStartを変更します。</p>
+<p>参加者には登録順でRed、Blue、Green、Yellowを循環して割り当てます。5人以上では同じ色が再利用されます。</p>
+<p>ラウンド終了は<strong>生存チーム数ではなく生存プレイヤー数</strong>で判定します。最後の1人に1点、0人なら勝者なし。スコアの内部保存はPlayerHealthごとですが、結果UIの最終勝者マスクは色ごとの合計得点で決定し、同点の色は複数表示できます。個人単位のログ集計と色単位の結果表示があるため、5人以上の遊び方は別途仕様を整理する余地があります。</p>
+<p>戦闘を時間切れで終わらせる処理は確認できません。1人戦や、誰も死亡しない場合に自動終了するとは限りません。</p>
+<a id="sec-05"></a>
+<h2>5. 起動から次の試合までの実行シナリオ</h2>
+<h3>5.1 起動・準備</h3>
+<ol>
+<li>NetworkLauncher.Awakeがプロセス内の既存Launcherを確認。なければ自分を常駐させ、補助クラスと入力・接続UIを準備します。</li>
+<li>LocalPlayModeController.SelectModeがDesktop／VRを決めます。起動後のHMD接続状況でモードを自動変更しません。</li>
+<li>NetworkLauncher.StartのCoroutineが初期化を待ちます。VRは最初のStart段階後にXR Loaderを初期化し、XR Displayの稼働を待ちます。</li>
+<li>Camera、Audio Listener、XR Origin、UI追従先を設定します。準備失敗時は理由を表示し、接続しません。</li>
+</ol>
+<h3>5.2 接続・生成</h3>
+<ol>
+<li>Auto Start On LaunchがONならAutoHostOrClientでTestRoomへ接続します。OFFならHost／ClientのUIを使う設計ですが、現行GameSceneの接続ボタン参照は未設定です。</li>
+<li>NetworkSessionControllerがPrefabと現在のSceneのBuild Indexを確認し、NetworkRunnerとNetworkSceneManagerDefaultを作ります。</li>
+<li>Runner.StartGameへGameMode、SessionName、SceneRef、SceneManager、PlayerCountを渡します。</li>
+<li>参加イベントOnPlayerJoinedをNetworkPlayerSpawnerへ渡し、HostだけがGamePlayerを生成します。参加者をInput Authorityとして割り当てます。</li>
+<li>PlayerIdentityへ番号・表示色インデックスを設定。PlayerHealth.SpawnedはHost側でHP・生死・Readyなどを初期化し、RoundManagerへ登録します。</li>
+<li>RoundPlayerRegistryが参加者と死亡通知の購読を管理し、Ready・スコア・スキル選択にも登録します。入力所有者のないデバッグダミーは通常の試合登録対象から除外されます。</li>
+</ol>
+<h3>5.3 自分のプレイヤーの準備</h3>
+<p>NetworkPlayer.SpawnedはHasInputAuthorityを使って自分か他人かを判定します。自分のプレイヤーへ入力を登録し、VRならXR Originを子として取り付け、頭・手の参照を渡します。1フレーム後にローカルCameraを設定し、さらに1フレーム後に待機室へ生成完了を通知します。</p>
+<p>PlayerHealth、PlayerController、NetworkPlayerなど複数コンポーネントのSpawnedが関係します。この説明は責務と呼び出し経路であり、それら全部の厳密な呼び出し順を保証するものではありません。</p>
+<h3>5.4 Ready・選択・開始</h3>
+<p>Ready入力は入力パケットを通ってHostのPlayerControllerへ届き、RoundManager.SetPlayerReadyを呼びます。全員ReadyならRoundSkillSelectionControllerが候補を作り、弾と回復アイテムを消し、SpawnPointsへ全員を再配置します。</p>
+<p>1回目・2回目それぞれ4候補をHostが作って全員へ通知します。LocalSkillSelectionInputControllerがカーソルと確定を読み、RPC_RequestSelectSkillBySlotでHostへ要求。Hostは選択回数などを確認し、進捗を返します。締切では不足する選択を自動補完します。</p>
+<p>RoundStartControllerが2つのスキルを各Playerへ適用し、RoundStartingへ移行。開始演出と開始待ちを経てRoundPlayingへ進み、回復アイテムを配置します。</p>
+<h3>5.5 命中・死亡・結果</h3>
+<pre class="diagram"><code>Projectile.OnTriggerEnter
+  → 相手のPlayerHealthを探す
+  → TakeDamage：軽減・蓄積を考慮
+  → ApplyDamageImmediately：HPを更新
+  → HPが0ならDie
+  → OnDiedを発行
+  → RoundPlayerRegistryが登録した通知先
+  → RoundManager.HandlePlayerDied
+  → RoundFlowController：生存者を数える
+  → 必要なら得点加算・結果UI・次ラウンド</code></pre>
+<p>死亡そのものとラウンド終了は別の判断です。弾はHPや試合を直接管理せず、HP担当へダメージを渡します。HP担当は死亡を通知し、試合担当が終了条件を判断します。</p>
+<p>最終ラウンド後は得点・Ready・選択・スキル履歴をリセットし、全員を再配置して待機へ戻ります。通常の次試合のために全員が再接続する必要はありません。</p>
+<a id="sec-06"></a>
+<h2>6. Desktop／VRの起動・Camera・身体</h2>
+<h3>6.1 モード選択</h3>
+<div class="table-wrap"><table><thead><tr><th scope="col">実行環境</th><th scope="col">引数なしの動作</th><th scope="col">明示指定</th></tr></thead><tbody>
+<tr><td>Unity Editor</td><td>LocalPlayModeControllerのEditor Mode</td><td>--desktop／--vrがあればそちらを優先</td></tr>
+<tr><td>Windowsビルド</td><td>Desktop</td><td>--vrでPCVR、--desktopでDesktop</td></tr>
+<tr><td>Androidビルド</td><td>VR</td><td>--desktopで上書きも可能だが、主用途はQuest VR</td></tr>
+</tbody></table></div>
+<p>両方の引数を指定した場合はエラーです。大文字小文字は区別しません。GameSceneのEditor Modeの保存値はVirtualRealityで、XR準備の待ち時間上限は15秒です。HMDなしで通常プレイする場合はEditor ModeをDesktopに変えます。</p>
+<p>XRの自動起動はWindows／AndroidともOFF。OpenXR Loaderは残し、VR時だけ手動で起動します。Desktop起動ではXR Originを非アクティブにするため、後からQuestを接続しても起動モードをVRへ変更しません。</p>
+<h3>6.2 ローカル表示</h3>
+<ul>
+<li>Desktop：PC Camera、Cinemachine Brain、CinemachineCamera、PC Audio Listenerを有効にします。CameraTargetを視線・目の位置に更新し、Cinemachineが追従します。</li>
+<li>VR：XR Origin内のCameraとListenerを使い、PC用を停止します。XR Originを自分のPlayerの子にし、余分なCharacterControllerを停止。HMDと手の姿勢を入力・身体同期へ渡します。</li>
+<li>起動設定やCamera参照が不足していれば、接続前に準備を中断します。PlayerCamera側にもVR Cameraの有効性確認があります。</li>
+</ul>
+<h3>6.3 相手の表示と武器</h3>
+<p>VRBodyTargetSyncは、Hostで入力のIsVRと頭・手をNetworked状態へ保存します。自分はLateUpdateで実機の姿勢を反映し、他人はRenderで同期姿勢を反映します。VRの身体はFinalIKのVRIKを使用。DesktopプレイヤーにはVRIKを適用せず、通常のアニメーションと視点に取り付ける武器を使います。</p>
+<p>Desktop射撃は視線と目の位置から、VR射撃は銃口から発射します。VR射撃直前にはHost上でもその入力刻みの手の姿勢を適用し、Render待ちの古い銃口を使わないようにしています。他人のDesktop CameraTargetを更新する際も、見る側のHMD状態ではなく対象プレイヤーのモード・同期視点を使います。</p>
+<p>Simulate Vr In EditorはXR起動確認を省略する開発オプションです。実機の頭・手のトラッキングを生成する機能ではありません。旧Force Vr Simulation In Editor／Keyboard HMD Simulationは別の入力補助フラグとして残っており、現在のモードを選ぶスイッチではありません。</p>
+<a id="sec-07"></a>
+<h2>7. ネットワークの責務とライフサイクル</h2>
+<h3>7.1 誰が決めるか</h3>
+<p><strong>Input Authority</strong>はそのPlayerの入力元、<strong>State Authority</strong>は確定状態を更新する側です。現在のHost／Client方式では、各端末が自分の入力を送り、Hostが移動・弾・HPなどを処理します。</p>
+<p>PlayerController.FixedUpdateNetworkはGetInput後にState Authorityを確認し、持たない側では実際の移動・射撃へ進みません。したがって、現行コードの移動を「クライアントでも予測実行する」とは説明しません。自分の視線はUpdate時にローカルにも即時反映するため、視線と移動は経路が異なります。</p>
+<h3>7.2 3種類の連絡手段</h3>
+<div class="table-wrap"><table><thead><tr><th scope="col">仕組み</th><th scope="col">用途</th><th scope="col">具体例</th></tr></thead><tbody>
+<tr><td>Networked</td><td>継続的な状態の同期</td><td>HP、弾数、phase、頭・手、スキルとTickTimer</td></tr>
+<tr><td>RPC</td><td>端末間の要求・通知</td><td>選択要求、選択候補・進捗、結果表示、復活通知</td></tr>
+<tr><td>C# event / Action</td><td>同じプロセス内の通知</td><td>OnDied、OnHealthChanged、OnAmmoChanged、OnShot</td></tr>
+</tbody></table></div>
+<p>C# eventを呼んだだけでは、ネットワーク上の全員に同じイベントが届くわけではありません。音・演出の全端末再生は、どこで発火しているかを個別に確認します。</p>
+<h3>7.3 接続を増殖させないための管理</h3>
+<p>NetworkLauncherは常駐する単一インスタンスです。読み込まれたSceneにもLauncherがある場合、Scene内のUI・XR・Camera参照を既存のものへ引き継ぎ、新しいLauncherオブジェクトを破棄します。Sceneの再読込で自動接続を増やさない構成です。</p>
+<p>NetworkSessionControllerにもプロセス内の接続所有者を確認するチェックがあります。Runner作成・接続開始・失敗時の後始末・再接続・終了を所有します。再接続は旧RunnerのShutdownを待ちます。非同期処理には操作番号と破棄状態の確認があり、終了後の古い処理が新しい接続へ干渉しないようにしています。</p>
+<p>NetworkPlayerSpawnerはHost側でPlayerRefごとに1体だけ生成し、同じ参加者への重複した参加通知を拒否します。Runnerが切り替わったときは生成管理をリセットします。</p>
+<h3>7.4 Scene同期・再接続・退出</h3>
+<p>StartGameへ現在のSceneRefとNetworkSceneManagerDefaultを渡すため、端末ごとに別のゲームシーンを独立維持する構成ではありません。Host側のScene情報と対応できる共通シーン一覧を使います。</p>
+<p>自動再試行はClientモードでGameNotFoundになった場合だけで、間隔は1秒、回数上限0は無制限を意味します。AutoHostOrClientであらゆる失敗を無制限再試行する実装ではありません。</p>
+<p>待機中または切断後は、Rキー／ゲームパッドStart／VR両手グリップでClientとして再接続できます。旧Runnerの終了後にGameSceneを再読み込みし、RoundManager・UI・Camera・入力参照を復元します。退出時は対応PlayerをDespawnし、各登録から除外します。Host移行コールバックの処理は空であり、Host終了後の対戦継続は保証しません。</p>
+<h3>7.5 主な同期データ</h3>
+<div class="table-wrap"><table><thead><tr><th scope="col">担当</th><th scope="col">主なフィールド（コードから抽出）</th></tr></thead><tbody>
+<tr><td><a href="../Assets/Scripts/Network/PlayerNetworkInput.cs">PlayerNetworkInput</a></td><td>入力パケット：<code>Vector2 MoveInput</code>、<code>Vector2 LookInput</code>、<code>NetworkButtons Buttons</code>、<code>Vector3 AimForward</code>、<code>Vector3 ViewForward</code>、<code>byte HasLookDirection</code>、<code>NetworkBool IsVR</code>、<code>Quaternion HMDRotation</code>、<code>Vector3 HMDPosition</code>、<code>Vector3 LeftHandPosition</code>、<code>Quaternion LeftHandRotation</code>、<code>byte HasLeftHand</code>、<code>Vector3 RightHandPosition</code>、<code>Quaternion RightHandRotation</code>、<code>byte HasRightHand</code></td></tr>
+<tr><td><a href="../Assets/Scripts/Round/RoundManager.cs">RoundManager</a></td><td><code>GamePhase phase</code></td></tr>
+<tr><td><a href="../Assets/Scripts/Player/PlayerController.cs">PlayerController</a></td><td><code>NetworkButtons PreviousButtons</code>、<code>NetworkBool NetworkedIsRunning</code>、<code>float NetworkedMoveX</code>、<code>float NetworkedMoveY</code>、<code>NetworkBool IsCurrentInputVR</code>、<code>Vector3 NetworkedSpectatorCameraPosition</code>、<code>Vector3 NetworkedSpectatorViewForward</code>、<code>Vector3 NetworkedSpectatorViewUp</code></td></tr>
+<tr><td><a href="../Assets/Scripts/Player/PlayerHealth.cs">PlayerHealth</a></td><td><code>float NetworkedCurrentHealth</code>、<code>NetworkBool NetworkedIsDead</code>、<code>NetworkBool NetworkedIsReady</code>、<code>int NetworkedTeamIndex</code></td></tr>
+<tr><td><a href="../Assets/Scripts/Player/PlayerWeapon.cs">PlayerWeapon</a></td><td><code>int NetworkedCurrentAmmo</code>、<code>NetworkBool NetworkedIsReloading</code></td></tr>
+<tr><td><a href="../Assets/Scripts/Player/PlayerSkillController.cs">PlayerSkillController</a></td><td><code>PlayerSkillType CurrentRoundSkill</code>、<code>PlayerSkillType CurrentRoundSecondSkill</code>、<code>PlayerSkillType LastRoundSkill</code>、<code>PlayerSkillType LastRoundSecondSkill</code>、<code>PlayerSkillType ActiveSkill</code>、<code>TickTimer SkillActiveTimer</code>、<code>TickTimer CooldownTimer</code>、<code>PlayerSkillType ActiveSecondSkill</code>、<code>TickTimer SecondSkillActiveTimer</code>、<code>TickTimer SecondCooldownTimer</code>、<code>int CurrentSelectedSkillIndex</code></td></tr>
+<tr><td><a href="../Assets/Scripts/Player/VRBodyTargetSync.cs">VRBodyTargetSync</a></td><td><code>NetworkBool NetworkedIsVr</code>、<code>NetworkBool NetworkedTargetsInitialized</code>、<code>Vector3 NetworkedHeadPosition</code>、<code>Quaternion NetworkedHeadRotation</code>、<code>Vector3 NetworkedLeftHandPosition</code>、<code>Quaternion NetworkedLeftHandRotation</code>、<code>Vector3 NetworkedRightHandPosition</code>、<code>Quaternion NetworkedRightHandRotation</code></td></tr>
+<tr><td><a href="../Assets/Scripts/Player/PlayerIdentity.cs">PlayerIdentity</a></td><td><code>int PlayerNumber</code>、<code>int ColorIndex</code></td></tr>
+</tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th scope="col">担当</th><th scope="col">RPC</th><th scope="col">送受信指定</th></tr></thead><tbody>
+<tr><td><a href="../Assets/Scripts/Round/RoundManager.cs">RoundManager</a></td><td>RPC_RequestSelectSkillBySlot</td><td>RpcSources.All, RpcTargets.StateAuthority</td></tr>
+<tr><td><a href="../Assets/Scripts/Round/RoundManager.cs">RoundManager</a></td><td>RPC_NotifySkillSelectionProgress</td><td>RpcSources.StateAuthority, RpcTargets.All</td></tr>
+<tr><td><a href="../Assets/Scripts/Round/RoundManager.cs">RoundManager</a></td><td>RPC_SetSkillOptions</td><td>RpcSources.StateAuthority, RpcTargets.All</td></tr>
+<tr><td><a href="../Assets/Scripts/Round/RoundManager.cs">RoundManager</a></td><td>RPC_ShowRoundEndUI</td><td>RpcSources.StateAuthority, RpcTargets.All</td></tr>
+<tr><td><a href="../Assets/Scripts/Round/RoundManager.cs">RoundManager</a></td><td>RPC_HideRoundEndUI</td><td>RpcSources.StateAuthority, RpcTargets.All</td></tr>
+<tr><td><a href="../Assets/Scripts/Round/RoundManager.cs">RoundManager</a></td><td>RPC_ShowFinalResultUI</td><td>RpcSources.StateAuthority, RpcTargets.All</td></tr>
+<tr><td><a href="../Assets/Scripts/Round/RoundManager.cs">RoundManager</a></td><td>RPC_HideFinalResultUI</td><td>RpcSources.StateAuthority, RpcTargets.All</td></tr>
+<tr><td><a href="../Assets/Scripts/Player/PlayerHealth.cs">PlayerHealth</a></td><td>RPC_AfterRespawn</td><td>RpcSources.StateAuthority, RpcTargets.All</td></tr>
+<tr><td><a href="../Assets/Scripts/Player/PlayerHealth.cs">PlayerHealth</a></td><td>RPC_SetAliveState</td><td>RpcSources.StateAuthority, RpcTargets.All</td></tr>
+</tbody></table></div>
+<p>CurrentRoundは通常のC#プロパティであり、このNetworked一覧には含まれません。結果UIにはRPCでラウンド番号が渡されます。各UIのラウンド表記がHostと一致するかは通信テストで確認してください。</p>
+<a id="sec-08"></a>
+<h2>8. 入力仕様と処理タイミング</h2>
+<h3>8.1 毎フレームとネットワーク刻み</h3>
+<p>NetworkLauncher.Update → NetworkInputCollectorで視線・移動・ボタンを読み、短いボタン操作をキューへ保存します。FusionのOnInputでPlayerNetworkInputへ詰め、HostのPlayerController.FixedUpdateNetworkが実行します。ボタンの押し始めはPreviousButtonsとの差で判定し、射撃は押されている間の状態を使います。</p>
+<p>SkillSelecting中は通常のボタン蓄積より選択入力を優先します。移動・武器などもphaseで制限されます。Input Actionsの定義があるだけで、その操作がゲームで使われるとは限りません。</p>
+<h3>8.2 現在の主な操作</h3>
+<p>下表のInput Action割り当てはPlayerControls.inputactionsの定義、コード固定の割り当てはNetworkInputCollector／LocalSkillSelectionInputControllerから確認しています。SceneのInputActionReferenceはInspectorでも確認してください。</p>
+<div class="table-wrap"><table><thead><tr><th scope="col">操作</th><th scope="col">Desktop・ゲームパッド</th><th scope="col">VR</th><th scope="col">備考</th></tr></thead><tbody>
+<tr><td>移動</td><td>WASD・矢印、左スティック</td><td>左スティック</td><td>Player/Move。惑星表面で移動</td></tr>
+<tr><td>視点</td><td>マウス、右スティック</td><td>HMD回転＋右スティック旋回</td><td>Player/Lookが割り当て済みならそちらが先</td></tr>
+<tr><td>ジャンプ</td><td>Space、ゲームパッド南ボタン。東ボタンの固定フォールバックもある</td><td>右コントローラーprimaryButton</td><td>Action成功後または固定入力を判定</td></tr>
+<tr><td>射撃</td><td>Player/Attackにマウス左、Enter、ゲームパッド西ボタン等</td><td>右トリガー</td><td>fireActionがあればそちらを使う。Jキー等は未設定時のフォールバック</td></tr>
+<tr><td>リロード</td><td>K、ゲームパッド西ボタン</td><td>右コントローラーsecondaryButton</td><td>Player/Reload。Attackとの西ボタン重複に注意</td></tr>
+<tr><td>Ready</td><td>Enter。ゲームパッド左トリガー</td><td>左右トリガー同時押し</td><td>VR時は左右同時押しの経路を使う</td></tr>
+<tr><td>選択カーソル</td><td>WASD、移動Action、左スティック</td><td>左スティック</td><td>2×2の4枠、倒しっぱなしの連続移動を抑制</td></tr>
+<tr><td>選択確定</td><td>Enter、ゲームパッド南ボタン</td><td>左右いずれかのトリガー</td><td>HostへRPCで選択要求</td></tr>
+<tr><td>スキル切り替え／発動</td><td>Q／U、右肩／左肩ボタン</td><td>左手を下向きで左トリガー＝枠1、上向きで＝枠2</td><td>上下判定はHMDのupとの内積±0.5</td></tr>
+<tr><td>待機中・切断後の再接続</td><td>R</td><td>両手グリップ</td><td>Clientとして接続し直す</td></tr>
+<tr><td>観戦対象変更</td><td>A／D、左スティック左右</td><td>左スティック左右</td><td>戦闘が続いている場合のみ</td></tr>
+</tbody></table></div>
+<p>PlayerControlsにはCrouch、Sprint、Interactなども定義されていますが、現行の主要ゲーム入力パケットに専用の処理はありません。PlayerInput.csはPrefabに存在するものの、ReadInputを呼ぶ主要経路は確認できず、現在の入口はNetworkInputCollectorです。</p>
+<h3>8.3 Unity／Fusionの呼び出し場所</h3>
+<div class="table-wrap"><table><thead><tr><th scope="col">タイミング</th><th scope="col">このゲームでの主な用途</th></tr></thead><tbody>
+<tr><td>Awake</td><td>参照取得、管理者の所有確認、補助クラスの生成</td></tr>
+<tr><td>OnEnable / OnDisable</td><td>Input Actions、UI検索・イベント購読の開始と停止</td></tr>
+<tr><td>Start</td><td>モード準備の待機、自動接続など</td></tr>
+<tr><td>Spawned</td><td>Fusionに接続されたオブジェクトの初期化・試合登録</td></tr>
+<tr><td>Update</td><td>ローカル入力、UIの表示判定、透視、BGM</td></tr>
+<tr><td>OnInput</td><td>その端末のPlayerNetworkInputをFusionへ渡す</td></tr>
+<tr><td>FixedUpdateNetwork</td><td>Hostの操作・弾移動・スキル時間更新</td></tr>
+<tr><td>Render</td><td>アニメーション、phase表示、他人の身体姿勢・スキル効果反映</td></tr>
+<tr><td>LateUpdate</td><td>CameraTarget、自分の頭・手、ワールド空間UIの追従</td></tr>
+<tr><td>OnTriggerEnter</td><td>弾の命中、回復アイテムの取得</td></tr>
+<tr><td>Coroutine</td><td>選択締切、開始待ち、結果表示、アイテム再出現</td></tr>
+<tr><td>Despawned / OnDestroy</td><td>登録解除、入力・UI・通信・XRの片付け</td></tr>
+</tbody></table></div>
+<p>UpdateとFixedUpdateNetworkの回数は1対1ではありません。別コンポーネント同士の厳密な実行順は、表の上から順という意味ではありません。</p>
+<a id="sec-09"></a>
+<h2>9. 移動・HP・射撃・アイテム</h2>
+<h3>9.1 移動・重力</h3>
+<p>PlayerMoveはCharacterControllerで移動します。SphereCastで地面を探し、接地している場所の法線を上方向として、表面に沿った前・右方向を作ります。地面が見つからないときはplanetCenterからの方向を利用する経路があります。姿勢合わせ、接地への補正、重力、ジャンプ、スキルの倍率を組み合わせます。</p>
+<p>DesktopのMoveOnSurfaceとVRのMoveOnSurfaceVRを入力のIsVRで分けます。スキル選択・開始待ち・結果中は通常移動を停止。死亡時もPlayerControllerの操作処理を止めます。</p>
+<h3>9.2 武器と弾</h3>
+<p>PlayerWeapon.TryFireProjectileは状態権限、リロード中、発射間隔、弾数を検査します。発射できた場合にRunner.Spawnで弾を生成し、弾数とタイマーを更新します。弾数0の通知はOnDryFireです。</p>
+<p>ProjectileはHost側のFixedUpdateNetworkで位置と寿命を進め、OnTriggerEnterで命中を処理します。所有者自身への接触を除外し、対象へダメージを渡してDespawnします。重力爆発弾ではOverlapSphereで範囲内を調べ、同じPlayerHealthへ重複して爆発ダメージを与えないようにしています。通常弾はTrigger接触方式であり、Hitscanや過去位置を使う命中補正を実装しているとは説明しません。</p>
+<p>弾にはTrigger Colliderと、重力OFF・KinematicのRigidbodyを設定する処理があります。高速弾のすり抜けや各VR環境での命中精度は実機確認項目です。</p>
+<h3>9.3 リロードと特殊弾</h3>
+<p>ReloadAmmoがリロード状態と時間を設定し、PlayerControllerから呼ぶWeapon.Tickが時間を減らします。完了で弾数を補充します。PlayerWeaponに独立したUpdateでリロード時間を進める処理はありません。</p>
+<p>InstantReload有効中は通常リロードを即時補充にします。特殊弾装填・次弾強化は通常のスキル効果時間とは別に武器内部へ状態を保存し、弾の消費・リロード等で処理します。</p>
+<h3>9.4 HP・死亡・復活</h3>
+<p>PlayerHealthはHP、生死、Ready、色をNetworkedで保持します。TakeDamageで死亡済み・非正ダメージ・軽減率を検査し、遅延ダメージ中なら蓄積します。通常はHPを減らして0未満を避け、0でDieを呼びます。</p>
+<p>死亡時には生死状態を反映するRPCとOnDied通知があり、身体・武器・アイコン・Colliderなどの状態を更新します。RespawnForRoundではHP、生死、位置を戻し、武器を即時補充。RPC_AfterRespawnで各端末の見た目・移動基準・ローカルCameraTargetなどを復元します。</p>
+<h3>9.5 回復アイテム</h3>
+<p>RoundStartController → RoundHealthItemController → HealthItemSpawnerの順で配置します。配置数は整数除算の参加人数/2、最低1、出現地点数が上限です。例えば2～3人で1個、4～5人で2個。地点がなければ配置しません。</p>
+<p>HealthItemはHost側で接触相手を回復し、実際にHPが増えた場合だけ取得扱いにします。取得後はDespawnし、Spawnerが再出現を予約。ラウンド終了では既存アイテムと再出現待ちを片付けます。</p>
+<a id="sec-10"></a>
+<h2>10. スキル仕様</h2>
+<h3>10.1 選択と発動</h3>
+<p>1ラウンド2枠。1回目の4候補を選んだ後、1回目の候補群に含まれない種類から2回目の4候補を作るため、両候補群は原則として重複しません。候補はHostが作って全員へ通知する共通候補です。</p>
+<p>PlayerSkillTypeはNoneを除き13種類。GameSceneのselectableRoundSkillsには12種類が保存され、GravityBurstReloadは現行候補から外れています。実装があることと、現在の試合で選べることは区別します。</p>
+<p>PlayerSkillControllerが2枠の選択・有効時間・クールダウンを管理し、PlayerSkillActivatorが種類別に発動。PlayerSkillEffectApplierが移動・武器・HPへ効果を反映します。HostでTickTimerを更新し、Renderでも必要な効果を反映します。</p>
+<p>クールダウンは各枠の効果終了後に20秒。前ラウンドと同じスキルの連続選択は、CanSelectSkillが現在常にtrueを返すため禁止されていません。設定名だけを見て連続使用禁止と判断しないでください。</p>
+<h3>10.2 GamePlayerに保存された効果値</h3>
+<div class="table-wrap"><table><thead><tr><th scope="col">種類</th><th scope="col">内容</th><th scope="col">保存された有効時間</th><th scope="col">主な効果</th><th scope="col">現行候補</th></tr></thead><tbody>
+<tr><td>DoubleJump</td><td>二段ジャンプ</td><td>20秒</td><td>空中追加ジャンプ1回</td><td>選択可</td></tr>
+<tr><td>RapidFire</td><td>連射強化</td><td>15秒</td><td>発射間隔×0.4</td><td>選択可</td></tr>
+<tr><td>BulletSpeedUp</td><td>弾速強化</td><td>15秒</td><td>弾速×1.8</td><td>選択可</td></tr>
+<tr><td>DamageReduction</td><td>被ダメージ軽減</td><td>10秒</td><td>被ダメージ×0.5</td><td>選択可</td></tr>
+<tr><td>XRayVision</td><td>透視</td><td>5秒</td><td>自分の端末で透視表示</td><td>選択可</td></tr>
+<tr><td>MoveSpeedUp</td><td>移動強化</td><td>10秒</td><td>移動速度×2</td><td>選択可</td></tr>
+<tr><td>SlowFall</td><td>落下緩和</td><td>20秒</td><td>落下重力×0.1</td><td>選択可</td></tr>
+<tr><td>Shrink</td><td>縮小</td><td>15秒</td><td>身体×0.5、与ダメージ×0.5</td><td>選択可</td></tr>
+<tr><td>DelayedDamageInvincible</td><td>ダメージ蓄積</td><td>5秒</td><td>受けたダメージを蓄積し解除後に適用</td><td>選択可</td></tr>
+<tr><td>InstantReload</td><td>即時リロード</td><td>10秒</td><td>通常リロードを即時化</td><td>選択可</td></tr>
+<tr><td>GravityBurstReload</td><td>重力爆発弾装填</td><td>0.1秒</td><td>20発装填、重力・爆発あり</td><td>候補から除外</td></tr>
+<tr><td>HeavyBulletReload</td><td>重弾装填</td><td>0.1秒</td><td>5発装填。速度・威力・発射間隔を変更</td><td>選択可</td></tr>
+<tr><td>NextShotDamageBoost</td><td>次弾強化</td><td>0.1秒</td><td>次弾威力×1.5</td><td>選択可</td></tr>
+</tbody></table></div>
+<p>短時間の装填・次弾強化スキルの0.1秒は発動状態の保持時間です。特殊弾の残弾や次弾への効果が必ず0.1秒で消えるという意味ではありません。遅延ダメージも恒久無敵ではなく、解除後に蓄積分を受ける実装です。</p>
+<a id="sec-11"></a>
+<h2>11. UI・音・観戦</h2>
+<p>WaitingRoomUIは待機phase、自分の生成状態、接続に属するPlayerのReadyを表示します。人数は現在のRunnerに属し入力所有者があるPlayerHealthをPlayerRefでまとめて数え、ダミーや重複表示を除外します。</p>
+<p>SkillSelectUIは選択phaseを監視し、候補、カーソル、1回目／2回目、確定状況を表示。表示用残り時間は各端末のTime.deltaTimeで進みます。実際の締切はHostのCoroutineなので、完全に同期した残り時間表示ではありません。</p>
+<p>BattleStartUIはRoundStartingへの変化で開始演出を行います。ファイル名はBattleStartPanel.csです。BattleHudManagerはRoundPlaying中のローカルHUDを表示し、BattleHudBinderが表示対象を自分／観戦相手のHP・武器・スキルへ結び付けます。</p>
+<p>HealthBarはHP変更通知と補間・揺れ表示、AmmoBarは武器の弾数通知、SkillHudUIはスキル状態を表示。PlayerHeadIconは識別情報を基に頭上表示を行い、VRWorldSpaceUIFollowerはCameraに追従する空間UIを配置します。RoundEndUI、FinalResultUIはRPCで渡された結果を表示します。</p>
+<p>SpectatorCameraControllerは自分の死亡後、戦闘が続いて対象があれば待ち時間後にCinemachineの追従先を観戦視点へ変更し、HUDの対象も切り替えます。2人戦で死亡直後にラウンドが終われば観戦に入らない場合があります。PCはCinemachine、VRはXR Originを観戦相手の目の位置と身体の向きへ合わせます。観戦者の頭の追跡を維持し、対象変更・復活・ラウンド終了・切断で元へ戻します。</p>
+<p>BgmManagerは待機と戦闘のphaseで曲を切り替えます。他のphase専用の停止・切替分岐はなく、直前の曲が続く場合があります。PlayerSoundはジャンプ、射撃、リロード、HP変化、死亡のC# eventを購読します。全端末で同じ効果音が鳴ることまでは、eventの購読だけでは保証しません。</p>
+<a id="sec-12"></a>
+<h2>12. 現在の設定値と変更場所</h2>
+<p>下表はGameSceneまたはGamePlayerに実際に保存された値です。ソースの初期値とは異なるものがあります。</p>
+<div class="table-wrap"><table><thead><tr><th scope="col">保存先</th><th scope="col">フィールド</th><th scope="col">内容</th><th scope="col">値</th><th scope="col">単位・補足</th></tr></thead><tbody>
+<tr><td>GameScene / RoundManager</td><td>minPlayersToStart</td><td>開始最少人数</td><td>1</td><td>人</td></tr>
+<tr><td>GameScene / RoundManager</td><td>skillSelectionDuration</td><td>選択締切</td><td>30</td><td>秒</td></tr>
+<tr><td>GameScene / RoundManager</td><td>startAfterAllSkillsSelectedDelay</td><td>開始待ち</td><td>3</td><td>秒</td></tr>
+<tr><td>GameScene / RoundManager</td><td>maxRoundCount</td><td>ラウンド数</td><td>5</td><td>回</td></tr>
+<tr><td>GameScene / RoundManager</td><td>nextRoundDelay</td><td>ラウンド結果待ち</td><td>5</td><td>秒</td></tr>
+<tr><td>GameScene / RoundManager</td><td>returnToWaitingDelay</td><td>最終結果待ち</td><td>5</td><td>秒</td></tr>
+<tr><td>NetworkSessionController</td><td>StartGameArgs.PlayerCount</td><td>接続上限</td><td>8</td><td>人（コード固定）</td></tr>
+<tr><td>GameScene / NetworkLauncher</td><td>roomName</td><td>ルーム名</td><td>TestRoom</td><td>文字列</td></tr>
+<tr><td>GameScene / NetworkLauncher</td><td>autoStartOnLaunch</td><td>自動接続</td><td>1</td><td>1＝ON</td></tr>
+<tr><td>GameScene / LocalPlayModeController</td><td>editorMode</td><td>Editor起動モード</td><td>VirtualReality</td><td>enum値1</td></tr>
+<tr><td>GameScene / LocalPlayModeController</td><td>xrStartupTimeout</td><td>XR準備上限</td><td>15</td><td>秒</td></tr>
+<tr><td>GamePlayer / PlayerHealth</td><td>maxHealth</td><td>最大HP</td><td>10</td><td>HP</td></tr>
+<tr><td>GamePlayer / PlayerMove</td><td>moveSpeed</td><td>移動速度</td><td>10</td><td>座標単位/秒</td></tr>
+<tr><td>GamePlayer / PlayerMove</td><td>gravity</td><td>重力加速度</td><td>6</td><td>座標単位/秒²</td></tr>
+<tr><td>GamePlayer / PlayerMove</td><td>jumpSpeed</td><td>ジャンプ初速</td><td>12</td><td>座標単位/秒</td></tr>
+<tr><td>GamePlayer / PlayerMove</td><td>groundSnapDistance</td><td>接地補正距離</td><td>0.1</td><td>座標単位</td></tr>
+<tr><td>GamePlayer / PlayerWeapon</td><td>projectileSpeed</td><td>通常弾速度</td><td>40</td><td>座標単位/秒</td></tr>
+<tr><td>GamePlayer / PlayerWeapon</td><td>projectileLifeTime</td><td>弾の寿命</td><td>3</td><td>秒</td></tr>
+<tr><td>GamePlayer / PlayerWeapon</td><td>projectileDamage</td><td>基本威力</td><td>1</td><td>HP</td></tr>
+<tr><td>GamePlayer / PlayerWeapon</td><td>maxAmmo</td><td>装弾数</td><td>20</td><td>発</td></tr>
+<tr><td>GamePlayer / PlayerWeapon</td><td>fireInterval</td><td>発射間隔</td><td>0.15</td><td>秒</td></tr>
+<tr><td>GamePlayer / PlayerWeapon</td><td>reloadDuration</td><td>通常リロード</td><td>2</td><td>秒</td></tr>
+<tr><td>GamePlayer / PlayerWeapon</td><td>heavyBulletSpeedMultiplier</td><td>重弾速度倍率</td><td>3</td><td>倍</td></tr>
+<tr><td>GamePlayer / PlayerWeapon</td><td>heavyBulletDamageMultiplier</td><td>重弾威力倍率</td><td>2</td><td>倍</td></tr>
+<tr><td>GamePlayer / PlayerWeapon</td><td>heavyBulletFireIntervalMultiplier</td><td>重弾発射間隔倍率</td><td>6</td><td>倍</td></tr>
+<tr><td>GameScene / HealthItemSpawner</td><td>healAmount</td><td>回復量</td><td>5</td><td>HP</td></tr>
+<tr><td>GameScene / HealthItemSpawner</td><td>respawnDelay</td><td>再出現待ち</td><td>60</td><td>秒</td></tr>
+<tr><td>GameScene / SpectatorCameraController</td><td>spectatorDelay</td><td>観戦へ移る待ち</td><td>3</td><td>秒</td></tr>
+</tbody></table></div>
+<p>RoundManagerのhealthItemSpawnerは未割り当てですが、RoundHealthItemControllerにScene内検索のフォールバックがあります。未割り当て参照がすべて即エラーになるわけではありません。</p>
+<p>PlayerMoveのplanetCenterはGamePlayerにPrefabアセットへの参照として保存されています。地面未検出時に使われるため、実際のステージ中心と一致するか確認が必要です。地面LayerやColliderの設定も移動結果へ影響します。</p>
+<a id="sec-13"></a>
+<h2>13. ビルドと複数端末テスト</h2>
+<h3>13.1 基本の手順</h3>
+<ol>
+<li>GameSceneを開く。Desktopで確認するならEditor ModeをDesktop、実機VRならVirtualRealityへ設定。</li>
+<li>XRのInitialize XR on StartupはWindows／AndroidともOFFのまま、必要なOpenXR Loader・Featureは有効にする。</li>
+<li>Windows／Android双方のScene一覧をGameSceneに揃え、同じコードとPrefabで再ビルド。</li>
+<li>Photon App ID、App Version、リージョン、ルーム名を揃える。設定値そのものはPhotonAppSettingsで管理し、識別情報をこの文書へ複製しない。</li>
+<li>先に起動した側の接続完了を待ってから、2台目を起動する。</li>
+</ol>
+<h3>13.2 テスト構成</h3>
+<div class="table-wrap"><table><thead><tr><th scope="col">組み合わせ</th><th scope="col">端末A</th><th scope="col">端末B</th><th scope="col">確認の狙い</th></tr></thead><tbody>
+<tr><td>PC×PC</td><td>Editor Desktop</td><td>Windows exe引数なし</td><td>接続、人数、Ready、通常戦闘</td></tr>
+<tr><td>VR×PC</td><td>Editor VR＋Quest Link</td><td>Windows exe引数なし</td><td>XRをEditorだけが使う、モード混在</td></tr>
+<tr><td>VR×VR</td><td>Editor VR＋HMD1</td><td>Quest2台目のAndroidアプリ</td><td>2人の実機姿勢、PCとAndroidの混在</td></tr>
+<tr><td>Quest×Quest</td><td>Androidアプリ1</td><td>Androidアプリ2</td><td>Quest単体での処理負荷・操作・通信</td></tr>
+</tbody></table></div>
+<p>VR×VRの実機操作にはHMDが2台必要です。1台のHMDを同じPC上のEditorとexeで取り合う構成を標準テストにしません。HostがPCの場合とVRの場合の両方を試します。</p>
+<p>共通構成の詳細な準備は<a href="SharedGameSetup.ja.md">共通起動ガイド</a>にも記載しています。旧exeと改修後のEditorは混在させず、ネットワーク状態の構造が揃うよう再ビルドしてください。</p>
+<a id="sec-14"></a>
+<h2>14. 検証ツールと受け入れ条件</h2>
+<p>GameRecoveryValidation.RunではローカルFusionの復旧とVR観戦位置の自動検査を実行できます（実行終了時にEditorも終了するバッチ専用）。</p>
+<p>Assets/Editor/GameSetupValidation.csには、設定チェックとDesktopの起動検証の入口があります。</p>
+<ul>
+<li>Tools &gt; PvPVRGame &gt; Validate Shared Game Setup：起動モードの分岐、共通Scene、XR自動起動OFF、Scene参照、共通Playerを検査。未保存Sceneがある場合は中断します。</li>
+<li>GameSetupValidation.Run：バッチ用の設定検証。</li>
+<li>GameSetupValidation.RunDesktopSmoke：接続せずDesktopをPlayし、XR Originが非アクティブ、描画CameraとListenerが1つ、重複Launcherを作っても既存所有者が維持されることを確認する入口。</li>
+</ul>
+<p>検証入口が実装されていることと、そのテストが実行済みであることは別です。前回の確認範囲は2章を参照してください。</p>
+<div class="table-wrap"><table><thead><tr><th scope="col">ID</th><th scope="col">実機・Playで確認する条件</th><th scope="col">現時点</th></tr></thead><tbody>
+<tr><td>T01</td><td>PC×PCで人数が2人から増えず、全員Readyで開始</td><td>未検証</td></tr>
+<tr><td>T02</td><td>PC exe起動後にQuest接続してもDesktopのまま</td><td>分岐コード確認済み、実機未検証</td></tr>
+<tr><td>T03</td><td>VR×PCで両者の移動・手・銃口・HPが正しい</td><td>未検証</td></tr>
+<tr><td>T04</td><td>Hostを入れ替えても同じように開始・進行する</td><td>未検証</td></tr>
+<tr><td>T05</td><td>次ラウンドでHP・弾数・位置・スキルが復元</td><td>実装確認済み、通信未検証</td></tr>
+<tr><td>T06</td><td>5ラウンド後に結果表示・Readyリセット・待機復帰</td><td>実装確認済み、通信未検証</td></tr>
+<tr><td>T07</td><td>退出・再接続でRunnerが重複せず残留しない</td><td>実装確認済み、通信未検証</td></tr>
+<tr><td>T08</td><td>VR×VR・Quest単体ビルドで起動・表示・入力が動く</td><td>未検証</td></tr>
+</tbody></table></div>
+<a id="sec-15"></a>
+<h2>15. 現行の制限・未決定事項</h2>
+<p>以下は、仕様の理解と今後の確認に関係する箇所です。この文書の作成中にゲームコードを修正したものではありません。</p>
+<ol>
+<li><strong>実機検証前の共通化</strong>：共有Scene・Prefab・接続管理は実装済みですが、Unityでのコンパイル・FusionのIL後処理・ローカル接続と復旧を検証済み。プレイヤーの完全ビルド、HMD、複数端末のPhoton通信は未検証です。</li>
+<li><strong>開始人数1</strong>：開発設定。通常対戦で必要な人数は運用前に決めます。</li>
+<li><strong>8人と4色の関係</strong>：生存判定は個人、最終UIは色合計。5人以上の競技ルールは整理が必要です。</li>
+<li><strong>退出・途中参加</strong>：参加者登録と生成はありますが、途中参加の可否・ラウンド途中の待機扱いを明示した仕組みは確認できません。RoundPlayingでの退出をきっかけに終了を再判定する分岐も確認できません。</li>
+<li><strong>Host終了</strong>：Host移行処理は空。継続や再参加の挙動は別途確認します。</li>
+<li><strong>VR観戦</strong>：XR Originによる観戦と復帰を実装。位置・姿勢の復元をローカル検証し、Questでの操作・見やすさは実機確認が必要です。</li>
+<li><strong>入力の重複</strong>：PlayerControlsではAttackとReloadがゲームパッド西ボタンへ重複割当。Sprint／Crouch等のAction定義も、ゲーム側の実装済み機能とは限りません。</li>
+<li><strong>選択時間の表示</strong>：UIのローカルカウントダウンとHostの締切は別。途中参加・遅延時の一致は保証しません。</li>
+<li><strong>空間参照とリソース</strong>：planetCenterの参照、スポーン地点数、地面Layer、Collider、VRアバターと武器の位置は実シーンで確認が必要です。</li>
+<li><strong>音の同期</strong>：C# event中心。PlayerSoundのDespawned内にはOnReloadCanceledへ再度+=する箇所もあり、解除処理の点検余地があります。</li>
+<li><strong>スキル要求の検証</strong>：RPCで受け取ったPlayerRefから登録Playerを探す実装です。通信上の送信者と要求対象の一致検証は、対外提供前の確認事項です。</li>
+<li><strong>手動接続UI</strong>：GameSceneのHost／Clientボタンと接続メニューRootは未割り当て。自動接続をOFFにするだけで完全な手動接続画面が使えるとは限りません。</li>
+</ol>
+<a id="sec-16"></a>
+<h2>16. 不具合調査の入口</h2>
+<div class="table-wrap"><table><thead><tr><th scope="col">症状</th><th scope="col">まず見る場所</th><th scope="col">確認する情報</th></tr></thead><tbody>
+<tr><td>接続前に止まる</td><td>LocalPlayModeController、NetworkLauncher.Start</td><td>選択モード、XR Error、Camera参照</td></tr>
+<tr><td>接続できない</td><td>NetworkSessionController</td><td>Build Index、共通Scene、Photon設定、失敗理由</td></tr>
+<tr><td>人数が増える</td><td>Launcherの所有者、Runner、Spawner</td><td>Owner ID、Runner ID、Scene読込、参加PlayerRef</td></tr>
+<tr><td>Readyから進まない</td><td>RoundReadyController、RoundManager</td><td>登録人数、全員Ready、phase</td></tr>
+<tr><td>選択が確定しない</td><td>LocalSkillSelectionInputController → 選択RPC</td><td>対象PlayerRef、スロット、Hostの確認通知</td></tr>
+<tr><td>自分だけ動かない</td><td>NetworkPlayer → OnInput → PlayerController</td><td>Input Authority、State Authority、生死、phase</td></tr>
+<tr><td>惑星から落ちる・姿勢がおかしい</td><td>PlayerMove</td><td>SphereCast、Layer、Collider、中心・接地距離</td></tr>
+<tr><td>VRの表示・手がおかしい</td><td>LocalPlayModeController、VRBodyTargetSync</td><td>Loader、XR Display、HMD・手の参照、対象のモード</td></tr>
+<tr><td>撃てない・当たらない</td><td>PlayerWeapon → Projectile → PlayerHealth</td><td>弾数、リロード、銃口、Trigger、権限</td></tr>
+<tr><td>次ラウンドへ進まない</td><td>OnDied → Registry → RoundFlowController</td><td>生存人数、phase、結果Coroutine</td></tr>
+<tr><td>HUDが別人を示す</td><td>BattleHudBinder、SpectatorCameraController</td><td>ローカル所有者、観戦対象、購読先</td></tr>
+</tbody></table></div>
+<p>ログの接頭辞は[PlayMode]、[NetworkLauncher]、[NetworkSessionController]、[NetworkPlayerSpawner]、[RoundManager]などです。調査時は「何人起動したか」「各端末のモード」「Hostはどちらか」「Scene名」「Runnerが何個か」を合わせて記録します。</p>
+<a id="sec-17"></a>
+<h2>17. 何を変えるとき、どこを読むか</h2>
+<ul>
+<li><strong>プレイ人数・待ち時間・ラウンド数</strong>：GameSceneのRoundManagerの保存設定。遷移ロジックはRoundReadyController／RoundStartController／RoundFlowController。</li>
+<li><strong>操作方法</strong>：PlayerControls.inputactionsとNetworkInputCollector。選択操作はLocalSkillSelectionInputController。</li>
+<li><strong>VR／Desktopの起動条件</strong>：LocalPlayModeController。CameraとXR参照の結び付けはNetworkLauncher。</li>
+<li><strong>移動・ジャンプ・惑星への追従</strong>：GamePlayerのPlayerMove。入力を実行する条件はPlayerController。</li>
+<li><strong>威力・弾数・連射・リロード</strong>：GamePlayerのPlayerWeapon。弾の飛び方・接触はProjectile。</li>
+<li><strong>HP・軽減・死亡・復活</strong>：PlayerHealth。勝敗への接続はOnDied → RoundPlayerRegistry → RoundFlowController。</li>
+<li><strong>スキルを追加</strong>：PlayerSkillType → PlayerSkillControllerの設定／状態 → Settings → Activator／EffectApplier → 候補リスト・表示。種類だけ増やしても選択・発動・UI全部が自動対応するとは限りません。</li>
+<li><strong>武器の見た目や握り位置</strong>：VRWeaponVisualSettingsとVRBodyTargetSync。発射判定の銃口とは分けて確認。</li>
+<li><strong>UIの見た目</strong>：該当Scene／PrefabとUIコンポーネント。HPや弾数のルール自体はUIへ移さない。</li>
+<li><strong>接続の安定性・再接続</strong>：NetworkSessionController。単一所有とScene参照引き継ぎはNetworkLauncher。</li>
+</ul>
+<p>読む順番は「変更したいプレイ上の動作 → 入口クラス → 呼ばれる担当クラス → 保存値 → 実行条件」です。全ファイルを先に暗記する必要はありません。</p>
+<a id="sec-18"></a>
+<h2>18. 全ゲームスクリプト索引</h2>
+<p>ソースのファイル名、実際の型、配置と主な呼び出し契機を列挙します。コードが存在すること、Scene／Prefabに付くこと、その条件を満たして実行されることは、それぞれ別です。</p>
+<h3>Network</h3>
+<div class="table-wrap"><table><thead><tr><th scope="col">ファイル・型</th><th scope="col">配置／生成</th><th scope="col">役割</th><th scope="col">主な呼び出し</th></tr></thead><tbody>
+<tr><td><a href="../Assets/Scripts/Network/LocalPlayModeController.cs">LocalPlayModeController</a><br><code>class LocalPlayModeController : MonoBehaviour</code></td><td>Scene</td><td>起動モード決定、手動XR初期化、稼働確認、終了。</td><td>LauncherからSelectMode / Initialize、OnDestroy</td></tr>
+<tr><td><a href="../Assets/Scripts/Network/LocalSkillSelectionInputController.cs">LocalSkillSelectionInputController</a><br><code>class LocalSkillSelectionInputController</code></td><td>コードから使用</td><td>4枠カーソル、選択確定、RPC要求、確認通知。</td><td>SkillSelecting中のUpdate</td></tr>
+<tr><td><a href="../Assets/Scripts/Network/NetworkConnectionUIController.cs">NetworkConnectionUIController</a><br><code>class NetworkConnectionUIController</code></td><td>コードから使用</td><td>接続メニュー、ボタン、状態テキスト。</td><td>接続準備・結果・ボタン操作</td></tr>
+<tr><td><a href="../Assets/Scripts/Network/NetworkInputCollector.cs">NetworkInputCollector</a><br><code>class NetworkInputCollector</code></td><td>コードから使用</td><td>入力蓄積、ローカル視線、入力パケット生成。</td><td>Updateから呼ぶ / OnInput</td></tr>
+<tr><td><a href="../Assets/Scripts/Network/NetworkLauncher.cs">NetworkLauncher</a><br><code>class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks</code></td><td>Scene</td><td>起動、接続の入口、単一所有、Scene参照引き継ぎ、Camera/XR設定。</td><td>Awake / Start / Update / Fusion callbacks</td></tr>
+<tr><td><a href="../Assets/Scripts/Network/NetworkPlayer.cs">NetworkPlayer</a><br><code>class NetworkPlayer : NetworkBehaviour</code></td><td>Player</td><td>自分と他人のローカル部品・入力・Camera・XRを設定。</td><td>Spawned / Despawned、生成後Coroutine</td></tr>
+<tr><td><a href="../Assets/Scripts/Network/NetworkPlayerSpawner.cs">NetworkPlayerSpawner</a><br><code>class NetworkPlayerSpawner</code></td><td>コードから使用</td><td>HostでのPlayer生成・削除、重複参加の防止、番号付与。</td><td>OnPlayerJoined / OnPlayerLeft</td></tr>
+<tr><td><a href="../Assets/Scripts/Network/NetworkSessionController.cs">NetworkSessionController</a><br><code>class NetworkSessionController</code></td><td>コードから使用</td><td>Runner作成・接続・再試行・再接続・Shutdownの所有。</td><td>Launcherが生成してStartGame等を呼ぶ</td></tr>
+<tr><td><a href="../Assets/Scripts/Network/PlayerNetworkInput.cs">PlayerNetworkInput</a><br><code>struct PlayerNetworkInput : INetworkInput</code></td><td>コードから使用</td><td>通常操作と頭・手の姿勢を運ぶ構造体。同ファイルにPlayerInputButton列挙型。</td><td>CollectInput → Fusion → GetInput</td></tr>
+</tbody></table></div>
+<h3>Round</h3>
+<div class="table-wrap"><table><thead><tr><th scope="col">ファイル・型</th><th scope="col">配置／生成</th><th scope="col">役割</th><th scope="col">主な呼び出し</th></tr></thead><tbody>
+<tr><td><a href="../Assets/Scripts/Round/RoundDebugLogger.cs">RoundDebugLogger</a><br><code>class RoundDebugLogger</code></td><td>コードから使用</td><td>Ready、候補、SpawnPointsなどの診断。</td><td>登録・設定・選択の確認時</td></tr>
+<tr><td><a href="../Assets/Scripts/Round/RoundFlowController.cs">RoundFlowController</a><br><code>class RoundFlowController</code></td><td>コードから使用</td><td>生存者判定、得点・結果、次ラウンド・試合リセット。</td><td>死亡通知 / 結果Coroutine</td></tr>
+<tr><td><a href="../Assets/Scripts/Round/RoundHealthItemController.cs">RoundHealthItemController</a><br><code>class RoundHealthItemController</code></td><td>コードから使用</td><td>Round処理から回復Spawnerへの仲介と参照補完。</td><td>戦闘開始 / 選択開始 / 終了</td></tr>
+<tr><td><a href="../Assets/Scripts/Round/RoundManager.cs">RoundManager</a><br><code>class RoundManager : NetworkBehaviour</code></td><td>Scene</td><td>試合phase・公開窓口・補助クラス構成・RPC。</td><td>Awake / Spawned / Render / Ready・死亡・選択</td></tr>
+<tr><td><a href="../Assets/Scripts/Round/RoundPlayerRegistry.cs">RoundPlayerRegistry</a><br><code>class RoundPlayerRegistry</code></td><td>コードから使用</td><td>参加者一覧、色付与、OnDiedの購読・解除。</td><td>登録 / 退出 / 死亡通知</td></tr>
+<tr><td><a href="../Assets/Scripts/Round/RoundProjectileCleaner.cs">RoundProjectileCleaner</a><br><code>class RoundProjectileCleaner</code></td><td>コードから使用</td><td>残ったネットワーク弾を片付ける。</td><td>選択開始 / ラウンド・試合終了</td></tr>
+<tr><td><a href="../Assets/Scripts/Round/RoundReadyController.cs">RoundReadyController</a><br><code>class RoundReadyController</code></td><td>コードから使用</td><td>参加者のReadyと全員Ready判定。</td><td>登録 / Ready / 試合リセット</td></tr>
+<tr><td><a href="../Assets/Scripts/Round/RoundScoreCalculator.cs">RoundScoreCalculator</a><br><code>class RoundScoreCalculator</code></td><td>コードから使用</td><td>個人の点数保存、色合計、結果マスク、ログ。</td><td>参加登録 / 勝利 / 結果表示</td></tr>
+<tr><td><a href="../Assets/Scripts/Round/RoundSkillOptionBuilder.cs">RoundSkillOptionBuilder</a><br><code>class RoundSkillOptionBuilder</code></td><td>コードから使用</td><td>候補の重複排除、シャッフル、2回分の候補群生成。</td><td>ラウンドの選択開始</td></tr>
+<tr><td><a href="../Assets/Scripts/Round/RoundSkillSelectionController.cs">RoundSkillSelectionController</a><br><code>class RoundSkillSelectionController</code></td><td>コードから使用</td><td>候補配布、2回選択、締切、選択開始時の再配置。</td><td>選択開始 / RPC / 締切Coroutine</td></tr>
+<tr><td><a href="../Assets/Scripts/Round/RoundSpawnController.cs">RoundSpawnController</a><br><code>class RoundSpawnController</code></td><td>コードから使用</td><td>SpawnPointsの収集・割り当て・シャッフル・再配置。</td><td>選択開始 / 試合リセット</td></tr>
+<tr><td><a href="../Assets/Scripts/Round/RoundStartController.cs">RoundStartController</a><br><code>class RoundStartController</code></td><td>コードから使用</td><td>スキル適用、開始待ち、戦闘開始、回復配置。</td><td>全員選択完了後のCoroutine</td></tr>
+<tr><td><a href="../Assets/Scripts/Round/RoundUIController.cs">RoundUIController</a><br><code>class RoundUIController</code></td><td>コードから使用</td><td>待機UI、開始演出、ラウンド・最終結果の表示窓口。</td><td>phase変更 / 結果RPC</td></tr>
+<tr><td><a href="../Assets/Scripts/Round/TeamColor.cs">TeamColor</a><br><code>enum TeamColor</code></td><td>コードから使用</td><td>Red / Blue / Green / Yellowの識別。</td><td>登録・スコア・表示</td></tr>
+</tbody></table></div>
+<h3>Player</h3>
+<div class="table-wrap"><table><thead><tr><th scope="col">ファイル・型</th><th scope="col">配置／生成</th><th scope="col">役割</th><th scope="col">主な呼び出し</th></tr></thead><tbody>
+<tr><td><a href="../Assets/Scripts/Player/PlayerController.cs">PlayerController</a><br><code>class PlayerController : NetworkBehaviour</code></td><td>Player</td><td>入力をphase・権限で検査し移動、武器、スキルへ振り分け。</td><td>FixedUpdateNetwork / Render / LateUpdate</td></tr>
+<tr><td><a href="../Assets/Scripts/Player/PlayerHealth.cs">PlayerHealth</a><br><code>class PlayerHealth : NetworkBehaviour</code></td><td>Player</td><td>HP、生死、Ready、色、軽減・回復、死亡通知、復活。</td><td>Spawned / TakeDamage / Heal / Respawn / RPC</td></tr>
+<tr><td><a href="../Assets/Scripts/Player/PlayerIdentity.cs">PlayerIdentity</a><br><code>class PlayerIdentity : NetworkBehaviour</code></td><td>Player</td><td>番号と色インデックスを同期。</td><td>Hostの生成時にSetIdentity</td></tr>
+<tr><td><a href="../Assets/Scripts/Player/PlayerInput.cs">PlayerInput</a><br><code>class PlayerInput : MonoBehaviour</code></td><td>Player</td><td>旧形式の入力取得部品。現在の主要経路からReadInput呼び出しなし。</td><td>明示的にReadInputされた場合。現行はCollector</td></tr>
+<tr><td><a href="../Assets/Scripts/Player/PlayerLook.cs">PlayerLook</a><br><code>class PlayerLook : MonoBehaviour</code></td><td>Player</td><td>通常入力・HMDから視線方向を計算。</td><td>Awake、ApplyLocalLookやHostの操作処理</td></tr>
+<tr><td><a href="../Assets/Scripts/Player/PlayerMove.cs">PlayerMove</a><br><code>class PlayerMove : MonoBehaviour</code></td><td>Player</td><td>CharacterController、接地、表面基準、移動、姿勢、重力・ジャンプ。</td><td>Awake、PlayerControllerから呼ぶ</td></tr>
+<tr><td><a href="../Assets/Scripts/Player/PlayerSkillActivator.cs">PlayerSkillActivator</a><br><code>class PlayerSkillActivator</code></td><td>コードから使用</td><td>種類別の発動開始、特殊弾装填、次弾強化。</td><td>TryActivateSkill系から呼ぶ</td></tr>
+<tr><td><a href="../Assets/Scripts/Player/PlayerSkillController.cs">PlayerSkillController</a><br><code>class PlayerSkillController : NetworkBehaviour</code></td><td>Player</td><td>2枠の選択・発動状態と効果・クールダウン管理。</td><td>Awake / FixedUpdateNetwork / Render / 発動要求</td></tr>
+<tr><td><a href="../Assets/Scripts/Player/PlayerSkillEffectApplier.cs">PlayerSkillEffectApplier</a><br><code>class PlayerSkillEffectApplier</code></td><td>コードから使用</td><td>移動・武器・HPへ現在のスキル効果を反映。</td><td>スキル更新・Renderから呼ぶ</td></tr>
+<tr><td><a href="../Assets/Scripts/Player/PlayerSkillSettings.cs">PlayerSkillSettings</a><br><code>class PlayerSkillSettings</code></td><td>コードから使用</td><td>スキルの設定値を補助クラスへ渡す読み取り用データ。</td><td>PlayerSkillControllerの初期化</td></tr>
+<tr><td><a href="../Assets/Scripts/Player/PlayerSkillType.cs">PlayerSkillType</a><br><code>enum PlayerSkillType</code></td><td>コードから使用</td><td>Noneと13種類のスキル識別子。</td><td>候補・選択・発動・UIで参照</td></tr>
+<tr><td><a href="../Assets/Scripts/Player/PlayerWeapon.cs">PlayerWeapon</a><br><code>class PlayerWeapon : NetworkBehaviour</code></td><td>Player</td><td>弾数、発射間隔、弾生成、リロード、特殊弾。</td><td>Spawned、PlayerControllerからTick/射撃等</td></tr>
+<tr><td><a href="../Assets/Scripts/Player/VRBodyTargetSync.cs">VRBodyTargetSync</a><br><code>class VRBodyTargetSync : NetworkBehaviour</code></td><td>Player</td><td>各Playerのモード、頭・手、IK、武器の持ち方。射撃前の姿勢適用。</td><td>Spawned / FixedUpdateNetwork / LateUpdate / Render</td></tr>
+<tr><td><a href="../Assets/Scripts/Player/VRWeaponVisualSettings.cs">VRWeaponVisualSettings</a><br><code>class VRWeaponVisualSettings : MonoBehaviour</code></td><td>Player</td><td>武器、握り親、VRオフセット、PC表示位置、大きさ。</td><td>VRBodyTargetSyncが参照</td></tr>
+</tbody></table></div>
+<h3>Camera</h3>
+<div class="table-wrap"><table><thead><tr><th scope="col">ファイル・型</th><th scope="col">配置／生成</th><th scope="col">役割</th><th scope="col">主な呼び出し</th></tr></thead><tbody>
+<tr><td><a href="../Assets/Scripts/Camera/PlayerCamera.cs">PlayerCamera</a><br><code>class PlayerCamera : MonoBehaviour</code></td><td>Player</td><td>ローカルCamera切り替え、CameraTarget、他人のPC視点反映。</td><td>生成後のSetupLocalCamera、LateUpdateから呼ぶ</td></tr>
+<tr><td><a href="../Assets/Scripts/Camera/SpectatorCameraController.cs">SpectatorCameraController</a><br><code>class SpectatorCameraController : MonoBehaviour</code></td><td>Scene</td><td>死亡待ち、対象選択、同期観戦視点、HUD切り替え。</td><td>Awake / Update / LateUpdate</td></tr>
+</tbody></table></div>
+<h3>Projectile</h3>
+<div class="table-wrap"><table><thead><tr><th scope="col">ファイル・型</th><th scope="col">配置／生成</th><th scope="col">役割</th><th scope="col">主な呼び出し</th></tr></thead><tbody>
+<tr><td><a href="../Assets/Scripts/Projectile/Projectile.cs">Projectile</a><br><code>class Projectile : NetworkBehaviour</code></td><td>コードから使用</td><td>弾移動、寿命、Trigger命中、自分への命中除外、範囲爆発。</td><td>Spawned / FixedUpdateNetwork / OnTriggerEnter</td></tr>
+</tbody></table></div>
+<h3>Item</h3>
+<div class="table-wrap"><table><thead><tr><th scope="col">ファイル・型</th><th scope="col">配置／生成</th><th scope="col">役割</th><th scope="col">主な呼び出し</th></tr></thead><tbody>
+<tr><td><a href="../Assets/Scripts/Item/HealthItem.cs">HealthItem</a><br><code>class HealthItem : NetworkBehaviour</code></td><td>コードから使用</td><td>Hostで回復対象を判定し、回復成功時だけ取得。</td><td>Awake / Initialize / OnTriggerEnter</td></tr>
+<tr><td><a href="../Assets/Scripts/Item/HealthItemSpawner.cs">HealthItemSpawner</a><br><code>class HealthItemSpawner : MonoBehaviour</code></td><td>Scene</td><td>人数別配置、取得後の再出現、配置物とCoroutineの掃除。</td><td>戦闘開始 / 取得通知 / 終了</td></tr>
+</tbody></table></div>
+<h3>UI</h3>
+<div class="table-wrap"><table><thead><tr><th scope="col">ファイル・型</th><th scope="col">配置／生成</th><th scope="col">役割</th><th scope="col">主な呼び出し</th></tr></thead><tbody>
+<tr><td><a href="../Assets/Scripts/UI/BattleHUD/AmmoBar.cs">AmmoBar</a><br><code>class AmmoBar : MonoBehaviour</code></td><td>Scene／Player</td><td>ローカル武器の検索と弾数セル表示。</td><td>OnEnable / SetupWeapon / 弾数イベント</td></tr>
+<tr><td><a href="../Assets/Scripts/UI/BattleHUD/BattleHudBinder.cs">BattleHudBinder</a><br><code>class BattleHudBinder : MonoBehaviour</code></td><td>Scene</td><td>自分または観戦相手のHP・武器・スキルをHUDへ接続。</td><td>OnEnableの検索Coroutine / 対象変更</td></tr>
+<tr><td><a href="../Assets/Scripts/UI/BattleHUD/BattleHudManager.cs">BattleHudManager</a><br><code>class BattleHudManager : MonoBehaviour</code></td><td>Scene／Player</td><td>戦闘phaseのローカルHUD表示。</td><td>Awake / Start / Update</td></tr>
+<tr><td><a href="../Assets/Scripts/UI/BattleHUD/BattleStartPanel.cs">BattleStartPanel</a><br><code>class BattleStartUI : MonoBehaviour</code></td><td>Scene</td><td>実際の型名はBattleStartUI。開始演出を再生。</td><td>Start / PlaySequence Coroutine</td></tr>
+<tr><td><a href="../Assets/Scripts/UI/BattleHUD/HealthBar.cs">HealthBar</a><br><code>class HealthBar : MonoBehaviour</code></td><td>Scene／Player</td><td>HP通知、表示値の補間・揺れ、対象の設定。</td><td>SetupPlayerHealth / HPイベント / Update</td></tr>
+<tr><td><a href="../Assets/Scripts/UI/BattleHUD/PlayerHeadIcon.cs">PlayerHeadIcon</a><br><code>class PlayerHeadIcon : NetworkBehaviour</code></td><td>Player</td><td>識別情報の頭上表示とCamera向きへの追従。</td><td>Awake / Spawned / LateUpdate</td></tr>
+<tr><td><a href="../Assets/Scripts/UI/BattleHUD/SkillHudUI.cs">SkillHudUI</a><br><code>class SkillHudUI : MonoBehaviour</code></td><td>Scene</td><td>スキル2枠、発動・クールダウン等の表示。</td><td>Awake / Update / 対象設定</td></tr>
+<tr><td><a href="../Assets/Scripts/UI/BattleHUD/SpectatorStatusUI.cs">SpectatorStatusUI</a><br><code>class SpectatorStatusUI : MonoBehaviour</code></td><td>Scene</td><td>観戦状態と対象の表示。</td><td>Awake / Update</td></tr>
+<tr><td><a href="../Assets/Scripts/UI/FinalResult/FinalResultUI.cs">FinalResultUI</a><br><code>class FinalResultUI : MonoBehaviour</code></td><td>Scene</td><td>最終勝者一覧を表示。</td><td>Awake / 最終結果RPC</td></tr>
+<tr><td><a href="../Assets/Scripts/UI/FinalResult/FinalResultWinnerEntryUI.cs">FinalResultWinnerEntryUI</a><br><code>class FinalResultWinnerEntryUI : MonoBehaviour</code></td><td>コードから使用</td><td>最終勝者ごとの表示行。</td><td>FinalResultUIから設定</td></tr>
+<tr><td><a href="../Assets/Scripts/UI/RoundEnd/RoundEndScoreEntryUI.cs">RoundEndScoreEntryUI</a><br><code>class RoundEndScoreEntryUI : MonoBehaviour</code></td><td>コードから使用</td><td>ラウンド結果の各得点行。</td><td>RoundEndUIから設定</td></tr>
+<tr><td><a href="../Assets/Scripts/UI/RoundEnd/RoundEndUI.cs">RoundEndUI</a><br><code>class RoundEndUI : MonoBehaviour</code></td><td>Scene</td><td>ラウンド勝者と色ごとの得点一覧。</td><td>Awake / 結果RPCから呼ぶ</td></tr>
+<tr><td><a href="../Assets/Scripts/UI/SkillSelectUI/SkillCardUI.cs">SkillCardUI</a><br><code>class SkillCardUI : MonoBehaviour</code></td><td>Scene</td><td>個別スキルカードの表示と選択状態。</td><td>SkillSelectUIの更新から呼ぶ</td></tr>
+<tr><td><a href="../Assets/Scripts/UI/SkillSelectUI/SkillSelectUI.cs">SkillSelectUI</a><br><code>class SkillSelectUI : MonoBehaviour</code></td><td>Scene</td><td>候補カード、選択段階、確定、残り時間の表示。</td><td>Awake / Update</td></tr>
+<tr><td><a href="../Assets/Scripts/UI/VRWorldSpaceUIFollower.cs">VRWorldSpaceUIFollower</a><br><code>class VRWorldSpaceUIFollower : MonoBehaviour</code></td><td>Scene／Player</td><td>選択モードのCameraを使う空間UIの追従。</td><td>LateUpdate / Camera参照設定</td></tr>
+<tr><td><a href="../Assets/Scripts/UI/WaitingRoomUI/WaitingRoomUI.cs">WaitingRoomUI</a><br><code>class WaitingRoomUI : MonoBehaviour</code></td><td>Scene</td><td>待機phase、自分の生成、現在の接続の人数・Ready一覧。</td><td>Awake / Update / 生成・表示通知</td></tr>
+</tbody></table></div>
+<h3>Sound</h3>
+<div class="table-wrap"><table><thead><tr><th scope="col">ファイル・型</th><th scope="col">配置／生成</th><th scope="col">役割</th><th scope="col">主な呼び出し</th></tr></thead><tbody>
+<tr><td><a href="../Assets/Scripts/Sound/BgmManager.cs">BgmManager</a><br><code>class BgmManager : MonoBehaviour</code></td><td>Scene</td><td>待機・戦闘phaseに応じたBGM切り替え。</td><td>Update</td></tr>
+<tr><td><a href="../Assets/Scripts/Sound/PlayerSound.cs">PlayerSound</a><br><code>class PlayerSound : NetworkBehaviour</code></td><td>Player</td><td>操作とHP・死亡イベントを購読しSEを再生。</td><td>Awake / Spawned / Despawned / 各イベント</td></tr>
+</tbody></table></div>
+<h3>Effect</h3>
+<div class="table-wrap"><table><thead><tr><th scope="col">ファイル・型</th><th scope="col">配置／生成</th><th scope="col">役割</th><th scope="col">主な呼び出し</th></tr></thead><tbody>
+<tr><td><a href="../Assets/Scripts/Effect/XRayVisionController.cs">XRayVisionController</a><br><code>class XRayVisionController : NetworkBehaviour</code></td><td>Player</td><td>自分の透視スキルに応じて相手の表示を変更・復元。</td><td>Awake / Update / OnDisable</td></tr>
+</tbody></table></div>
+<h3>18.1 Editor用の補助コード</h3>
+<p><a href="../Assets/Editor/GameSetupValidation.cs">GameSetupValidation.cs</a>はUnityEditor専用です。ゲーム実行用の61ファイルとは別に、設定検証・起動モード検証・DesktopのPlayスモーク検証の入口を持ちます。</p>
+<a id="sec-19"></a>
+<h2>19. 更新方法・根拠ファイル</h2>
+<p>主な根拠は、GameScene、GamePlayer、Assets/Scripts以下、Assets/Editor/GameSetupValidation、Packages/manifest.json、ProjectSettings/ProjectVersion、EditorBuildSettings、Assets/XR/XRGeneralSettingsPerBuildTarget、PlayerControls.inputactionsです。本文の各索引からソースへ移動できます。</p>
+<p>この仕様書の数値はスナップショットです。Inspectorやコードを変更したら、該当のルール・保存値・確認状態も更新します。特にScene／Prefabを保存せずにPlayで試した値は、この仕様書の保存値には含めません。</p>
+<p>更新時の確認事項：起動モードとScene一覧、生成Prefab、人数・phase条件、入力割り当て、武器・スキルの保存値、Networkedデータ、RPC、実機テスト結果。未検証項目は、再現手順と実行環境を記録してから確認済みに変更してください。</p></article><footer>現行ソース・Scene・Prefabの保存内容に基づく仕様書。本文の数値は2026-10-24のスナップショットです。ゲームコードの変更はこの文書作成に含みません。</footer></main></body></html>

@@ -1,1 +1,3 @@
-{}
+{
+    "dotnet.defaultSolution": "Library/PackageCache/com.unity.ai.inference@9a123aee5df7/Runtime/Core/SourceGenerator/SourceGeneratorsProject~/SourceGenerators.sln"
+}

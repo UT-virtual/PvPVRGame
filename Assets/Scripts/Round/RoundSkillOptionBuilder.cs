@@ -2,10 +2,6 @@ using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 
-/// <summary>
-/// 重複とNoneを除いた候補から、1回目と2回目で重ならない選択肢を抽選する。
-/// 候補不足の枠はNoneのまま残す。
-/// </summary>
 public sealed class RoundSkillOptionBuilder
 {
     public void BuildSkillOptions(
