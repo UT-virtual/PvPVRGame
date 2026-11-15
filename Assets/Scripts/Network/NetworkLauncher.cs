@@ -227,7 +227,10 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
             skillSelectionInputController.ResetSkillSelectionInputState();
             return;
         }
-        if (!skillSelectionInputController.UpdateIfSkillSelecting()) inputCollector.QueueGameplayButtons();
+        if (skillSelectionInputController.UpdateIfSkillSelecting())
+            inputCollector.ResetVrShakeDetectors();
+        else
+            inputCollector.QueueGameplayButtons();
     }
 
     private void UpdateRoleSelection()
