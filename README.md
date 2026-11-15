@@ -171,7 +171,7 @@ HP・スキル・ラウンド進行についても、私が担当するゲーム
 
 1. **球体地形上での移動・姿勢制御** — 3D数学・物理判定・キャラクター制御  
 2. **Photon Fusionによるオンライン対戦の同期設計** — Authority・入力処理・状態同期  
-3. **ラウンド進行とスキルシステムの設計** — 状態遷移・責務分離・複数機能の連携
+3. **死亡後・観戦専用端末に対応した観戦システム** — 同期視点・観戦対象管理・カメラ／HUD切り替え
 
 ### 1. 球体地形上での移動・姿勢制御
 
@@ -337,7 +337,62 @@ HP・弾薬・スキル状態などの継続的な状態は同期プロパティ
 
 ネットワーク接続・入力収集・プレイヤー生成・ゲームプレイ処理を別クラスに分離し、それぞれの変更が他の処理へ広がりにくい構成にしています。
 
-### 3. ラウンド進行とスキルシステムの設計
+### 3. 死亡後・観戦専用端末に対応した観戦システム
+
+#### まず見るコード
+
+[SpectatorCameraController.cs](Assets/Scripts/Camera/SpectatorCameraController.cs)
+
+`SpectatorCameraController.UpdateSpectatorView()`
+
+`SpectatorCameraController.UpdateSpectatorCameraTarget()`
+
+`SpectatorCameraController.ApplySpectatorTarget()`
+
+[PlayerController.cs](Assets/Scripts/Player/PlayerController.cs)
+
+`PlayerController.UpdateNetworkedSpectatorView()`
+
+#### 課題
+
+本作では、試合で死亡したプレイヤーだけでなく、対戦に参加せず観戦する専用端末からも、他プレイヤーの視点で試合を見られるようにしています。
+
+観戦専用端末には操作対象のプレイヤーキャラクターが存在しない一方、死亡後のプレイヤーには自身のキャラクターが存在します。そのため、両者で観戦開始条件は異なりますが、観戦対象の選択やカメラの追従は共通の処理で扱う必要があります。
+
+また、オンライン対戦では、観戦側の端末だけで他プレイヤーのカメラを計算すると、本人が見ている方向と一致しない場合があります。観戦対象の死亡・退出時や、観戦を終了したときの表示状態も考慮する必要があります。
+
+#### 実装
+
+`SpectatorCameraController`で観戦専用端末と死亡後のプレイヤーの観戦処理を共通化しています。
+
+`UpdateSpectatorView`では、生存している対戦者を観戦候補として取得し、対象が死亡・退出した場合は有効な別の対象を選択します。観戦対象はプレイヤー番号を基準に並べ、入力による切り替え順が端末ごとに変わりにくいようにしています。
+
+観戦用の視点は、`PlayerController.UpdateNetworkedSpectatorView`でStateAuthority側からカメラ位置・前方・上方向を同期します。観戦側は`UpdateSpectatorCameraTarget`でその情報を参照し、他プレイヤーの視点に追従します。
+
+観戦対象の切り替え時は`ApplySpectatorTarget`でカメラの追従先とHUDの表示対象を更新します。観戦対象自身のモデルなどを観戦端末上で一時的に非表示にし、観戦終了時にはカメラと表示状態を復元します。
+
+これにより、通常の対戦者と観戦専用端末で役割が異なっていても、共通の仕組みでプレイヤー視点を観戦できるようにしています。
+
+#### 関連コード
+
+- [SpectatorCameraController.cs](Assets/Scripts/Camera/SpectatorCameraController.cs)  
+  - `UpdateSpectatorView`  
+  - `RefreshSpectatorTargets`  
+  - `IsValidSpectatorTarget`  
+  - `UpdateSpectatorCameraTarget`  
+  - `ApplySpectatorTarget`  
+  - `RestoreLocalCamera`  
+- [PlayerController.cs](Assets/Scripts/Player/PlayerController.cs)  
+  - `UpdateNetworkedSpectatorView`  
+- [NetworkLauncher.cs](Assets/Scripts/Network/NetworkLauncher.cs)  
+  - `UpdateVrSpectatorView`  
+  - `EndVrSpectating`
+
+---
+## その他の実装
+
+<details>
+<summary><strong>ラウンド進行とスキルシステムの設計</strong></summary>
 
 #### まず見るコード
 
@@ -437,8 +492,7 @@ WaitingForReady
 
 試合中に人数が不足した場合には、進行中の処理を停止し、残った参加者の得点・準備・スキル状態を初期化して待機状態へ戻す処理も設けています。
 
----
-## その他の実装
+</details>
 
 <summary><strong>対戦者と観戦者を分離した参加者管理</strong></summary>
 
@@ -459,29 +513,6 @@ WaitingForReady
 役割変更はサーバー側で検証し、対戦人数上限や待機フェーズであるかを確認したうえで、キャラクターの生成・破棄を行います。
 
 同じ役割要求が再送されても、生成・破棄を繰り返さないようにしています。
-
-</details>
-
-<summary><strong>死亡後・観戦専用端末で共通利用するカメラ</strong></summary>
-
-<details>
-
-### 主なコード
-
-- [SpectatorCameraController.cs](Assets/Scripts/Camera/SpectatorCameraController.cs)  
-- [PlayerController.cs](Assets/Scripts/Player/PlayerController.cs)  
-  - `UpdateNetworkedSpectatorView`  
-
-死亡したプレイヤーと観戦専用端末で、プレイヤー視点の観戦処理を共通利用しています。
-
-- 生存プレイヤーを観戦対象として列挙  
-- コントローラーやキーボードで対象を切り替え  
-- 同期されたカメラ位置・向きへ追従  
-- 観戦対象のモデルや頭上アイコンをローカル表示から一時的に除外  
-- 観戦対象に応じたHUDへ切り替え  
-- 復活・観戦終了時にカメラと表示状態を復元
-
-プレイヤーの観戦用視点は、StateAuthority側で同期する位置・方向を参照しています。
 
 </details>
 
