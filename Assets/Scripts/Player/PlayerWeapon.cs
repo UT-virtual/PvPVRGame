@@ -372,6 +372,7 @@ public class PlayerWeapon : NetworkBehaviour
             ReloadAmmo();
         }
 
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
         Debug.Log(
             $"Ammo: {NetworkedCurrentAmmo}/{maxAmmo}, " +
             $"FireInterval={currentFireInterval:0.00}, " +
@@ -380,6 +381,7 @@ public class PlayerWeapon : NetworkBehaviour
             $"ProjectileSpeed={GetCurrentProjectileSpeed():0.00}, " +
             $"ProjectileSpeedMultiplier={projectileSpeedMultiplier:0.00}"
         );
+#endif
     }
 
     /// <summary>
@@ -416,19 +418,20 @@ public class PlayerWeapon : NetworkBehaviour
         if (muzzleFlashPrefab != null)
         {
             Vector3 position = muzzleTransform != null ? muzzleTransform.position : origin;
-            GameObject flash = Instantiate(muzzleFlashPrefab, position, rotation);
-            flash.transform.localScale = muzzleFlashPrefab.transform.lossyScale;
-            ParticleSystem particles = flash.GetComponent<ParticleSystem>();
-            if (particles != null)
+            Vector3 scale = muzzleFlashPrefab.transform.lossyScale;
+            if (!LocalParticleEffectPool.TryPlay(muzzleFlashPrefab, position, rotation, scale, muzzle: true))
             {
-                ParticleSystem.MainModule main = particles.main;
-                main.loop = false;
-                main.stopAction = ParticleSystemStopAction.Destroy;
-                particles.Play(true);
-            }
-            else
-            {
-                Destroy(flash, 2f);
+                GameObject flash = Instantiate(muzzleFlashPrefab, position, rotation);
+                flash.transform.localScale = scale;
+                ParticleSystem particles = flash.GetComponent<ParticleSystem>();
+                if (particles != null)
+                {
+                    ParticleSystem.MainModule main = particles.main;
+                    main.loop = false;
+                    main.stopAction = ParticleSystemStopAction.Destroy;
+                    particles.Play(true);
+                }
+                else Destroy(flash, 2f);
             }
         }
 
@@ -558,7 +561,9 @@ public class PlayerWeapon : NetworkBehaviour
         if (hitEffectPrefab != null)
         {
             // 弾の最終TransformがClientへ届く前にDespawnされても、通知された命中地点で再生する。
-            Instantiate(hitEffectPrefab, position, Quaternion.identity);
+            if (!LocalParticleEffectPool.TryPlay(hitEffectPrefab, position, Quaternion.identity,
+                    hitEffectPrefab.transform.localScale, muzzle: false))
+                Instantiate(hitEffectPrefab, position, Quaternion.identity);
         }
     }
 

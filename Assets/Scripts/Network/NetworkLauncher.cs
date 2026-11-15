@@ -103,7 +103,8 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
     private LocalPlayModeController playModeController;
     private bool presentationReady;
     private bool vrSpectating;
-    private Vector3 spectatorHeadOffset;
+    private Vector3 spectatorEyePosition;
+    private Quaternion spectatorViewRotation;
     private Vector3 spectatorOriginPosition;
     private Quaternion spectatorOriginRotation;
 
@@ -183,11 +184,14 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
 
     private void OnEnable()
     {
+        Application.onBeforeRender += ApplyVrSpectatorPose;
         inputCollector?.EnableActions();
     }
 
     private void OnDisable()
     {
+        Application.onBeforeRender -= ApplyVrSpectatorPose;
+        EndVrSpectating();
         inputCollector?.DisableActions();
     }
 
@@ -386,19 +390,29 @@ public class NetworkLauncher : MonoBehaviour, INetworkRunnerCallbacks
         return ConfigureScenePresentation();
     }
 
-    public void UpdateVrSpectatorView(Vector3 eyePosition, Quaternion bodyRotation)
+    public void UpdateVrSpectatorView(Vector3 eyePosition, Quaternion viewRotation)
     {
         if (!IsVrSessionActive() || xrOriginRoot == null || xrHmd == null) return;
         if (!vrSpectating)
         {
-            // Anchor the current physical head position; tracked head motion remains free.
             spectatorOriginPosition = xrOriginRoot.localPosition;
             spectatorOriginRotation = xrOriginRoot.localRotation;
-            spectatorHeadOffset = xrOriginRoot.InverseTransformPoint(xrHmd.position);
             vrSpectating = true;
         }
-        xrOriginRoot.rotation = bodyRotation;
-        xrOriginRoot.position = eyePosition - xrOriginRoot.TransformVector(spectatorHeadOffset);
+        spectatorEyePosition = eyePosition;
+        spectatorViewRotation = viewRotation;
+        ApplyVrSpectatorPose();
+    }
+
+    // TPDはBeforeRenderでも更新する。追跡は維持し、最新の頭の姿勢を逆補償する。
+    [BeforeRenderOrder(9000)]
+    private void ApplyVrSpectatorPose()
+    {
+        if (!vrSpectating || xrOriginRoot == null || xrHmd == null) return;
+        Vector3 headOffset = xrOriginRoot.InverseTransformPoint(xrHmd.position);
+        Quaternion headRotation = Quaternion.Inverse(xrOriginRoot.rotation) * xrHmd.rotation;
+        xrOriginRoot.rotation = spectatorViewRotation * Quaternion.Inverse(headRotation);
+        xrOriginRoot.position = spectatorEyePosition - xrOriginRoot.TransformVector(headOffset);
     }
 
     public void EndVrSpectating()

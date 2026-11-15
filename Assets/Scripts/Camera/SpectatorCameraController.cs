@@ -9,6 +9,7 @@ using UnityEngine.InputSystem;
 /// 観戦対象のモデルを端末上で一時的に隠し、対象切替や観戦終了時に保存した表示状態へ戻す。
 /// 固定視点は待機中かつ対戦者不在の場合に限り、それ以外の対象不在時は直前の視点を保持する。
 /// </summary>
+[DefaultExecutionOrder(50)]
 public class SpectatorCameraController : MonoBehaviour
 {
     public static SpectatorCameraController Instance { get; private set; }
@@ -40,7 +41,7 @@ public class SpectatorCameraController : MonoBehaviour
     private PlayerHealth localPlayer;
     private PlayerHealth currentTarget;
     private Transform spectatorCameraTarget;
-    private Quaternion spectatorBodyRotation = Quaternion.identity;
+    private float nextTargetRefresh;
 
     private float deadTimer;
     private bool wasLocalDead;
@@ -191,8 +192,6 @@ public class SpectatorCameraController : MonoBehaviour
             Transform view = LocalPlayModeController.IsVirtualReality ? networkLauncher?.LocalVrHead : null;
             if (view == null && cinemachineCamera != null) view = cinemachineCamera.transform;
             if (view != null) spectatorCameraTarget.SetPositionAndRotation(view.position, view.rotation);
-            if (LocalPlayModeController.IsVirtualReality && networkLauncher?.LocalVrOrigin != null)
-                spectatorBodyRotation = networkLauncher.LocalVrOrigin.rotation;
         }
 
         currentTarget = null;
@@ -221,11 +220,7 @@ public class SpectatorCameraController : MonoBehaviour
         UpdateSpectatorCameraTarget();
         if (isSpectating && spectatorCameraTarget != null && LocalPlayModeController.IsVirtualReality)
         {
-            // Overview and held views use the same VR anchor as live targets.
-            // Keep the target body basis; its HMD pitch/roll must not tilt our tracking space.
-            if (currentTarget != null) spectatorBodyRotation = currentTarget.transform.rotation;
-            else if (IsWaitingOverview) spectatorBodyRotation = spectatorCameraTarget.rotation;
-            networkLauncher?.UpdateVrSpectatorView(spectatorCameraTarget.position, spectatorBodyRotation);
+            networkLauncher?.UpdateVrSpectatorView(spectatorCameraTarget.position, spectatorCameraTarget.rotation);
         }
     }
 
@@ -325,6 +320,10 @@ public class SpectatorCameraController : MonoBehaviour
 
     private void RefreshSpectatorTargets()
     {
+        // 対象の生死は毎フレーム確認するが、全Scene検索と並べ替えは最大4回/秒にする。
+        if (Time.unscaledTime < nextTargetRefresh &&
+            (currentTarget == null || IsValidSpectatorTarget(currentTarget))) return;
+        nextTargetRefresh = Time.unscaledTime + 0.25f;
         spectatorTargets.Clear();
         hasSpawnedCombatants = false;
 

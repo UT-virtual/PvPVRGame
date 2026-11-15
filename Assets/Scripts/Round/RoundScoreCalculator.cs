@@ -284,7 +284,7 @@ public sealed class RoundScoreCalculator
         else
         {
             string winnerNames = string.Join(", ", winners.Select(player => player.gameObject.name));
-            Debug.Log($"Match Draw: {winnerNames}, Point: {highestPoint}");
+            Debug.Log($"Match Winners: {winnerNames}, Point: {highestPoint}");
         }
     }
 

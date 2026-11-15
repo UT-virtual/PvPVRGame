@@ -621,6 +621,8 @@ public class PlayerHealth : NetworkBehaviour
             respawnRotation = spawnPoint.rotation;
         }
 
+        playerMove?.ResolveGroundedRespawnPose(ref respawnPosition, ref respawnRotation);
+
         NetworkedCurrentHealth = maxHealth;
         NetworkedIsDead = false;
 
