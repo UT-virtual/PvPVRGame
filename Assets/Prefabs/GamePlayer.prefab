@@ -2272,7 +2272,7 @@ MonoBehaviour:
   headTarget: {fileID: 6484427649560750410}
   leftHandTarget: {fileID: 2450436882394348749}
   rightHandTarget: {fileID: 7065976539238515889}
-  enableVrBodyIk: 0
+  enableVrBodyIk: 1
 --- !u!114 &8847291536482759401
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2833,10 +2833,10 @@ MonoBehaviour:
     plantFeet: 1
     spine:
       bones: []
-      headTarget: {fileID: 0}
+      headTarget: {fileID: 6484427649560750410}
       pelvisTarget: {fileID: 0}
       positionWeight: 0
-      rotationWeight: 0
+      rotationWeight: 0.5
       pelvisPositionWeight: 0
       pelvisRotationWeight: 0
       chestGoal: {fileID: 0}
@@ -2856,7 +2856,7 @@ MonoBehaviour:
       target: {fileID: 2450436882394348749}
       bendGoal: {fileID: 0}
       positionWeight: 1
-      rotationWeight: 1
+      rotationWeight: 0
       shoulderRotationMode: 0
       shoulderRotationWeight: 1
       bendGoalWeight: 0
@@ -2875,7 +2875,7 @@ MonoBehaviour:
       target: {fileID: 7065976539238515889}
       bendGoal: {fileID: 0}
       positionWeight: 1
-      rotationWeight: 1
+      rotationWeight: 0
       shoulderRotationMode: 0
       shoulderRotationWeight: 1
       bendGoalWeight: 0
@@ -2906,7 +2906,7 @@ MonoBehaviour:
       bendGoalWeight: 0
       swivelOffset: 0
     locomotion:
-      weight: 1
+      weight: 0
       footDistance: 0.3
       stepThreshold: 0.4
       angleThreshold: 60
