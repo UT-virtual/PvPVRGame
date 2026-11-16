@@ -52,6 +52,7 @@ public class PlayerHealth : NetworkBehaviour
     private PlayerMove playerMove;
     private PlayerWeapon playerWeapon;
     private PlayerCamera playerCamera;
+    public PlayerShotHitbox ShotHitbox { get; private set; }
 
     private Renderer[] renderers;
     private Collider[] colliders;
@@ -90,6 +91,7 @@ public class PlayerHealth : NetworkBehaviour
         playerMove = GetComponent<PlayerMove>();
         playerWeapon = GetComponent<PlayerWeapon>();
         playerCamera = GetComponent<PlayerCamera>();
+        ShotHitbox = GetComponentInChildren<PlayerShotHitbox>(true);
 
         if (visualRoot != null)
         {
@@ -621,6 +623,8 @@ public class PlayerHealth : NetworkBehaviour
             respawnRotation = spawnPoint.rotation;
         }
 
+        playerMove?.ResolveGroundedRespawnPose(ref respawnPosition, ref respawnRotation);
+
         NetworkedCurrentHealth = maxHealth;
         NetworkedIsDead = false;
 
@@ -787,6 +791,7 @@ public class PlayerHealth : NetworkBehaviour
 
     private void ApplyAliveState(bool alive)
     {
+        ShotHitbox?.SetAlive(alive);
         bool shouldShowBodyModel =
             alive && !Object.HasInputAuthority;
 
@@ -832,6 +837,7 @@ public class PlayerHealth : NetworkBehaviour
     public void SetBodySizeMultiplier(float multiplier)
     {
         multiplier = Mathf.Clamp(multiplier, 0.2f, 2.0f);
+        ShotHitbox?.SetSizeMultiplier(multiplier);
 
         if (visualRoot != null && hasOriginalVisualRootScale)
         {

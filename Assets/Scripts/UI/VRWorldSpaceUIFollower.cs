@@ -21,6 +21,25 @@ public class VRWorldSpaceUIFollower : MonoBehaviour
     private Vector3 smoothedForward;
     private bool initialized;
     private bool depthConfigured;
+    private Transform resolvedCamera;
+    private float nextCameraSearch;
+
+    private void OnEnable()
+    {
+        Application.onBeforeRender += BeforeRender;
+        Canvas.willRenderCanvases += BeforeCanvasRender;
+        initialized = false;
+    }
+
+    private void OnDisable()
+    {
+        Application.onBeforeRender -= BeforeRender;
+        Canvas.willRenderCanvases -= BeforeCanvasRender;
+    }
+
+    [BeforeRenderOrder(10000)]
+    private void BeforeRender() => UpdatePlacement(false);
+    private void BeforeCanvasRender() => UpdatePlacement(false);
 
     private void Awake()
     {
@@ -45,10 +64,17 @@ public class VRWorldSpaceUIFollower : MonoBehaviour
     public void SetTargetCamera(Transform cameraTransform)
     {
         targetCamera = cameraTransform;
+        resolvedCamera = null;
+        nextCameraSearch = 0f;
         initialized = false;
     }
 
     private void LateUpdate()
+    {
+        UpdatePlacement(true);
+    }
+
+    private void UpdatePlacement(bool advanceSmoothing)
     {
         ConfigureVrDepthIfReady();
         Transform cameraTransform = ResolveActiveCameraTransform();
@@ -79,7 +105,7 @@ public class VRWorldSpaceUIFollower : MonoBehaviour
 
         float t = 1.0f - Mathf.Exp(-directionFollowSpeed * Time.deltaTime);
 
-        smoothedForward = Vector3.Slerp(
+        if (advanceSmoothing) smoothedForward = Vector3.Slerp(
             smoothedForward,
             targetForward,
             t
@@ -112,13 +138,17 @@ public class VRWorldSpaceUIFollower : MonoBehaviour
             return targetCamera;
         }
 
+        if (IsUsableCameraTransform(resolvedCamera)) return resolvedCamera;
+        if (Time.unscaledTime < nextCameraSearch) return null;
+        nextCameraSearch = Time.unscaledTime + 0.25f;
+
         XROrigin xrOrigin = LocalPlayModeController.IsVirtualReality ? FindFirstObjectByType<XROrigin>() : null;
         if (xrOrigin != null &&
             xrOrigin.Camera != null &&
             xrOrigin.Camera.enabled &&
             xrOrigin.Camera.gameObject.activeInHierarchy)
         {
-            return xrOrigin.Camera.transform;
+            return resolvedCamera = xrOrigin.Camera.transform;
         }
 
         Camera mainCamera = Camera.main;
@@ -126,7 +156,7 @@ public class VRWorldSpaceUIFollower : MonoBehaviour
             mainCamera.enabled &&
             mainCamera.gameObject.activeInHierarchy)
         {
-            return mainCamera.transform;
+            return resolvedCamera = mainCamera.transform;
         }
 
         Camera[] cameras = Camera.allCameras;
@@ -137,7 +167,7 @@ public class VRWorldSpaceUIFollower : MonoBehaviour
                 camera.enabled &&
                 camera.gameObject.activeInHierarchy)
             {
-                return camera.transform;
+                return resolvedCamera = camera.transform;
             }
         }
 

@@ -74,7 +74,10 @@ public class BattleHudBinder : MonoBehaviour
             // 再生成されたローカルプレイヤーにも追従するが、観戦中にHUDを自分へ戻さない。
             if (!spectatorOverride)
             {
-                PlayerHealth localPlayer = FindLocalPlayerHealth();
+                // 接続済みなら参照を使い続け、毎フレームのScene全探索と配列生成を避ける。
+                bool boundLocal = currentHealth != null && currentHealth.Object != null &&
+                    currentHealth.Object.IsValid && currentHealth.Object.HasInputAuthority;
+                PlayerHealth localPlayer = boundLocal ? currentHealth : FindLocalPlayerHealth();
 
                 if (localPlayer != null && currentHealth != localPlayer)
                 {
@@ -82,7 +85,7 @@ public class BattleHudBinder : MonoBehaviour
                 }
             }
 
-            yield return null;
+            yield return new WaitForSecondsRealtime(0.25f);
         }
     }
 
