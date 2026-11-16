@@ -2,6 +2,10 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
+/// <summary>
+/// スキル種別をカードの名称・説明・記号へ変換し、カーソル選択状態を表示する。
+/// 選択の送信や受理判定は行わない。
+/// </summary>
 public class SkillCardUI : MonoBehaviour
 {
     [SerializeField] private TMP_Text slotText;
@@ -89,6 +93,13 @@ public class SkillCardUI : MonoBehaviour
                     "射撃間隔が短くなる"
                 );
 
+            case PlayerSkillType.BulletSpeedUp:
+                return new SkillDisplayData(
+                    "速",
+                    "弾速強化",
+                    "弾の速度が上がる"
+                );
+
             case PlayerSkillType.DamageReduction:
                 return new SkillDisplayData(
                     "盾",
@@ -135,9 +146,15 @@ public class SkillCardUI : MonoBehaviour
                 return new SkillDisplayData(
                     "弾",
                     "即時装填",
-                    "10秒間、リロードが即座に完了する"
+                    "一定時間、リロードが即座に完了する"
                 );
             
+            case PlayerSkillType.GravityBurstReload:
+                return new SkillDisplayData(
+                    "炸",
+                    "拡散曲射弾",
+                    "重力で落ち、着弾時に周囲へダメージを与える特殊弾を装填"
+                );
 
             case PlayerSkillType.HeavyBulletReload:
                 return new SkillDisplayData(

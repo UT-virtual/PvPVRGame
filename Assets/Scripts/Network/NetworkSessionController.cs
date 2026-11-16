@@ -24,7 +24,7 @@ public sealed class NetworkSessionController : IDisposable
     private readonly float clientRetryInterval;
     private readonly int maxClientRetryCount;
 
-    private NetworkConnectionUIController connectionUIController;
+    private readonly NetworkConnectionUIController connectionUIController;
     private readonly Func<WaitingRoomUI> getWaitingRoomUI;
 
     private GameObject runnerObject;
@@ -32,9 +32,6 @@ public sealed class NetworkSessionController : IDisposable
     private NetworkSceneManagerDefault sceneManager;
 
     private readonly CancellationTokenSource lifetime = new();
-    private static NetworkSessionController activeSession;
-    private bool sceneNeedsReload;
-    private int gameSceneBuildIndex = -1;
     private bool disposed;
     private bool isHandlingDisconnect;
     public event Action ConnectionReset;
@@ -83,8 +80,6 @@ public sealed class NetworkSessionController : IDisposable
             return;
         }
 
-        if (activeSession != null && activeSession != this) return;
-        activeSession = this;
         isStartingGame = true;
         connectionUIController.LockButtons();
 
@@ -96,14 +91,13 @@ public sealed class NetworkSessionController : IDisposable
                 return;
             }
 
-            int buildIndex = gameSceneBuildIndex >= 0 ? gameSceneBuildIndex : SceneManager.GetActiveScene().buildIndex;
+            int buildIndex = SceneManager.GetActiveScene().buildIndex;
             if (buildIndex < 0)
             {
                 ShowConnectionFailure("Current scene is not in Build Settings.");
                 return;
             }
 
-            gameSceneBuildIndex = buildIndex;
             ResetWaitingRoomUIForConnectionStart();
             ConnectionReset?.Invoke();
             connectionUIController.SetConnectionMenuVisible(false);
@@ -119,15 +113,13 @@ public sealed class NetworkSessionController : IDisposable
             Debug.LogException(exception);
             if (!disposed && owner != null)
             {
-                await ShutdownRunnerAsync();
-                if (disposed || owner == null) return;
+                CleanupRunner();
                 ShowConnectionFailure("接続に失敗しました。もう一度接続してください。");
             }
         }
         finally
         {
             isStartingGame = false;
-            if (runner == null && activeSession == this) activeSession = null;
         }
     }
 
@@ -138,11 +130,6 @@ public sealed class NetworkSessionController : IDisposable
         {
             lifetime.Token.ThrowIfCancellationRequested();
             attemptCount++;
-            await RestoreSceneIfNeededAsync();
-            if (disposed || owner == null) return;
-            connectionUIController.LockButtons();
-            connectionUIController.SetConnectionMenuVisible(false);
-            connectionUIController.SetStatusTextVisible(true);
             connectionUIController.SetStatusText($"{GetGameModeLabel(gameMode)}中…");
             CreateRunnerObject(gameMode, attemptCount);
 
@@ -171,8 +158,7 @@ public sealed class NetworkSessionController : IDisposable
                 return;
             }
 
-            await ShutdownRunnerAsync();
-            if (disposed || owner == null) return;
+            CleanupRunner();
             bool shouldRetry = gameMode == GameMode.Client && retryClientUntilFound &&
                 result.ShutdownReason == ShutdownReason.GameNotFound &&
                 (maxClientRetryCount <= 0 || attemptCount < maxClientRetryCount);
@@ -215,9 +201,7 @@ public sealed class NetworkSessionController : IDisposable
     /// <summary>
     /// 待機中のRunnerを停止してからClientとして接続し直す。停止中の通知では復旧処理を重ねない。
     /// </summary>
-    public Task ReconnectAsClientAsync() => RestartSessionAsync(GameMode.Client);
-
-    private async Task RestartSessionAsync(GameMode gameMode)
+    public async Task ReconnectAsClientAsync()
     {
         if (!CanReconnectFromWaitingRoom())
         {
@@ -233,7 +217,10 @@ public sealed class NetworkSessionController : IDisposable
 
         try
         {
-            await ShutdownRunnerAsync();
+            if (runner != null)
+            {
+                await runner.Shutdown();
+            }
         }
         catch (Exception exception)
         {
@@ -241,12 +228,13 @@ public sealed class NetworkSessionController : IDisposable
         }
         finally
         {
+            CleanupRunner();
             isReconnecting = false;
         }
 
         if (!disposed && owner != null)
         {
-            await StartGameAsync(gameMode);
+            await StartGameAsync(GameMode.Client);
         }
     }
 
@@ -269,7 +257,10 @@ public sealed class NetworkSessionController : IDisposable
         {
             // 通知のコールスタックを抜けてからShutdownを待ち、通知内での再入を避ける。
             await Task.Yield();
-            if (!disposed) await ShutdownRunnerAsync();
+            if (!disposed && source != null && !source.IsShutdown)
+            {
+                await source.Shutdown();
+            }
         }
         catch (Exception exception)
         {
@@ -279,10 +270,10 @@ public sealed class NetworkSessionController : IDisposable
         {
             if (!disposed)
             {
-                if (activeSession == this) activeSession = null;
+                CleanupRunner();
                 if (owner != null)
                 {
-                    ShowConnectionFailure($"接続が終了しました: {reason}\n再接続: R / ゲームパッド Start / VR 両手グリップ");
+                    ShowConnectionFailure($"接続が終了しました: {reason}（Rキーで再接続）");
                 }
             }
 
@@ -299,8 +290,7 @@ public sealed class NetworkSessionController : IDisposable
 
         disposed = true;
         lifetime.Cancel();
-        if (activeSession == this) activeSession = null;
-        _ = ShutdownRunnerAsync();
+        CleanupRunner();
         lifetime.Dispose();
     }
 
@@ -338,55 +328,6 @@ public sealed class NetworkSessionController : IDisposable
         runnerObject = null;
 
         if (hadRunner)
-        {
-            ResetWaitingRoomUIForConnectionStart();
-            ConnectionReset?.Invoke();
-        }
-    }
-
-    private async Task RestoreSceneIfNeededAsync()
-    {
-        if (!sceneNeedsReload) return;
-        if (owner is NetworkLauncher launcher) launcher.PrepareForSceneReload();
-        AsyncOperation load = SceneManager.LoadSceneAsync(gameSceneBuildIndex, LoadSceneMode.Single);
-        if (load == null) throw new InvalidOperationException("Game scene could not be reloaded.");
-        while (!load.isDone)
-        {
-            await Task.Yield();
-            if (disposed || owner == null) return;
-        }
-        // Old scene objects (including action managers) finish destruction this frame.
-        await Task.Yield();
-        if (disposed || owner == null) return;
-        if (owner is NetworkLauncher restoredLauncher && !restoredLauncher.RestoreScenePresentation())
-            throw new InvalidOperationException("Reloaded scene is missing its cameras or XR rig.");
-        sceneNeedsReload = false;
-    }
-
-    public void SetConnectionUI(NetworkConnectionUIController controller) => connectionUIController = controller;
-
-    private async Task ShutdownRunnerAsync()
-    {
-        NetworkRunner oldRunner = runner;
-        GameObject oldObject = runnerObject;
-        runner = null;
-        runnerObject = null;
-        sceneManager = null;
-        if (oldRunner != null)
-        {
-            sceneNeedsReload = true;
-            oldRunner.RemoveCallbacks(callbacks);
-            try
-            {
-                if (!oldRunner.IsShutdown) await oldRunner.Shutdown();
-            }
-            catch (Exception exception)
-            {
-                Debug.LogWarning($"[NetworkSessionController] Shutdown failed: {exception.Message}");
-            }
-        }
-        if (oldObject != null) UnityEngine.Object.Destroy(oldObject);
-        if (!disposed)
         {
             ResetWaitingRoomUIForConnectionStart();
             ConnectionReset?.Invoke();

@@ -2,6 +2,9 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
+/// <summary>
+/// FinalResultUIが生成する勝者行へ、チーム色と勝利文言を設定する。
+/// </summary>
 public class FinalResultWinnerEntryUI : MonoBehaviour
 {
     [SerializeField] private Image winnerColorIcon;

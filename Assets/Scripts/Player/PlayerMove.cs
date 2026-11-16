@@ -11,9 +11,6 @@ public class PlayerMove : MonoBehaviour
     [Header("Move")]
     [SerializeField] private float moveSpeed = 5.0f;
     private float moveSpeedMultiplier = 1.0f;
-    // スキルが設定する倍率とラウンド全体の補正を分離し、更新順による上書きを防ぐ。
-    private float EffectiveMoveSpeed => moveSpeed * moveSpeedMultiplier *
-        (RoundManager.Instance != null ? RoundManager.Instance.CurrentMoveSpeedMultiplier : 1f);
 
     [Header("Gravity / Jump")]
     [SerializeField] private float gravity = 25.0f;
@@ -216,7 +213,7 @@ public class PlayerMove : MonoBehaviour
             moveDir.Normalize();
         }
 
-        controller.Move(moveDir * EffectiveMoveSpeed * deltaTime);
+        controller.Move(moveDir * moveSpeed * moveSpeedMultiplier * deltaTime);
     }
 
     /// <summary>
@@ -259,7 +256,7 @@ public class PlayerMove : MonoBehaviour
             moveDir.Normalize();
         }
 
-        controller.Move(moveDir * EffectiveMoveSpeed * deltaTime);
+        controller.Move(moveDir * moveSpeed * moveSpeedMultiplier * deltaTime);
     }
 
     public void AlignToSurface(float deltaTime)
