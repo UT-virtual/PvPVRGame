@@ -1,8 +1,10 @@
-using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
+/// <summary>
+/// 接続先のPlayerSkillControllerから選択中のスキルと残りクールダウンを読み、使用可否を表示する。
+/// </summary>
 public class SkillHudUI : MonoBehaviour
 {
     [System.Serializable]
@@ -21,40 +23,12 @@ public class SkillHudUI : MonoBehaviour
     [SerializeField] private TMP_Text skillNameText;
     [SerializeField] private TMP_Text cooldownText;
 
-    [Header("Two Slot Display")]
-    [SerializeField] private GameObject secondSlotRoot;
-    [SerializeField] private Image secondIconImage;
-    [SerializeField] private Image secondDimOverlay;
-    [SerializeField] private TMP_Text secondSkillNameText;
-    [SerializeField] private TMP_Text secondCooldownText;
-    [SerializeField] private Vector2 generatedSecondSlotOffset = new Vector2(180.0f, 0.0f);
-
     [Header("Skill Icons")]
     [SerializeField] private SkillIconEntry[] skillIcons;
 
     private PlayerSkillController skillController;
-    private SkillSlotView firstSlotView;
-    private SkillSlotView secondSlotView;
-    private bool triedCreateSecondSlot;
-
-    private sealed class SkillSlotView
-    {
-        public GameObject Root;
-        public Image IconImage;
-        public Image DimOverlay;
-        public TMP_Text SkillNameText;
-        public TMP_Text CooldownText;
-    }
 
     public void SetupSkillController(PlayerSkillController targetSkillController)
-    {
-        SetupSkillController(targetSkillController, null);
-    }
-
-    public void SetupSkillController(
-        PlayerSkillController targetSkillController,
-        PlayerController targetPlayerController
-    )
     {
         skillController = targetSkillController;
         UpdateView();
@@ -62,24 +36,6 @@ public class SkillHudUI : MonoBehaviour
 
     private void Awake()
     {
-        firstSlotView = new SkillSlotView
-        {
-            Root = root != null ? root : gameObject,
-            IconImage = iconImage,
-            DimOverlay = dimOverlay,
-            SkillNameText = skillNameText,
-            CooldownText = cooldownText
-        };
-
-        secondSlotView = new SkillSlotView
-        {
-            Root = secondSlotRoot,
-            IconImage = secondIconImage,
-            DimOverlay = secondDimOverlay,
-            SkillNameText = secondSkillNameText,
-            CooldownText = secondCooldownText
-        };
-
         UpdateView();
     }
 
@@ -91,210 +47,82 @@ public class SkillHudUI : MonoBehaviour
     private void UpdateView()
     {
         bool hasController = skillController != null;
-        if (hasController)
-        {
-            UpdateTwoSlotView();
-            return;
-        }
+        PlayerSkillType currentSkill = hasController
+            ? skillController.CurrentSelectedRoundSkill
+            : PlayerSkillType.None;
 
-        HideSecondSlot();
-        SetSlotVisible(firstSlotView, false);
-    }
+        bool hasSkill = currentSkill != PlayerSkillType.None;
 
-    private void UpdateTwoSlotView()
-    {
-        EnsureSecondSlotView();
+        SetRootVisible(hasController && hasSkill);
 
-        PlayerSkillType firstSkill = skillController.GetRoundSkillForSlot(0);
-        PlayerSkillType secondSkill = skillController.GetRoundSkillForSlot(1);
-
-        UpdateSlotView(
-            firstSlotView,
-            firstSkill,
-            skillController.CanUseSkillSlot(0),
-            skillController.GetSkillCooldownRemainingForSlot(0)
-        );
-
-        UpdateSlotView(
-            secondSlotView,
-            secondSkill,
-            skillController.CanUseSkillSlot(1),
-            skillController.GetSkillCooldownRemainingForSlot(1)
-        );
-    }
-
-    private void UpdateSlotView(
-        SkillSlotView slotView,
-        PlayerSkillType skill,
-        bool canUse,
-        float cooldownRemaining
-    )
-    {
-        if (slotView == null)
+        if (!hasController || !hasSkill)
         {
             return;
         }
 
-        bool hasSkill = skill != PlayerSkillType.None;
-        SetSlotVisible(slotView, hasSkill);
+        Sprite icon = GetIcon(currentSkill);
 
-        if (!hasSkill)
+        if (iconImage != null)
         {
-            return;
-        }
+            iconImage.sprite = icon;
+            iconImage.enabled = icon != null;
 
-        Sprite icon = GetIcon(skill);
-
-        if (slotView.IconImage != null)
-        {
-            slotView.IconImage.sprite = icon;
-            slotView.IconImage.enabled = icon != null;
-
-            if (slotView.DimOverlay == null)
+            if (dimOverlay == null)
             {
-                slotView.IconImage.color = canUse
+                iconImage.color = skillController.CanUseCurrentSelectedSkill
                     ? Color.white
                     : new Color(0.35f, 0.35f, 0.35f, 1.0f);
             }
             else
             {
-                slotView.IconImage.color = Color.white;
+                iconImage.color = Color.white;
             }
         }
 
-        if (slotView.SkillNameText != null)
+        if (skillNameText != null)
         {
-            slotView.SkillNameText.text = GetSkillName(skill);
+            skillNameText.text = GetSkillName(currentSkill);
         }
 
+        float cooldownRemaining = skillController.CurrentSkillCooldownRemaining;
         bool isCoolingDown = cooldownRemaining > 0.05f;
+        bool canUse = skillController.CanUseCurrentSelectedSkill;
 
-        if (slotView.DimOverlay != null)
+        if (dimOverlay != null)
         {
-            slotView.DimOverlay.gameObject.SetActive(!canUse);
+            dimOverlay.gameObject.SetActive(!canUse);
         }
 
-        if (slotView.CooldownText != null)
+        if (cooldownText != null)
         {
-            slotView.CooldownText.gameObject.SetActive(isCoolingDown);
-            slotView.CooldownText.text = Mathf.CeilToInt(cooldownRemaining).ToString();
+            cooldownText.gameObject.SetActive(isCoolingDown);
+            cooldownText.text = Mathf.CeilToInt(cooldownRemaining).ToString();
         }
     }
 
-    private void SetSlotVisible(SkillSlotView slotView, bool visible)
+    private void SetRootVisible(bool visible)
     {
-        if (slotView == null || slotView.Root == null)
+        GameObject targetRoot = root != null ? root : gameObject;
+
+        // 監視元まで無効にするとUpdateで復帰できないため、同一階層では表示だけを隠す。
+        if (transform.IsChildOf(targetRoot.transform))
         {
+            CanvasGroup group = targetRoot.GetComponent<CanvasGroup>();
+            if (group == null)
+            {
+                group = targetRoot.AddComponent<CanvasGroup>();
+            }
+
+            group.alpha = visible ? 1.0f : 0.0f;
+            group.interactable = visible;
+            group.blocksRaycasts = visible;
             return;
         }
 
-        if (slotView.Root.activeSelf != visible)
+        if (targetRoot.activeSelf != visible)
         {
-            slotView.Root.SetActive(visible);
+            targetRoot.SetActive(visible);
         }
-    }
-
-    private void HideSecondSlot()
-    {
-        SetSlotVisible(secondSlotView, false);
-    }
-
-    private void EnsureSecondSlotView()
-    {
-        if (secondSlotView != null && secondSlotView.Root != null)
-        {
-            return;
-        }
-
-        if (triedCreateSecondSlot)
-        {
-            return;
-        }
-
-        triedCreateSecondSlot = true;
-
-        if (firstSlotView == null ||
-            firstSlotView.Root == null ||
-            firstSlotView.Root == gameObject ||
-            firstSlotView.Root.transform.parent == null)
-        {
-            return;
-        }
-
-        GameObject generatedRoot = Instantiate(
-            firstSlotView.Root,
-            firstSlotView.Root.transform.parent
-        );
-
-        generatedRoot.name = $"{firstSlotView.Root.name}_Slot2";
-
-        RectTransform generatedRect = generatedRoot.GetComponent<RectTransform>();
-        RectTransform firstRect = firstSlotView.Root.GetComponent<RectTransform>();
-        if (generatedRect != null && firstRect != null)
-        {
-            // 元の1枠位置を中心に、番号順で左・右へ並べる。
-            Vector2 spacing = new Vector2(Mathf.Max(180f, Mathf.Abs(generatedSecondSlotOffset.x)), 0f);
-            Vector2 center = firstRect.anchoredPosition;
-            firstRect.anchoredPosition = center - spacing * 0.5f;
-            generatedRect.anchoredPosition = center + spacing * 0.5f;
-        }
-
-        Transform sourceRoot = firstSlotView.Root.transform;
-        Transform clonedRoot = generatedRoot.transform;
-
-        secondSlotView = new SkillSlotView
-        {
-            Root = generatedRoot,
-            IconImage = FindClonedComponent(firstSlotView.IconImage, sourceRoot, clonedRoot),
-            DimOverlay = FindClonedComponent(firstSlotView.DimOverlay, sourceRoot, clonedRoot),
-            SkillNameText = FindClonedComponent(firstSlotView.SkillNameText, sourceRoot, clonedRoot),
-            CooldownText = FindClonedComponent(firstSlotView.CooldownText, sourceRoot, clonedRoot)
-        };
-    }
-
-    private T FindClonedComponent<T>(T sourceComponent, Transform sourceRoot, Transform clonedRoot)
-        where T : Component
-    {
-        if (sourceComponent == null || sourceRoot == null || clonedRoot == null)
-        {
-            return null;
-        }
-
-        string path = GetRelativePath(sourceRoot, sourceComponent.transform);
-        Transform clonedTransform = string.IsNullOrEmpty(path)
-            ? clonedRoot
-            : clonedRoot.Find(path);
-
-        return clonedTransform != null
-            ? clonedTransform.GetComponent<T>()
-            : null;
-    }
-
-    private string GetRelativePath(Transform rootTransform, Transform targetTransform)
-    {
-        if (rootTransform == null ||
-            targetTransform == null ||
-            targetTransform == rootTransform)
-        {
-            return string.Empty;
-        }
-
-        List<string> names = new List<string>();
-        Transform current = targetTransform;
-
-        while (current != null && current != rootTransform)
-        {
-            names.Add(current.name);
-            current = current.parent;
-        }
-
-        if (current != rootTransform)
-        {
-            return string.Empty;
-        }
-
-        names.Reverse();
-        return string.Join("/", names);
     }
 
     private Sprite GetIcon(PlayerSkillType skill)
@@ -325,6 +153,9 @@ public class SkillHudUI : MonoBehaviour
             case PlayerSkillType.RapidFire:
                 return "速射強化";
 
+            case PlayerSkillType.BulletSpeedUp:
+                return "弾速強化";
+
             case PlayerSkillType.DamageReduction:
                 return "防御強化";
 
@@ -345,6 +176,9 @@ public class SkillHudUI : MonoBehaviour
 
             case PlayerSkillType.InstantReload:
                 return "即時装填";
+
+            case PlayerSkillType.GravityBurstReload:
+                return "拡散曲射弾";
 
             case PlayerSkillType.HeavyBulletReload:
                 return "重弾装填";

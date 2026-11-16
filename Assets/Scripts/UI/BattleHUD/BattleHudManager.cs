@@ -1,12 +1,17 @@
 using UnityEngine;
 using Fusion;
 
+/// <summary>
+/// ローカルプレイヤーの戦闘フェーズでHUDを表示する。
+/// 親にNetworkObjectがないシーン配置のHUDも表示対象として扱う。
+/// </summary>
 public class BattleHudManager : MonoBehaviour
 {
     [SerializeField] private GameObject battleHudRoot;
-    [SerializeField] private bool showInWaitingRoom = true; // 追加
 
     private NetworkObject networkObject;
+    private NetworkLauncher networkLauncher;
+    private SpectatorCameraController spectatorController;
 
     private void Awake()
     {
@@ -21,16 +26,16 @@ public class BattleHudManager : MonoBehaviour
     private void Update()
     {
         bool isLocalPlayer =
-        networkObject == null || networkObject.HasInputAuthority;
-        
-        bool isTargetPhase =
-        RoundManager.Instance != null &&
-        (
-            RoundManager.Instance.IsRoundPlaying ||
-            (showInWaitingRoom && RoundManager.Instance.IsWaitingForReady)
-        );
+            networkObject == null || networkObject.HasInputAuthority;
 
-        bool shouldShow = isLocalPlayer && isTargetPhase;
+        if (networkLauncher == null) networkLauncher = FindFirstObjectByType<NetworkLauncher>();
+        if (spectatorController == null) spectatorController = FindFirstObjectByType<SpectatorCameraController>();
+        bool hasViewTarget = (networkLauncher != null && networkLauncher.IsLocalCombatant) ||
+            (spectatorController != null && spectatorController.CurrentSpectatorTarget != null);
+        bool shouldShow =
+            hasViewTarget && isLocalPlayer &&
+            RoundManager.Instance != null &&
+            RoundManager.Instance.IsRoundPlaying;
 
         SetVisible(shouldShow);
     }

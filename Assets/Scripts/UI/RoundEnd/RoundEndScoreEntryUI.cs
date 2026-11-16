@@ -2,6 +2,9 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
+/// <summary>
+/// RoundEndUIが生成する一覧行へ、チーム色と勝利数を設定する。
+/// </summary>
 public class RoundEndScoreEntryUI : MonoBehaviour
 {
     [SerializeField] private Image colorIcon;

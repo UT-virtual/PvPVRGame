@@ -1,13 +1,6 @@
 using System;
 using UnityEngine;
 
-// BGM・全体SE・個人SEを同じ倍率で下げ、個別のミキシング比率は維持する。
-internal static class GameAudioVolume
-{
-    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
-    private static void Initialize() => AudioListener.volume = 0.5f;
-}
-
 [Serializable]
 public class SoundCue
 {

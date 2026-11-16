@@ -1,16 +1,16 @@
 using UnityEngine;
-using Unity.XR.CoreUtils;
 
+/// <summary>
+/// カメラ前方にワールド空間UIを追従させ、視線方向の変化を平滑化する。
+/// 遅い実行順のLateUpdateでカメラ姿勢を読み、ピッチ追従と表裏の向きを設定で切り替える。
+/// </summary>
 [DefaultExecutionOrder(10000)]
 public class VRWorldSpaceUIFollower : MonoBehaviour
 {
-    // RoundBattleStatusの生成Canvasと、Scene内の既存Canvasで同じ奥行きを使う。
-    public const float SharedDistance = 2.0f;
-    public const float SharedVrCanvasScale = 0.0015f;
     [SerializeField] private Transform targetCamera;
 
     [Header("Placement")]
-    [SerializeField] private float distance = SharedDistance;
+    [SerializeField] private float distance = 2.0f;
     [SerializeField] private float verticalOffset = -0.2f;
 
     [Header("Follow")]
@@ -20,44 +20,22 @@ public class VRWorldSpaceUIFollower : MonoBehaviour
 
     private Vector3 smoothedForward;
     private bool initialized;
-    private bool depthConfigured;
-
-    private void Awake()
-    {
-        // 頭上HPなどのワールドUIではなく、この画面用Canvasだけを対象にする。
-        if (GetComponent<ScreenUIForeground>() == null) gameObject.AddComponent<ScreenUIForeground>();
-    }
-
-    private void ConfigureVrDepthIfReady()
-    {
-        // Awake順やXR起動の待ち時間に依存せず、選択モード確定後に一度だけ適用する。
-        if (depthConfigured || !LocalPlayModeController.IsReady) return;
-        depthConfigured = true;
-        if (!LocalPlayModeController.IsVirtualReality) return;
-
-        // 距離比で拡大せず、ラウンドUIと同じVR用スケールに統一する。
-        transform.localScale = Vector3.one * SharedVrCanvasScale;
-        // Canvas中心の上下位置は従来の距離補正を維持する。
-        verticalOffset *= SharedDistance / Mathf.Max(0.01f, distance);
-        distance = SharedDistance;
-    }
-
-    public void SetTargetCamera(Transform cameraTransform)
-    {
-        targetCamera = cameraTransform;
-        initialized = false;
-    }
 
     private void LateUpdate()
     {
-        ConfigureVrDepthIfReady();
-        Transform cameraTransform = ResolveActiveCameraTransform();
-        if (cameraTransform == null)
+        if (targetCamera == null)
         {
-            return;
+            Camera mainCamera = Camera.main;
+
+            if (mainCamera == null)
+            {
+                return;
+            }
+
+            targetCamera = mainCamera.transform;
         }
 
-        Vector3 targetForward = cameraTransform.forward;
+        Vector3 targetForward = targetCamera.forward;
 
         if (!followPitch)
         {
@@ -88,14 +66,14 @@ public class VRWorldSpaceUIFollower : MonoBehaviour
         smoothedForward.Normalize();
 
         Vector3 targetPosition =
-            cameraTransform.position +
+            targetCamera.position +
             smoothedForward * distance +
-            cameraTransform.up * verticalOffset;
+            targetCamera.up * verticalOffset;
 
         transform.position = targetPosition;
 
         Quaternion targetRotation =
-            Quaternion.LookRotation(smoothedForward, cameraTransform.up);
+            Quaternion.LookRotation(smoothedForward, targetCamera.up);
 
         if (rotate180Y)
         {
@@ -103,60 +81,5 @@ public class VRWorldSpaceUIFollower : MonoBehaviour
         }
 
         transform.rotation = targetRotation;
-    }
-
-    private Transform ResolveActiveCameraTransform()
-    {
-        if (IsUsableCameraTransform(targetCamera))
-        {
-            return targetCamera;
-        }
-
-        XROrigin xrOrigin = LocalPlayModeController.IsVirtualReality ? FindFirstObjectByType<XROrigin>() : null;
-        if (xrOrigin != null &&
-            xrOrigin.Camera != null &&
-            xrOrigin.Camera.enabled &&
-            xrOrigin.Camera.gameObject.activeInHierarchy)
-        {
-            return xrOrigin.Camera.transform;
-        }
-
-        Camera mainCamera = Camera.main;
-        if (mainCamera != null &&
-            mainCamera.enabled &&
-            mainCamera.gameObject.activeInHierarchy)
-        {
-            return mainCamera.transform;
-        }
-
-        Camera[] cameras = Camera.allCameras;
-        for (int i = 0; i < cameras.Length; i++)
-        {
-            Camera camera = cameras[i];
-            if (camera != null &&
-                camera.enabled &&
-                camera.gameObject.activeInHierarchy)
-            {
-                return camera.transform;
-            }
-        }
-
-        return null;
-    }
-
-    private static bool IsUsableCameraTransform(Transform cameraTransform)
-    {
-        if (cameraTransform == null)
-        {
-            return false;
-        }
-
-        Camera camera = cameraTransform.GetComponent<Camera>();
-        if (camera == null)
-        {
-            return cameraTransform.gameObject.activeInHierarchy;
-        }
-
-        return camera.enabled && camera.gameObject.activeInHierarchy;
     }
 }

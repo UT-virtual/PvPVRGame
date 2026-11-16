@@ -1,22 +1,33 @@
-
 using System.Collections.Generic;
 using Fusion;
 using UnityEngine;
 
+/// <summary>
+/// StateAuthorityで弾の移動・寿命・衝突ダメージを処理する。
+/// 通常の直進弾に加え、初期化時に指定された固定方向への重力と着弾時の範囲ダメージを扱う。
+/// </summary>
 [RequireComponent(typeof(NetworkObject))]
 public class Projectile : NetworkBehaviour
 {
+    private Vector3 moveDirection;
     private Vector3 velocity;
+    private Vector3 gravityDirection = Vector3.down;
 
+    private float moveSpeed;
     private float lifeTime;
     private float timer;
     private float damage;
 
-    private bool initialized;
-    private bool visualOnly;
+    private float gravityAcceleration;
+    private bool useGravity;
+
+    private bool explodeOnHit;
+    private float explosionRadius;
+    private float explosionDamage;
     private bool hasImpacted;
 
     private PlayerHealth owner;
+    private bool initialized;
 
     public override void Spawned()
     {
@@ -30,200 +41,228 @@ public class Projectile : NetworkBehaviour
         float projectileDamage,
         PlayerHealth projectileOwner)
     {
-        if (Object == null || !Object.HasStateAuthority)
-            return;
-
-        visualOnly = false;
-        hasImpacted = false;
-
-        velocity = direction.normalized * speed;
-        lifeTime = duration;
-        timer = 0.0f;
-        damage = projectileDamage;
-        owner = projectileOwner;
-
-        initialized = true;
-        SetupCollision();
+        Initialize(
+            direction,
+            speed,
+            duration,
+            projectileDamage,
+            projectileOwner,
+            false,
+            Vector3.down,
+            0.0f,
+            false,
+            0.0f,
+            0.0f
+        );
     }
 
-    public void InitializeVisualOnly(
+    /// <summary>
+    /// Spawn後、StateAuthorityで速度・寿命・所有者・重力・爆発設定を初期化する。
+    /// これらの通常フィールドは同期せず、他端末で同じ弾道計算を実行する入力には使わない。
+    /// </summary>
+    public void Initialize(
         Vector3 direction,
         float speed,
         float duration,
-        PlayerHealth projectileOwner = null)
+        float projectileDamage,
+        PlayerHealth projectileOwner,
+        bool projectileUsesGravity,
+        Vector3 projectileGravityDirection,
+        float projectileGravityAcceleration,
+        bool projectileExplodesOnHit,
+        float projectileExplosionRadius,
+        float projectileExplosionDamage)
     {
-        if (Object == null || !Object.HasStateAuthority)
+        if (!Object.HasStateAuthority)
+        {
             return;
+        }
 
-        visualOnly = true;
-        hasImpacted = false;
+        moveDirection = direction.normalized;
+        moveSpeed = speed;
+        velocity = moveDirection * moveSpeed;
 
-        velocity = direction.normalized * speed;
         lifeTime = duration;
-        timer = 0.0f;
-
+        damage = projectileDamage;
         owner = projectileOwner;
-        damage = 0.0f;
 
+        useGravity = projectileUsesGravity;
+        gravityDirection = projectileGravityDirection.sqrMagnitude > 0.0001f
+            ? projectileGravityDirection.normalized
+            : Vector3.down;
+        gravityAcceleration = Mathf.Max(0.0f, projectileGravityAcceleration);
+
+        explodeOnHit = projectileExplodesOnHit;
+        explosionRadius = Mathf.Max(0.0f, projectileExplosionRadius);
+        explosionDamage = Mathf.Max(0.0f, projectileExplosionDamage);
+
+        timer = 0.0f;
         initialized = true;
+
         SetupCollision();
     }
 
     public override void FixedUpdateNetwork()
     {
-        if (Object == null || !Object.HasStateAuthority ||
-            !initialized || hasImpacted)
-            return;
-
-        float dt = Runner.DeltaTime;
-
-        Vector3 start = transform.position;
-        Vector3 displacement = velocity * dt;
-        float distance = displacement.magnitude;
-
-        if (distance > 0.0001f)
+        if (!Object.HasStateAuthority)
         {
-            Vector3 direction = displacement / distance;
-            float radius = GetWorldSphereRadius();
-
-            RaycastHit[] hits = Physics.SphereCastAll(
-                start,
-                radius,
-                direction,
-                distance,
-                Physics.DefaultRaycastLayers,
-                QueryTriggerInteraction.Collide
-            );
-
-            System.Array.Sort(
-                hits,
-                (a, b) => a.distance.CompareTo(b.distance)
-            );
-
-            foreach (RaycastHit hit in hits)
-            {
-                if (hit.collider == null)
-                    continue;
-
-                if (hit.collider.transform.root == transform.root)
-                    continue;
-
-                PlayerHealth target =
-                    hit.collider.GetComponentInParent<PlayerHealth>();
-
-                if (target != null && target == owner)
-                    continue;
-
-                transform.position = hit.point;
-                HandleImpact(hit.point);
-                return;
-            }
+            return;
         }
 
-        transform.position = start + displacement;
+        if (!initialized)
+        {
+            return;
+        }
+
+        float deltaTime = Runner.DeltaTime;
+
+        if (useGravity)
+        {
+            velocity += gravityDirection * gravityAcceleration * deltaTime;
+        }
+
+        transform.position += velocity * deltaTime;
 
         if (velocity.sqrMagnitude > 0.0001f)
-            transform.rotation = Quaternion.LookRotation(velocity.normalized);
+        {
+            Vector3 forward = velocity.normalized;
+            Vector3 up = -gravityDirection;
 
-        timer += dt;
+            if (Mathf.Abs(Vector3.Dot(forward, up)) > 0.98f)
+            {
+                up = Vector3.up;
+            }
+
+            transform.rotation = Quaternion.LookRotation(forward, up);
+        }
+
+        timer += deltaTime;
 
         if (timer >= lifeTime)
+        {
             Runner.Despawn(Object);
-    }
-
-    private float GetWorldSphereRadius()
-    {
-        SphereCollider sphere = GetComponent<SphereCollider>();
-
-        if (sphere == null)
-            return 0.05f;
-
-        Vector3 scale = transform.lossyScale;
-
-        return sphere.radius * Mathf.Max(
-            Mathf.Abs(scale.x),
-            Mathf.Abs(scale.y),
-            Mathf.Abs(scale.z)
-        );
+        }
     }
 
     private void OnTriggerEnter(Collider other)
     {
-        if (Object == null || !Object.HasStateAuthority ||
-            !initialized || hasImpacted || other == null)
-            return;
-
-        if (other.transform.root == transform.root)
-            return;
-
-        PlayerHealth target =
-            other.GetComponentInParent<PlayerHealth>();
-
-        if (target != null && target == owner)
-            return;
-
-        HandleImpact(transform.position);
-    }
-
-    private void HandleImpact(Vector3 impactPosition)
-    {
-        if (Object == null || !Object.HasStateAuthority ||
-            !initialized || hasImpacted)
-            return;
-
-        hasImpacted = true;
-
-        // 見た目専用弾は衝突時に消える。ダメージは与えない。
-        if (visualOnly)
+        if (Object == null || !Object.HasStateAuthority)
         {
+            return;
+        }
+
+        if (!initialized)
+        {
+            return;
+        }
+
+        PlayerHealth targetHealth = other.GetComponentInParent<PlayerHealth>();
+
+        if (targetHealth == owner)
+        {
+            return;
+        }
+
+        if (explodeOnHit)
+        {
+            bool hitByExplosion = ApplyExplosionDamage(transform.position); // 変更（戻り値を受け取る）
+            bool hitEnemy = (targetHealth != null && !targetHealth.IsDead) || hitByExplosion; // 追加
+            NotifyOwnerProjectileHit(hitEnemy, transform.position); // 追加
             Runner.Despawn(Object);
             return;
         }
 
-        Collider[] colliders = Physics.OverlapSphere(
-            impactPosition,
-            GetWorldSphereRadius(),
-            Physics.DefaultRaycastLayers,
+        bool isEnemyHit = targetHealth != null && !targetHealth.IsDead; // 追加
+        if (targetHealth != null)
+        {
+            targetHealth.TakeDamage(damage);
+        }
+
+        NotifyOwnerProjectileHit(isEnemyHit, transform.position); // 追加
+        Runner.Despawn(Object);
+    }
+
+    private bool ApplyExplosionDamage(Vector3 explosionPosition)
+    {
+        if (explosionRadius <= 0.0f || explosionDamage <= 0.0f)
+        {
+            return false;   //変更
+        }
+
+        Collider[] hitColliders = Physics.OverlapSphere(
+            explosionPosition,
+            explosionRadius,
+            ~0,
             QueryTriggerInteraction.Collide
         );
 
-        HashSet<PlayerHealth> damaged = new HashSet<PlayerHealth>();
+        // 体に複数のColliderがあっても、1回の爆発で同じプレイヤーへ重複して加害しない。
+        HashSet<PlayerHealth> damagedTargets = new();
 
-        foreach (Collider col in colliders)
+        foreach (Collider hitCollider in hitColliders)
         {
-            if (col == null)
+            if (hitCollider == null)
+            {
                 continue;
+            }
 
-            PlayerHealth target =
-                col.GetComponentInParent<PlayerHealth>();
+            PlayerHealth targetHealth = hitCollider.GetComponentInParent<PlayerHealth>();
 
-            if (target == null || target == owner ||
-                !damaged.Add(target))
+            if (targetHealth == null)
+            {
                 continue;
+            }
 
-            target.TakeDamage(damage);
+            if (targetHealth == owner)
+            {
+                continue;
+            }
+
+            if (!damagedTargets.Add(targetHealth))
+            {
+                continue;
+            }
+
+            targetHealth.TakeDamage(explosionDamage);
         }
-
-        Runner.Despawn(Object);
+        return damagedTargets.Count > 0; //追加
     }
 
     private void SetupCollision()
     {
-        Collider col = GetComponent<Collider>();
+        Collider projectileCollider = GetComponent<Collider>();
 
-        if (col == null)
-            col = gameObject.AddComponent<SphereCollider>();
+        if (projectileCollider == null)
+        {
+            projectileCollider = gameObject.AddComponent<SphereCollider>();
+        }
 
-        col.isTrigger = true;
+        projectileCollider.isTrigger = true;
 
         Rigidbody rb = GetComponent<Rigidbody>();
 
         if (rb == null)
+        {
             rb = gameObject.AddComponent<Rigidbody>();
+        }
 
         rb.isKinematic = true;
         rb.useGravity = false;
-        rb.collisionDetectionMode =
-            CollisionDetectionMode.ContinuousSpeculative;
+        rb.collisionDetectionMode = CollisionDetectionMode.ContinuousSpeculative;
+    }
+
+    // 追加
+    private void NotifyOwnerProjectileHit(bool hitEnemy, Vector3 hitPosition)
+    {
+        if (owner == null)
+        {
+            return;
+        }
+
+        PlayerSound ownerSound = owner.GetComponent<PlayerSound>();
+        if (ownerSound != null)
+        {
+            ownerSound.NotifyProjectileHitFromServer(hitEnemy, hitPosition);
+        }
     }
 }

@@ -16,11 +16,6 @@ public class WaitingRoomUI : MonoBehaviour
     [SerializeField] private GameObject playerEntryPrefab;
     [SerializeField] private TMP_Text playerCountText;
     [SerializeField] private GameObject waitingRoomPanel;
-    [SerializeField] private TMP_Text readyOperationText;
-
-    public TMP_FontAsset DisplayFont => playerCountText != null ? playerCountText.font : null;
-    public Sprite ColorIconSprite => playerEntryPrefab != null
-        ? playerEntryPrefab.transform.Find("PlayerColor")?.GetComponent<Image>()?.sprite : null;
 
     private bool localPlayerSpawned = false;
     private NetworkLauncher networkLauncher;
@@ -33,15 +28,6 @@ public class WaitingRoomUI : MonoBehaviour
 
     private void Awake()
     {
-        // フォント参照は残し、接続人数と準備操作の案内は表示しない。
-        if (playerCountText != null) playerCountText.gameObject.SetActive(false);
-        if (readyOperationText == null && waitingRoomPanel != null)
-        {
-            // 既存Sceneの固定案内も役割で制御する。スキル選択側の同名テキストは対象にしない。
-            Transform operation = waitingRoomPanel.transform.Find("OperationText");
-            if (operation != null) readyOperationText = operation.GetComponent<TMP_Text>();
-        }
-        SetReadyOperationVisible(false);
         ClearEntries();
         SetPanelVisible(false);
     }
@@ -56,7 +42,6 @@ public class WaitingRoomUI : MonoBehaviour
     /// </summary>
     public void HideRoomUI()
     {
-        SetReadyOperationVisible(false);
         ClearEntries();
         SetPanelVisible(false);
     }
@@ -70,7 +55,6 @@ public class WaitingRoomUI : MonoBehaviour
 
         if (!localPlayerSpawned)
         {
-            SetReadyOperationVisible(false);
             ClearEntries();
             SetPanelVisible(false);
         }
@@ -117,7 +101,6 @@ public class WaitingRoomUI : MonoBehaviour
                 roundManagerNotReadyYet
             );
 
-        SetReadyOperationVisible(false);
         SetPanelVisible(shouldShow);
 
         if (shouldShow)
@@ -147,21 +130,13 @@ public class WaitingRoomUI : MonoBehaviour
                 continue;
             }
 
-            if (networkObject.IsValid && networkObject.Runner == NetworkLauncher.Instance?.Runner && networkObject.HasInputAuthority)
+            if (networkObject.IsValid && networkObject.HasInputAuthority)
             {
                 return true;
             }
         }
 
         return false;
-    }
-
-    private void SetReadyOperationVisible(bool visible)
-    {
-        if (readyOperationText != null && readyOperationText.gameObject.activeSelf != visible)
-        {
-            readyOperationText.gameObject.SetActive(visible);
-        }
     }
 
     private void SetPanelVisible(bool visible)
@@ -205,7 +180,7 @@ public class WaitingRoomUI : MonoBehaviour
     {
         nextPlayers.Clear();
         RoundManager manager = RoundManager.Instance;
-        if (manager == null || !manager.IsNetworkReady || manager.Runner != NetworkLauncher.Instance?.Runner)
+        if (manager == null || !manager.IsNetworkReady)
         {
             return;
         }
@@ -216,7 +191,7 @@ public class WaitingRoomUI : MonoBehaviour
             PlayerHealth health = null;
             foreach (PlayerHealth candidate in players)
             {
-                if (candidate != null && candidate.Object != null && candidate.Object.IsValid && candidate.Object.Runner == manager.Runner &&
+                if (candidate != null && candidate.Object != null && candidate.Object.IsValid &&
                     candidate.Object.InputAuthority == participant.Key)
                 {
                     health = candidate;
