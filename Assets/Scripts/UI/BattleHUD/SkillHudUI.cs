@@ -297,7 +297,7 @@ public class SkillHudUI : MonoBehaviour
         return string.Join("/", names);
     }
 
-    private Sprite GetIcon(PlayerSkillType skill)
+    public Sprite GetIcon(PlayerSkillType skill)
     {
         if (skillIcons == null)
         {

@@ -14,6 +14,49 @@ public class FinalResultUI : MonoBehaviour
 
     [Header("Winner Text")]
     [SerializeField] private TMP_Text winnerText;
+    private readonly List<Image> winnerTeamIcons = new();
+    private readonly List<TeamColor> announcedTeams = new();
+
+    private void LateUpdate()
+    {
+        if (winnerText == null || !winnerText.gameObject.activeInHierarchy || announcedTeams.Count == 0) return;
+        winnerText.ForceMeshUpdate();
+        float size = winnerText.fontSize;
+        float width = winnerText.GetPreferredValues(winnerText.text).x;
+        for (int i = 0; i < announcedTeams.Count; i++)
+        {
+            Image icon = winnerTeamIcons[i];
+            icon.rectTransform.sizeDelta = Vector2.one * size;
+            icon.rectTransform.anchoredPosition = new Vector2(
+                -width * 0.5f + size * (0.5f + i * 1.2f), 0f);
+            Color color = GetTeamColor(announcedTeams[i]);
+            color.a = winnerText.color.a;
+            icon.color = color;
+        }
+    }
+
+    private void SetWinnerTeamIcons(List<TeamColor> teams)
+    {
+        announcedTeams.Clear();
+        announcedTeams.AddRange(teams);
+        WaitingRoomUI waitingRoom = FindFirstObjectByType<WaitingRoomUI>(FindObjectsInactive.Include);
+        Sprite sprite = waitingRoom != null ? waitingRoom.ColorIconSprite : null;
+        while (winnerTeamIcons.Count < teams.Count)
+        {
+            GameObject iconObject = new("WinnerTeamIcon", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+            iconObject.transform.SetParent(winnerText.transform, false);
+            Image icon = iconObject.GetComponent<Image>();
+            icon.rectTransform.anchorMin = icon.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
+            icon.raycastTarget = false;
+            icon.preserveAspect = true;
+            winnerTeamIcons.Add(icon);
+        }
+        for (int i = 0; i < winnerTeamIcons.Count; i++)
+        {
+            winnerTeamIcons[i].gameObject.SetActive(i < teams.Count);
+            winnerTeamIcons[i].sprite = sprite;
+        }
+    }
 
     [Header("Winner Fade Out")]
     [SerializeField] private float winnerFadeOutDuration = 0.8f;
@@ -332,6 +375,10 @@ public class FinalResultUI : MonoBehaviour
 
         winnerText.gameObject.SetActive(true);
         winnerText.alignment = TextAlignmentOptions.Center;
+        winnerText.richText = true;
+        // 共通フォントの設定は変えず、この勝利表示だけ黒い縁取りを外す。
+        winnerText.outlineWidth = 0f;
+        SetWinnerTeamIcons(winningTeams);
 
 
         // -----------------------------------------------------
@@ -358,7 +405,7 @@ public class FinalResultUI : MonoBehaviour
                 winningTeams[0];
 
             winnerText.text =
-                $"{GetTeamName(winningTeam)}チームの勝利！";
+                "<space=1.2em>の勝利！";
 
             Color color =
                 GetTeamColor(winningTeam);
@@ -376,7 +423,7 @@ public class FinalResultUI : MonoBehaviour
         else
         {
             winnerText.text =
-                string.Join("・", winningTeams.ConvertAll(GetTeamName)) + "チームの同時勝利！";
+                string.Concat(winningTeams.ConvertAll(_ => "<space=1.2em>")) + "の勝利！";
 
             winnerText.color =
                 Color.white;

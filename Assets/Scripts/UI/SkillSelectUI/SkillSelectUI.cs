@@ -10,6 +10,7 @@ public class SkillSelectUI : MonoBehaviour
     [SerializeField] private SkillCardUI[] skillCards = new SkillCardUI[4];
 
     private NetworkLauncher networkLauncher;
+    private SkillHudUI skillIconSource;
     private bool wasShowing;
     private float remainingTime;
 
@@ -171,7 +172,9 @@ public class SkillSelectUI : MonoBehaviour
 
             PlayerSkillType skill = roundManager.GetSkillOption(i, selectionStep);
 
-            skillCards[i].SetSkill(i, skill);
+            if (skillIconSource == null)
+                skillIconSource = FindFirstObjectByType<SkillHudUI>(FindObjectsInactive.Include);
+            skillCards[i].SetSkill(i, skill, skillIconSource != null ? skillIconSource.GetIcon(skill) : null);
             skillCards[i].SetSelected(i == selectedSlot);
         }
     }

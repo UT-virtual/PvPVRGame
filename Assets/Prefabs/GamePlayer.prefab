@@ -2458,13 +2458,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9aa3dc51795447549bea5b45dcca127a, type: 3}
   m_Name:
   m_EditorClassIdentifier: Assembly-CSharp::LocalPlayerDamageVfxController
-  damageVfxPrefab: {fileID: 1493123572548342, guid: 0b76d277096f4dc4fad0065918f5c9d3, type: 3}
-  customFollowTarget: {fileID: 0}
-  followMainCamera: 0
-  localOffset: {x: 0, y: 0, z: 0}
-  vfxLifeTime: 0.8
-  restartOnContinuousHit: 1
-  playOnFatalHit: 0
+  damageFlashDuration: 0.3
+  damageFlashColor: {r: 1, g: 0.05, b: 0.02, a: 0.55}
 --- !u!114 &1586226895441023559
 MonoBehaviour:
   m_ObjectHideFlags: 0

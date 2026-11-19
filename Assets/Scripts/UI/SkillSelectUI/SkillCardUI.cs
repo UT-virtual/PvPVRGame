@@ -5,7 +5,7 @@ using UnityEngine.UI;
 public class SkillCardUI : MonoBehaviour
 {
     [SerializeField] private TMP_Text slotText;
-    [SerializeField] private TMP_Text iconText;
+    [SerializeField] private Image iconImage;
     [SerializeField] private TMP_Text nameText;
     [SerializeField] private TMP_Text descriptionText;
     [SerializeField] private Image backgroundImage;
@@ -13,7 +13,7 @@ public class SkillCardUI : MonoBehaviour
     private PlayerSkillType currentSkill;
     private bool isSelected;
 
-    public void SetSkill(int slotIndex, PlayerSkillType skill)
+    public void SetSkill(int slotIndex, PlayerSkillType skill, Sprite icon)
     {
         currentSkill = skill;
 
@@ -24,9 +24,11 @@ public class SkillCardUI : MonoBehaviour
 
         SkillDisplayData data = GetDisplayData(skill);
 
-        if (iconText != null)
+        if (iconImage != null)
         {
-            iconText.text = data.icon;
+            iconImage.sprite = icon;
+            iconImage.enabled = skill != PlayerSkillType.None && icon != null;
+            iconImage.preserveAspect = true;
         }
 
         if (nameText != null)
@@ -77,63 +79,54 @@ public class SkillCardUI : MonoBehaviour
         {
             case PlayerSkillType.DoubleJump:
                 return new SkillDisplayData(
-                    "飛",
                     "ダブルジャンプ",
                     "空中でも1回ジャンプできる"
                 );
 
             case PlayerSkillType.RapidFire:
                 return new SkillDisplayData(
-                    "連",
                     "連射強化",
                     "射撃間隔が短くなる"
                 );
 
             case PlayerSkillType.DamageReduction:
                 return new SkillDisplayData(
-                    "盾",
                     "ダメージ軽減",
                     "受けるダメージを半減させる"
                 );
             
             case PlayerSkillType.XRayVision:
                 return new SkillDisplayData(
-                    "透",
                     "透視",
                     "他プレイヤーを透過し壁越しに索敵"
                 );
 
             case PlayerSkillType.MoveSpeedUp:
                 return new SkillDisplayData(
-                    "走",
                     "移動速度強化",
                     "移動速度が2倍になる"
                 );
             
             case PlayerSkillType.SlowFall:
                 return new SkillDisplayData(
-                    "羽",
                     "低重力",
                     "一定時間、落下がゆっくりになる"
                 );
 
             case PlayerSkillType.Shrink:
                 return new SkillDisplayData(
-                    "縮",
                     "縮小",
                     "与えるダメージが下がるが、体が縮小する"
                 );
 
             case PlayerSkillType.DelayedDamageInvincible:
                 return new SkillDisplayData(
-                    "耐",
                     "ダメージ保留",
                     "5秒間無敵。終了後に受けたダメージをまとめて受ける"
                 );
 
             case PlayerSkillType.InstantReload:
                 return new SkillDisplayData(
-                    "弾",
                     "即時装填",
                     "10秒間、リロードが即座に完了する"
                 );
@@ -141,21 +134,18 @@ public class SkillCardUI : MonoBehaviour
 
             case PlayerSkillType.HeavyBulletReload:
                 return new SkillDisplayData(
-                    "重",
                     "重弾装填",
                     "連射しにくいが高威力・高速の弾を5発装填"
                 );
 
             case PlayerSkillType.NextShotDamageBoost:
                 return new SkillDisplayData(
-                    "強",
                     "次弾強化",
                     "次に撃つ弾のダメージが1.5倍になる"
                 );
 
             default:
                 return new SkillDisplayData(
-                    "-",
                     "なし",
                     "選択できるスキルがありません"
                 );
@@ -164,13 +154,11 @@ public class SkillCardUI : MonoBehaviour
 
     private readonly struct SkillDisplayData
     {
-        public readonly string icon;
         public readonly string name;
         public readonly string description;
 
-        public SkillDisplayData(string icon, string name, string description)
+        public SkillDisplayData(string name, string description)
         {
-            this.icon = icon;
             this.name = name;
             this.description = description;
         }

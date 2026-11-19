@@ -1,8 +1,10 @@
 using System;
 using System.Reflection;
+using System.Linq;
 using TMPro;
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.UI;
 
 /// <summary>地表に対する復活位置と、同率勝利の表示をEditorで検証する。</summary>
 public static class GameplayPresentationValidation
@@ -77,11 +79,12 @@ public static class GameplayPresentationValidation
             SetField(ui, "winnerText", text);
             MethodInfo show = typeof(FinalResultUI).GetMethod("ShowWinnerText", BindingFlags.Instance | BindingFlags.NonPublic);
             show.Invoke(ui, new object[] { (1 << (int)TeamColor.Red) | (1 << (int)TeamColor.Blue) });
-            Require(text.text.Contains("赤") && text.text.Contains("青") && text.text.Contains("勝利") && !text.text.Contains("引き分け"),
+            Require(text.text == "<space=1.2em><space=1.2em>の勝利！" && text.GetComponentsInChildren<Image>().Length == 2,
                 "Tied leaders were not both announced as winners.");
             Require(text.alignment == TextAlignmentOptions.Center, "Winner announcement is not centered.");
             show.Invoke(ui, new object[] { 1 << (int)TeamColor.Red });
-            Require(text.text == "赤チームの勝利！", "Single winner announcement regressed.");
+            Require(text.text == "<space=1.2em>の勝利！" && text.GetComponentsInChildren<Image>().Count(icon => icon.gameObject.activeSelf) == 1,
+                "Single winner announcement regressed.");
         }
         finally { UnityEngine.Object.DestroyImmediate(root); }
     }
