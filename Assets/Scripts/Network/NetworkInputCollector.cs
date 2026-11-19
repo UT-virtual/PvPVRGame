@@ -244,6 +244,7 @@ public sealed class NetworkInputCollector
         {
             data.HMDPosition = xrHmd.position;
             data.HMDRotation = xrHmd.rotation;
+            data.HasTrackedWorldHeadRotation = IsHeadRotationTracked();
         }
         else if (IsVRActive)
         {
@@ -419,6 +420,15 @@ public sealed class NetworkInputCollector
         }
 
         actionReference.action.Disable();
+    }
+
+    internal static bool IsHeadRotationTracked()
+    {
+        var head = InputDevices.GetDeviceAtXRNode(XRNode.Head);
+        if (head.TryGetFeatureValue(UnityEngine.XR.CommonUsages.trackingState, out InputTrackingState state))
+            return (state & InputTrackingState.Rotation) != 0;
+
+        return head.TryGetFeatureValue(UnityEngine.XR.CommonUsages.isTracked, out bool tracked) && tracked;
     }
 
     private void UpdateHMD()

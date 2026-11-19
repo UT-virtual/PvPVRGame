@@ -38,6 +38,7 @@ public struct PlayerNetworkInput : INetworkInput
     public byte HasLookDirection;
 
     public NetworkBool IsVR;
+    public NetworkBool HasTrackedWorldHeadRotation;
     public Quaternion HMDRotation;
 
     public Vector3 HMDPosition;
