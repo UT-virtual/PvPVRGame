@@ -7,6 +7,8 @@ using UnityEngine.UI;
 /// 勝者、確定した撃破数優先の順位、累積勝利数を表示する。
 /// 結果RPCと同期スナップショットの到着順が異なっても、対象ラウンドの記録を待って描画する。
 /// </summary>
+/// 
+
 public class RoundEndUI : MonoBehaviour
 {
     private const float FinalRankingScale = 1.25f;
@@ -69,19 +71,19 @@ public class RoundEndUI : MonoBehaviour
         // 背景パネルを基準に配置し、Sceneの一覧幅やLayoutGroupによる位置ずれを防ぐ。
         scoreContentRoot.gameObject.SetActive(false);
         float width = panel.rect.width - ResultHorizontalPadding * 2f;
-        float rankingHeight = RoundDamageRankingUI.GetPreferredHeight(entryCount, FinalRankingScale);
-        float contentHeight = rankingHeight + 64f;
-        panel.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, FinalRankingTop + contentHeight + 32f);
+        float rankingHeight = RoundDamageRankingUI.GetPreferredHeight(entryCount, FinalRankingScale)-50f;
+        float contentHeight = (rankingHeight + 64f);
+        panel.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, 2f * (FinalRankingTop + contentHeight + 32f));
 
-        ConfigureResultText(roundEndText, 36f, 32f, width, 44f);
-        ConfigureResultText(winSuffixText, 44f, 84f, 260f, 64f);
-        ConfigureResultText(scoreTitleText, 30f, 168f, width, 40f);
+        ConfigureResultText(roundEndText, 36f, 32f-60f, width, 44f);
+        ConfigureResultText(winSuffixText, 44f, 84f+500f, 260f, 64f);
+        ConfigureResultText(scoreTitleText, 30f, 168f-20, width, 40f);
         if (scoreTitleText != null) scoreTitleText.text = "最終順位";
         if (winSuffixText != null && winnerColorIcon != null && winnerColorIcon.gameObject.activeSelf)
         {
             winSuffixText.rectTransform.anchoredPosition += new Vector2(24f, 0f);
             RectTransform icon = winnerColorIcon.rectTransform;
-            SetTopCenteredRect(icon, new Vector2(44f, 44f), new Vector2(-88f, -94f));
+            SetTopCenteredRect(icon, new Vector2(44f, 44f), new Vector2(-88f, -94f-500f));
         }
 
         finalDamageRanking = RoundDamageRankingUI.Create(panel,
@@ -94,7 +96,7 @@ public class RoundEndUI : MonoBehaviour
 
         TMP_Text wins = RoundDamageRankingUI.CreateText("MatchWins", finalDamageRanking.transform,
             scoreTitleText != null ? scoreTitleText.font : null, 26f,
-            new Vector2(0f, -rankingHeight - 12f), new Vector2(width, 48f));
+            new Vector2(0f, -rankingHeight - 12f-50f), new Vector2(width, 48f));
         wins.alignment = TextAlignmentOptions.Center;
         wins.enableAutoSizing = true;
         wins.fontSizeMin = 22f;
@@ -390,4 +392,21 @@ public class RoundEndUI : MonoBehaviour
                 return Color.gray;
         }
     }
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+    [ContextMenu("テスト：ラウンド終了UIを表示")]
+    public void TestShowTeamScores()
+    {
+        ShowTeamScores(
+            roundNumber: 2,
+            winnerTeamIndex: 0, // Red
+            teamMask: 0b1111,
+            redWins: 2,
+            blueWins: 1,
+            greenWins: 0,
+            yellowWins: 0
+        );
+    }
+#endif
 }
+
+
