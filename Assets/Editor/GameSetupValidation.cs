@@ -54,6 +54,7 @@ public static class GameSetupValidation
         Require(prefab.GetComponent<PlayerCamera>().CameraTarget != null, "Desktop camera target must be assigned.");
         Require(prefab.GetComponent<OtherPlayerHealthBar>() != null, "Shared player lost the stg health bar.");
         Require(prefab.GetComponentInChildren<PlayerLocalSound>(true) != null, "Shared player lost local sound settings.");
+        ValidateEffectPrefabOwnership();
         Require(UnityEngine.Object.FindFirstObjectByType<PracticeTargetSpawner>() != null, "GameScene lost the practice target spawner.");
         Require(UnityEngine.Object.FindFirstObjectByType<RoundSeManager>() != null, "GameScene lost round sound settings.");
         Debug.Log("[GameSetupValidation] PASS: mode selection, shared scene, explicit XR startup and common player configuration.");
@@ -63,6 +64,35 @@ public static class GameSetupValidation
     {
         try { Validate(); EditorApplication.Exit(0); }
         catch (Exception exception) { Debug.LogException(exception); EditorApplication.Exit(1); }
+    }
+
+    [MenuItem("Tools/PvPVRGame/Validate Effect Prefab Ownership")]
+    public static void ValidateEffectPrefabOwnership()
+    {
+        foreach (string path in new[] { "Assets/Prefabs/GamePlayer.prefab", "Assets/Prefabs/PCPlayer.prefab" })
+        {
+            GameObject player = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+            Require(player != null, "Missing player prefab: " + path);
+            Require(player.GetComponentsInChildren<PlayerHealth>(true).Length == 1 && player.GetComponent<PlayerHealth>() != null,
+                path + " must have one PlayerHealth on its root.");
+            Require(player.GetComponentsInChildren<NetworkObject>(true).Length == 1,
+                path + " must not give effects a separate NetworkObject.");
+            Require(player.GetComponentsInChildren<CharacterController>(true).Length == 1,
+                path + " has a duplicate movement collider.");
+            Require(player.GetComponent<LocalPlayerDamageVfxController>() != null &&
+                player.GetComponent<PlayerDefeatVfxController>() != null && player.GetComponent<PlayerSkillVfxController>() != null,
+                path + " must keep VFX on the existing player root.");
+        }
+        GameObject target = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prefabs/PracticeTarget.prefab");
+        Require(target != null && target.GetComponent<PracticeTarget>() != null,
+            "PracticeTargetSpawner requires PracticeTarget on the prefab root.");
+        Require(target.GetComponentsInChildren<PracticeTarget>(true).Length == 1 &&
+            target.GetComponentsInChildren<NetworkObject>(true).Length == 1,
+            "Practice target state must not be duplicated on Visual.");
+        foreach (Collider collider in target.GetComponentsInChildren<Collider>(true))
+            Require(collider.GetComponentInParent<PracticeTarget>() == target.GetComponent<PracticeTarget>(),
+                "Every practice target collider must resolve to its root health.");
+        Debug.Log("[GameSetupValidation] PASS: effect prefab ownership.");
     }
 
     public static void RunDesktopSmoke()

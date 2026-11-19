@@ -1,6 +1,8 @@
+using System.Collections.Generic;
 using Fusion;
 using UnityEngine;
 
+[DefaultExecutionOrder(100)]
 public class PlayerSkillVfxController : NetworkBehaviour
 {
     [Header("Skill Activation VFX (発動瞬間)")]
@@ -29,6 +31,34 @@ public class PlayerSkillVfxController : NetworkBehaviour
 
     private GameObject activeFootCircleInstance;
     private ParticleSystem[] activeFootCircleParticles;
+    private readonly List<(Renderer renderer, bool originallyHidden)> effectRenderers = new();
+
+    private bool HideForSpectator => playerHealth != null &&
+        SpectatorCameraController.Instance != null &&
+        SpectatorCameraController.Instance.CurrentSpectatorTarget == playerHealth;
+
+    private void TrackEffect(GameObject effect)
+    {
+        foreach (Renderer renderer in effect.GetComponentsInChildren<Renderer>(true))
+        {
+            bool originallyHidden = renderer.forceRenderingOff;
+            effectRenderers.Add((renderer, originallyHidden));
+            renderer.forceRenderingOff = originallyHidden || HideForSpectator;
+        }
+    }
+
+    private void LateUpdate()
+    {
+        // 観戦カメラは対象本人の視点に入る。後から生成される粒子と停止後の余韻も隠す。
+        // 再生は続け、対象を切り替えたら他プレイヤーの効果として再び表示する。
+        bool hidden = HideForSpectator;
+        for (int i = effectRenderers.Count - 1; i >= 0; i--)
+        {
+            (Renderer renderer, bool originallyHidden) = effectRenderers[i];
+            if (renderer == null) effectRenderers.RemoveAt(i);
+            else renderer.forceRenderingOff = originallyHidden || hidden;
+        }
+    }
 
     private void Awake()
     {
@@ -87,6 +117,7 @@ public class PlayerSkillVfxController : NetworkBehaviour
         GameObject instance = Instantiate(activationVfxPrefab, parent);
         instance.transform.localPosition = activationLocalOffset;
         instance.transform.localRotation = Quaternion.identity;
+        TrackEffect(instance);
 
         if (activationVfxLifeTime > 0.0f)
         {
@@ -104,6 +135,7 @@ public class PlayerSkillVfxController : NetworkBehaviour
                 activeFootCircleInstance = Instantiate(footCircleVfxPrefab, parent);
                 activeFootCircleInstance.transform.localPosition = footCircleLocalOffset;
                 activeFootCircleInstance.transform.localRotation = Quaternion.identity;
+                TrackEffect(activeFootCircleInstance);
                 activeFootCircleParticles = activeFootCircleInstance.GetComponentsInChildren<ParticleSystem>(true);
             }
 
@@ -154,6 +186,9 @@ public class PlayerSkillVfxController : NetworkBehaviour
 
     private void OnDisable()
     {
+        foreach (var effect in effectRenderers)
+            if (effect.renderer != null) effect.renderer.forceRenderingOff = effect.originallyHidden;
+
         if (activeFootCircleInstance != null)
         {
             Destroy(activeFootCircleInstance);
