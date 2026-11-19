@@ -581,6 +581,7 @@ public class SpectatorCameraController : MonoBehaviour
         RestoreHiddenSpectatedTargetModel();
 
         hiddenModelTarget = target;
+        target.SetSpectatedFirstPerson(true);
         previousRendererStates.Clear();
 
         HashSet<Renderer> weapons = new(target.WeaponRenderers ?? System.Array.Empty<Renderer>());
@@ -634,6 +635,7 @@ public class SpectatorCameraController : MonoBehaviour
 
         previousRendererStates.Clear();
 
+        if (hiddenModelTarget != null) hiddenModelTarget.SetSpectatedFirstPerson(false);
         hiddenModelTarget = null;
 
         Debug.Log("[SpectatorCameraController] Restore spectated model.");
