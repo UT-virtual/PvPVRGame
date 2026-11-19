@@ -8,6 +8,7 @@ public class VRBodyTargetSync : NetworkBehaviour
     [SerializeField] private Transform headTarget;
     [SerializeField] private Transform leftHandTarget;
     [SerializeField] private Transform rightHandTarget;
+    [SerializeField] private bool enableVrBodyIk = true;
 
     private Transform xrHmd;
     private Transform xrLeftController;
@@ -131,7 +132,7 @@ public class VRBodyTargetSync : NetworkBehaviour
     {
         if (appliedVrMode == vr) return;
         appliedVrMode = vr;
-        foreach (RootMotion.FinalIK.VRIK solver in vrSolvers) solver.enabled = vr;
+        foreach (RootMotion.FinalIK.VRIK solver in vrSolvers) solver.enabled = vr && enableVrBodyIk;
         if (vr)
         {
             AttachWeaponToRightHandTarget();

@@ -108,3 +108,20 @@ InitTestScene*.unity*
 
 .vscode/
 .DS_Store
+
+# Local Hot Reload installation (optional developer tool)
+/Packages/com.singularitygroup.hotreload/
+/Packages/com.singularitygroup.hotreload.meta
+
+# Meta XR SDK generated build configuration
+/Assets/Resources/OVRBuildConfig.asset
+/Assets/Resources/OVRBuildConfig.asset.meta
+
+# Generated Visual Studio solution
+*.slnx
+
+# Android signing keys (back up separately)
+*.jks
+*.jks.meta
+*.keystore
+*.keystore.meta

@@ -247,9 +247,15 @@ public sealed class RoundSkillSelectionController
         healthItemController.ClearHealthItems();
         projectileCleaner.DespawnProjectiles();
 
-        spawnController.RespawnAllPlayersWithoutOverlap(getValidPlayers());
+        List<PlayerHealth> validPlayers = getValidPlayers();
+        // 前ラウンドの縮小などを解除して通常サイズの接地位置を求める。
+        foreach (PlayerHealth player in validPlayers)
+        {
+            if (player != null) player.GetComponent<PlayerSkillController>()?.ClearSkillState();
+        }
+        spawnController.RespawnAllPlayersWithoutOverlap(validPlayers);
 
-        ResetSelectionStates(getValidPlayers());
+        ResetSelectionStates(validPlayers);
 
         Debug.Log($"[RoundSkillSelectionController] Round {getCurrentRound()} Skill Selection Start.");
         Debug.Log($"[RoundSkillSelectionController] Select skill within {getSkillSelectionDuration()} seconds.");

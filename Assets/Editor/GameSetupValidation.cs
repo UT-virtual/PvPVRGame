@@ -40,6 +40,8 @@ public static class GameSetupValidation
         foreach (string property in new[] { "xrOriginRoot", "xrHmd", "xrLeftController", "xrRightController", "sceneFollowCamera", "cinemachineCamera" })
             Require(launcher.FindProperty(property).objectReferenceValue != null, "Missing launcher reference: " + property);
         Require(launchers[0].GetComponent<LocalPlayModeController>() != null, "Launcher must have a play-mode selector.");
+        Transform xrOrigin = (Transform)launcher.FindProperty("xrOriginRoot").objectReferenceValue;
+        Require(!xrOrigin.gameObject.activeSelf, "The scene XR rig must start inactive until XR initialization finishes.");
         Transform hmd = (Transform)launcher.FindProperty("xrHmd").objectReferenceValue;
         Camera pcCamera = (Camera)launcher.FindProperty("sceneFollowCamera").objectReferenceValue;
         Require(hmd != pcCamera.transform, "VR and PC cameras must be different.");

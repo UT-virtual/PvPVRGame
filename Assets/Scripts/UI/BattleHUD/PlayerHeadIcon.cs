@@ -26,11 +26,13 @@ public class PlayerHeadIcon : NetworkBehaviour
     };
 
     private PlayerIdentity playerIdentity;
+    private PlayerHealth playerHealth;
     private Camera localCamera;
 
     private void Awake()
     {
         playerIdentity = GetComponent<PlayerIdentity>();
+        playerHealth = GetComponent<PlayerHealth>();
 
         if (iconRoot == null)
         {
@@ -51,8 +53,9 @@ public class PlayerHeadIcon : NetworkBehaviour
 
     private void LateUpdate()
     {
-        if (Object == null)
+        if (Object == null || !Object.IsValid || (playerHealth != null && playerHealth.IsDead))
         {
+            SetIconVisible(false);
             return;
         }
 

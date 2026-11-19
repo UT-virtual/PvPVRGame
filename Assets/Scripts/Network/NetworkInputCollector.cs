@@ -2,6 +2,7 @@ using Fusion;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.InputSystem.Controls;
+using UnityEngine.XR;
 
 public sealed class NetworkInputCollector
 {
@@ -47,7 +48,9 @@ public sealed class NetworkInputCollector
     private bool wasLeftTriggerPressed;
     private bool activateSkill1Queued;
     private bool activateSkill2Queued;
-    private bool wasLeftVrTriggerPressedForSkill;
+    private readonly VrShakeDetector leftShake = new VrShakeDetector(XRNode.LeftHand);
+    private readonly VrShakeDetector rightShake = new VrShakeDetector(XRNode.RightHand);
+    private PlayerHealth localPlayerHealth;
     private bool wasReconnectGripHeld;
 
     private Transform xrHmd;
@@ -110,6 +113,9 @@ public sealed class NetworkInputCollector
         Transform leftController,
         Transform rightController)
     {
+        if (xrHmd != hmd || xrLeftController != leftController || xrRightController != rightController)
+            ResetVrShakeDetectors();
+
         xrHmd = hmd;
         xrLeftController = leftController;
         xrRightController = rightController;
@@ -195,62 +201,36 @@ public sealed class NetworkInputCollector
             switchSkillQueued = true;
         }
 
-        //wayo??L
-        if (ReadVrSkillActivation(out int skillSlot))
-        {
-            if (skillSlot == 0)
-            {
-                activateSkill1Queued = true;
-            }
-            else
-            {
-                activateSkill2Queued = true;
-            }
-        }
+        QueueVrShakeSkills();
     }
 
-    //wayo??L
-    private bool ReadVrSkillActivation(out int skillSlot)
+    private void QueueVrShakeSkills()
     {
-        skillSlot = -1;
-
         if (!IsVRActive)
+            return;
+
+        RoundManager round = RoundManager.Instance;
+        if (localPlayerHealth == null || localPlayerHealth.Object == null ||
+            !localPlayerHealth.Object.IsValid || localPlayerHealth.IsDead ||
+            (round != null && !round.CanUseWeapons))
         {
-            return false;
+            ResetVrShakeDetectors();
+            return;
         }
 
-        bool leftTriggerPressed = IsXrTriggerHeld("<XRController>{LeftHand}");
-        bool pressedThisFrame = leftTriggerPressed && !wasLeftVrTriggerPressedForSkill;
-        wasLeftVrTriggerPressedForSkill = leftTriggerPressed;
+        double now = Time.unscaledTimeAsDouble;
+        if (leftShake.Sample(now))
+            activateSkill1Queued = true;
+        if (rightShake.Sample(now))
+            activateSkill2Queued = true;
+    }
 
-        if (!pressedThisFrame)
-        {
-            return false;
-        }
-
-        Quaternion leftRotation = xrLeftController != null
-            ? xrLeftController.rotation
-            : ReadQuaternionAction(leftHandRotationAction);
-
-        Vector3 aim = (leftRotation * (Vector3.forward - new Vector3(0, 0, 0.2f))).normalized;
-        Vector3 up = xrHmd != null ? xrHmd.up : Vector3.up;
-        float vertical = Vector3.Dot(aim, up);
-
-        const float directionThreshold = 0.5f;
-
-        if (vertical < -directionThreshold)
-        {
-            skillSlot = 0;
-            return true;
-        }
-
-        if (vertical > directionThreshold)
-        {
-            skillSlot = 1;
-            return true;
-        }
-
-        return false; // ??????????????? ?? ?????????
+    public void ResetVrShakeDetectors()
+    {
+        leftShake.Reset();
+        rightShake.Reset();
+        activateSkill1Queued = false;
+        activateSkill2Queued = false;
     }
 
     public void CollectInput(NetworkInput input)
@@ -338,13 +318,15 @@ public sealed class NetworkInputCollector
 
     public bool ReadReconnectPressed()
     {
+    /*
         bool gripsHeld = IsVRActive && IsXrButtonHeld("<XRController>{LeftHand}/gripButton") &&
             IsXrButtonHeld("<XRController>{RightHand}/gripButton");
         bool vrPressed = gripsHeld && !wasReconnectGripHeld;
         wasReconnectGripHeld = gripsHeld;
         return vrPressed ||
             (Keyboard.current != null && Keyboard.current.rKey.wasPressedThisFrame) ||
-            (Gamepad.current != null && Gamepad.current.startButton.wasPressedThisFrame);
+            (Gamepad.current != null && Gamepad.current.startButton.wasPressedThisFrame);*/
+            return false;
     }
 
     private static bool IsXrButtonHeld(string path) =>
@@ -353,18 +335,19 @@ public sealed class NetworkInputCollector
     public void ResetLocalState()
     {
         LocalPlayerController = null;
+        localPlayerHealth = null;
         LastMoveInput = Vector2.zero;
-        ClearQueuedInputs();
+        ClearPendingInput();
         wasBothVrTriggerPressed = false;
         wasLeftTriggerPressed = false;
-        wasLeftVrTriggerPressedForSkill = false;
     }
 
     public void RegisterLocalPlayer(PlayerController playerController)
     {
         if (LocalPlayerController != playerController)
         {
-            ClearQueuedInputs();
+            ClearPendingInput();
+            localPlayerHealth = playerController.GetComponent<PlayerHealth>();
         }
 
         LocalPlayerController = playerController;
@@ -387,13 +370,18 @@ public sealed class NetworkInputCollector
         }
 
         LocalPlayerController = null;
-        ClearQueuedInputs();
+        localPlayerHealth = null;
+        ClearPendingInput();
 
         Debug.Log($"[NetworkInputCollector] Unregistered local player: {playerController.name}");
         return true;
     }
 
-    public void ClearPendingInput() => ClearQueuedInputs();
+    public void ClearPendingInput()
+    {
+        ClearQueuedInputs();
+        ResetVrShakeDetectors();
+    }
 
     private void ClearQueuedInputs()
     {

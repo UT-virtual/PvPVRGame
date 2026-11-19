@@ -35,15 +35,18 @@ public class OtherPlayerHealthBar : NetworkBehaviour
         }
 
         // 自分のHPバーは表示しない
-        SetBarVisible(!Object.HasInputAuthority);
+        SetBarVisible(!Object.HasInputAuthority && !playerHealth.IsDead);
 
         UpdateHealthBar();
     }
 
     private void LateUpdate()
     {
-        if (Object == null || barRoot == null || playerHealth == null)
+        if (Object == null || !Object.IsValid || barRoot == null || playerHealth == null || playerHealth.IsDead)
+        {
+            SetBarVisible(false);
             return;
+        }
 
         // 自分のHPバーは非表示
         SpectatorCameraController spectator = SpectatorCameraController.Instance;
