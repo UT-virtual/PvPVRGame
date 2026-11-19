@@ -1,12 +1,56 @@
 using UnityEngine;
 
 [DisallowMultipleComponent]
+[DefaultExecutionOrder(500)] // Read the animated hand and the final PC/VR weapon rotation.
 public class VRWeaponVisualSettings : MonoBehaviour
 {
     [Header("References")]
     [SerializeField] private Transform weaponTransform;
     [Tooltip("Hand grip point. Move this object in the prefab to reposition the grip on the controller.")]
     [SerializeField] private Transform weaponGripParent;
+
+    [Header("Third-person presentation")]
+    [SerializeField] private Transform avatarRightHand;
+    [SerializeField] private Vector3 palmLocalOffset;
+    [SerializeField] private MeshRenderer thirdPersonWeapon;
+    private Quaternion meshToGripRotation;
+
+    public bool HasThirdPersonWeapon => thirdPersonWeapon != null && avatarRightHand != null && weaponTransform != null;
+
+    private void Awake()
+    {
+        meshToGripRotation = Quaternion.Inverse(Quaternion.Euler(weaponLocalEulerAngles));
+        if (thirdPersonWeapon != null) thirdPersonWeapon.transform.localScale = Vector3.one * weaponScale;
+    }
+
+    public void SetThirdPersonVisible(bool visible)
+    {
+        if (thirdPersonWeapon != null) thirdPersonWeapon.enabled = visible;
+    }
+
+    private void LateUpdate()
+    {
+        if (thirdPersonWeapon == null || !thirdPersonWeapon.enabled) return;
+        AlignThirdPersonWeapon();
+    }
+
+    private void AlignThirdPersonWeapon()
+    {
+        Quaternion rotation = weaponTransform.rotation;
+        Vector3 palm = avatarRightHand.TransformPoint(palmLocalOffset);
+        thirdPersonWeapon.transform.SetPositionAndRotation(
+            palm + rotation * (meshToGripRotation * weaponLocalPosition), rotation);
+    }
+
+    public bool TryGetThirdPersonMuzzle(Transform muzzle, out Pose pose)
+    {
+        pose = default;
+        if (muzzle == null || thirdPersonWeapon == null || !thirdPersonWeapon.enabled) return false;
+        AlignThirdPersonWeapon();
+        Vector3 muzzleLocalPosition = weaponTransform.InverseTransformPoint(muzzle.position);
+        pose = new Pose(thirdPersonWeapon.transform.TransformPoint(muzzleLocalPosition), muzzle.rotation);
+        return true;
+    }
 
     [Header("Grip Mesh Offset")]
     [Tooltip("Shifts the gun mesh so the handle aligns with Weapon Grip Parent.")]
