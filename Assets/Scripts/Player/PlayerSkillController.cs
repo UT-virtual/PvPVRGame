@@ -140,6 +140,9 @@ public class PlayerSkillController : NetworkBehaviour
         return GetSkillCooldownRemaining(NormalizeSkillSlotIndex(slotIndex));
     }
 
+    public bool HasActiveTimedSkill => Object != null && Object.IsValid &&
+        (IsSkillSlotActive(0) || IsSkillSlotActive(1));
+
     private int NormalizeSkillSlotIndex(int slotIndex)
     {
         return slotIndex <= 0 ? 0 : 1;
@@ -152,6 +155,11 @@ public class PlayerSkillController : NetworkBehaviour
         playerHealth = GetComponent<PlayerHealth>();
 
         InitializeSkillHelpers();
+    }
+
+    public override void Spawned()
+    {
+        if (Object.HasInputAuthority) SkillActiveScreenEffect.Create(this);
     }
 
     public override void Render()

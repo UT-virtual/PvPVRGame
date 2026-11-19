@@ -331,6 +331,7 @@ public class FinalResultUI : MonoBehaviour
             GetWinningTeams(winnerTeamMask);
 
         winnerText.gameObject.SetActive(true);
+        winnerText.alignment = TextAlignmentOptions.Center;
 
 
         // -----------------------------------------------------
@@ -375,7 +376,7 @@ public class FinalResultUI : MonoBehaviour
         else
         {
             winnerText.text =
-                "引き分け！";
+                string.Join("・", winningTeams.ConvertAll(GetTeamName)) + "チームの同時勝利！";
 
             winnerText.color =
                 Color.white;

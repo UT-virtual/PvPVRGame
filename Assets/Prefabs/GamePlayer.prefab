@@ -1,5 +1,88 @@
 %YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
+--- !u!114 &900100001
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8006935000496757985}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 1039544458, guid: e725a070cec140c4caffb81624c8c787, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Fusion.Runtime.dll::Fusion.HitboxRoot
+  Config: 3
+  BroadRadius: 7
+  Offset: {x: -0.018, y: -0.2, z: -0.24}
+  Hitboxes:
+  - {fileID: 900100004}
+--- !u!1 &900100002
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 900100003}
+  - component: {fileID: 900100004}
+  - component: {fileID: 900100005}
+  m_Layer: 0
+  m_Name: ShotHitbox
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &900100003
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 900100002}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: -0.018, y: -0.2, z: -0.24}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 7900882557392664941}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &900100004
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 900100002}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 1014831617, guid: e725a070cec140c4caffb81624c8c787, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Fusion.Runtime.dll::Fusion.Hitbox
+  Type: 3
+  CapsuleRadius: 1.1
+  CapsuleExtents: 5.5
+  Offset: {x: 0, y: 0, z: 0}
+  Root: {fileID: 900100001}
+--- !u!114 &900100005
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 900100002}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 81cff421ac894d29a0ef611cd11f34db, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerShotHitbox
+  scalePivot: {fileID: 1536190954768535111}
+  normalCenter: {x: -0.018, y: -0.2, z: -0.24}
+  normalHeight: 5.5
+  normalRadius: 1.1
 --- !u!1 &19801505262493639
 GameObject:
   m_ObjectHideFlags: 0
@@ -1696,6 +1779,7 @@ GameObject:
   - component: {fileID: 5623098404110319620}
   - component: {fileID: 8847291536482759401}
   - component: {fileID: 4312813058343408469}
+  - component: {fileID: 900100001}
   m_Layer: 0
   m_Name: GamePlayer
   m_TagString: Untagged
@@ -1724,6 +1808,7 @@ Transform:
   - {fileID: 2847849160676308526}
   - {fileID: 1742778256503361924}
   - {fileID: 5874837870598913118}
+  - {fileID: 900100003}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!23 &5131791735017448382
@@ -1995,6 +2080,7 @@ MonoBehaviour:
   - {fileID: 2617299471526814650}
   - {fileID: 5623098404110319620}
   - {fileID: 4312813058343408469}
+  - {fileID: 900100001}
   ForceRemoteRenderTimeframe: 0
 --- !u!114 &4508338257469429350
 MonoBehaviour:

@@ -147,6 +147,18 @@ public class PlayerMove : MonoBehaviour
         return Mathf.Max(0.02f, offset);
     }
 
+    // 選択中は移動・重力が停止するため、戦闘開始時の接地補正に頼らず復活座標を解決する。
+    public void ResolveGroundedRespawnPose(ref Vector3 position, ref Quaternion rotation)
+    {
+        Vector3 up = planetCenter != null ? (position - planetCenter.position).normalized : rotation * Vector3.up;
+        if (up.sqrMagnitude < 0.001f) up = rotation * Vector3.up;
+        if (!Physics.SphereCast(position + up * groundProbeStartOffset, groundProbeRadius, -up,
+                out RaycastHit hit, groundProbeDistance, planetLayer, QueryTriggerInteraction.Ignore)) return;
+
+        position = hit.point + hit.normal * GetDesiredGroundOffset();
+        rotation = Quaternion.FromToRotation(rotation * Vector3.up, hit.normal) * rotation;
+    }
+
     /// <summary>
     /// 視線の水平成分を現在の地表へ投影し、移動に使う直交基底を再構築する。
     /// 地表法線を更新した後に呼ぶ。
