@@ -12,8 +12,6 @@ GameObject:
   - component: {fileID: 8368145888789936906}
   - component: {fileID: 130536200819855994}
   - component: {fileID: 5901980840437501201}
-  - component: {fileID: 9089730355272702958}
-  - component: {fileID: 3157240494989057825}
   m_Layer: 0
   m_Name: Visual
   m_TagString: Untagged
@@ -116,59 +114,6 @@ CapsuleCollider:
   m_Height: 2
   m_Direction: 1
   m_Center: {x: 0, y: 0, z: 0}
---- !u!114 &9089730355272702958
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 3662217167956140294}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: -1552182283, guid: e725a070cec140c4caffb81624c8c787, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Fusion.Runtime.dll::Fusion.NetworkObject
-  SortKey: 288744330
-  ObjectInterest: 1
-  Flags: 262145
-  NestedObjects: []
-  NetworkedBehaviours:
-  - {fileID: 3157240494989057825}
-  ForceRemoteRenderTimeframe: 0
---- !u!114 &3157240494989057825
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 3662217167956140294}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 5d568aa38df782a47ad069af8ffb8d32, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::PracticeTarget
-  maxHealth: 10
-  respawnDelay: 2.5
-  activeOnlyInWaitingRoom: 1
-  visualRoot: {fileID: 1773321442296807295}
-  destroyEffectPrefab: {fileID: 187180, guid: 1ed56f4c486ff6141a344e5e5714e1b9, type: 3}
-  destroySe: {fileID: 0}
-  hitShakeDuration: 0.12
-  hitShakeMagnitude: 0.08
-  hitFlashColor: {r: 1, g: 0.4, b: 0.4, a: 1}
-  planetCenter: {fileID: 5110394550287685901, guid: 6efab54670793466cb5125952d5cd355, type: 3}
-  alignToPlanetSurface: 1
-  enableMovement: 0
-  localMoveAxis: {x: 1, y: 0, z: 0}
-  moveDistance: 3
-  moveSpeed: 2
-  _NetworkedCurrentHealth: 0
-  _NetworkedIsDestroyed:
-    _value: 0
-  _NetworkedIsPhaseActive:
-    _value: 0
-  _NetworkedEnableMovement:
-    _value: 0
 --- !u!1 &6491672983531732199
 GameObject:
   m_ObjectHideFlags: 0
@@ -181,6 +126,7 @@ GameObject:
   - component: {fileID: 5146667643696292218}
   - component: {fileID: 1762147295266904728}
   - component: {fileID: 6491371961005317678}
+  - component: {fileID: 3157240494989057825}
   m_Layer: 0
   m_Name: PracticeTarget
   m_TagString: Untagged
@@ -242,10 +188,10 @@ MonoBehaviour:
   SortKey: 167723516
   ObjectInterest: 1
   Flags: 262145
-  NestedObjects:
-  - {fileID: 9089730355272702958}
+  NestedObjects: []
   NetworkedBehaviours:
   - {fileID: 6491371961005317678}
+  - {fileID: 3157240494989057825}
   ForceRemoteRenderTimeframe: 0
 --- !u!114 &6491371961005317678
 MonoBehaviour:
@@ -264,3 +210,37 @@ MonoBehaviour:
   SyncParent: 0
   _autoAOIOverride: 1
   DisableSharedModeInterpolation: 0
+--- !u!114 &3157240494989057825
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6491672983531732199}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5d568aa38df782a47ad069af8ffb8d32, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::PracticeTarget
+  maxHealth: 10
+  respawnDelay: 2.5
+  activeOnlyInWaitingRoom: 1
+  visualRoot: {fileID: 1773321442296807295}
+  destroyEffectPrefab: {fileID: 187180, guid: 1ed56f4c486ff6141a344e5e5714e1b9, type: 3}
+  destroySe: {fileID: 0}
+  hitShakeDuration: 0.12
+  hitShakeMagnitude: 0.08
+  hitFlashColor: {r: 1, g: 0.4, b: 0.4, a: 1}
+  planetCenter: {fileID: 5110394550287685901, guid: 6efab54670793466cb5125952d5cd355, type: 3}
+  alignToPlanetSurface: 1
+  enableMovement: 0
+  localMoveAxis: {x: 1, y: 0, z: 0}
+  moveDistance: 3
+  moveSpeed: 2
+  _NetworkedCurrentHealth: 0
+  _NetworkedIsDestroyed:
+    _value: 0
+  _NetworkedIsPhaseActive:
+    _value: 0
+  _NetworkedEnableMovement:
+    _value: 0

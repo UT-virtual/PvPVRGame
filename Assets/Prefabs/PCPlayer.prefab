@@ -951,184 +951,6 @@ RectTransform:
   m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: -10, y: 0}
   m_Pivot: {x: 0.5, y: 0.5}
---- !u!1 &7198742955973430420
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 5221013372918037392}
-  - component: {fileID: 407403843097667127}
-  - component: {fileID: 7396780168347384408}
-  - component: {fileID: 3565490255128126713}
-  - component: {fileID: 6363794745416593906}
-  - component: {fileID: 4633463353486723586}
-  - component: {fileID: 3295515617569518490}
-  - component: {fileID: 4822985171714007280}
-  m_Layer: 0
-  m_Name: Player VFX
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!4 &5221013372918037392
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 7198742955973430420}
-  serializedVersion: 2
-  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 159.38039, y: 99.22757, z: -0.40839}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 7900882557392664941}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &407403843097667127
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 7198742955973430420}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 9aa3dc51795447549bea5b45dcca127a, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::LocalPlayerDamageVfxController
-  damageVfxPrefab: {fileID: 1493123572548342, guid: 0b76d277096f4dc4fad0065918f5c9d3, type: 3}
-  customFollowTarget: {fileID: 7900882557392664941}
-  followMainCamera: 0
-  localOffset: {x: 0, y: 0, z: 0}
-  vfxLifeTime: 0.8
-  restartOnContinuousHit: 1
-  playOnFatalHit: 0
---- !u!114 &7396780168347384408
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 7198742955973430420}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: -1552182283, guid: e725a070cec140c4caffb81624c8c787, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Fusion.Runtime.dll::Fusion.NetworkObject
-  SortKey: 2309787314
-  ObjectInterest: 1
-  Flags: 262145
-  NestedObjects: []
-  NetworkedBehaviours:
-  - {fileID: 407403843097667127}
-  - {fileID: 3565490255128126713}
-  - {fileID: 4633463353486723586}
-  - {fileID: 3295515617569518490}
-  - {fileID: 4822985171714007280}
-  ForceRemoteRenderTimeframe: 0
---- !u!114 &3565490255128126713
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 7198742955973430420}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 158639473, guid: e725a070cec140c4caffb81624c8c787, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Fusion.Runtime.dll::Fusion.NetworkTransform
-  _stateAuthorityChangeErrorCorrectionDelta: 0
-  SyncScale: 0
-  SyncParent: 0
-  _autoAOIOverride: 1
-  DisableSharedModeInterpolation: 0
---- !u!143 &6363794745416593906
-CharacterController:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 7198742955973430420}
-  m_Material: {fileID: 0}
-  m_IncludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_ExcludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_LayerOverridePriority: 0
-  m_ProvidesContacts: 0
-  m_Enabled: 1
-  serializedVersion: 3
-  m_Height: 2
-  m_Radius: 0.5
-  m_SlopeLimit: 45
-  m_StepOffset: 0.3
-  m_SkinWidth: 0.08
-  m_MinMoveDistance: 0.001
-  m_Center: {x: 0, y: 0, z: 0}
---- !u!114 &4633463353486723586
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 7198742955973430420}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 315b6328bde944c308c7c13ecf849319, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::PlayerHealth
-  maxHealth: 10
-  visualRoot: {fileID: 0}
-  weaponVisualRoot: {fileID: 0}
-  overheadIconRoot: {fileID: 0}
-  _NetworkedCurrentHealth: 0
-  _NetworkedIsDead:
-    _value: 0
-  _NetworkedIsReady:
-    _value: 0
-  _NetworkedTeamIndex: 0
---- !u!114 &3295515617569518490
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 7198742955973430420}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 3396320edfd5cae40b96c645a730d8b3, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::PlayerDefeatVfxController
-  defeatWarpVfxPrefab: {fileID: 159062, guid: e4fc72c1b3da74d4697708bcd2a9db60, type: 3}
-  localSpawnOffset: {x: 0, y: 0, z: 0}
-  vfxLifeTime: 3
---- !u!114 &4822985171714007280
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 7198742955973430420}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 2cac6429cc101184680bd8a81d92613b, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::PlayerSkillVfxController
-  activationVfxPrefab: {fileID: 185518, guid: 2ef436b6c6313494daf190cd68ebf636, type: 3}
-  activationLocalOffset: {x: 0, y: 0, z: 0}
-  activationVfxLifeTime: 2.5
-  footCircleVfxPrefab: {fileID: 158776, guid: 524b12464dce5b248a893d67a188da05, type: 3}
-  footCircleAttachPoint: {fileID: 7900882557392664941}
-  footCircleLocalOffset: {x: 0, y: 0.05, z: 0}
-  footCircleStopDestroyDelay: 1
 --- !u!1 &8006935000496757985
 GameObject:
   m_ObjectHideFlags: 0
@@ -1157,6 +979,9 @@ GameObject:
   - component: {fileID: 1354175055189871530}
   - component: {fileID: 2617299471526814650}
   - component: {fileID: 202611125652866079}
+  - component: {fileID: 407403843097667127}
+  - component: {fileID: 3295515617569518490}
+  - component: {fileID: 4822985171714007280}
   m_Layer: 0
   m_Name: PCPlayer
   m_TagString: Untagged
@@ -1182,7 +1007,6 @@ Transform:
   - {fileID: 1536190954768535111}
   - {fileID: 2847849160676308526}
   - {fileID: 9165153313965558342}
-  - {fileID: 5221013372918037392}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &3109998553241953340
@@ -1368,8 +1192,7 @@ MonoBehaviour:
   SortKey: 889233494
   ObjectInterest: 1
   Flags: 262145
-  NestedObjects:
-  - {fileID: 7396780168347384408}
+  NestedObjects: []
   NetworkedBehaviours:
   - {fileID: 3109998553241953340}
   - {fileID: 6087450692815741008}
@@ -1382,6 +1205,9 @@ MonoBehaviour:
   - {fileID: 7039102658385090790}
   - {fileID: 2617299471526814650}
   - {fileID: 202611125652866079}
+  - {fileID: 407403843097667127}
+  - {fileID: 3295515617569518490}
+  - {fileID: 4822985171714007280}
   ForceRemoteRenderTimeframe: 0
 --- !u!114 &4508338257469429350
 MonoBehaviour:
@@ -1665,6 +1491,59 @@ MonoBehaviour:
   obstructionMask:
     serializedVersion: 2
     m_Bits: 0
+--- !u!114 &407403843097667127
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8006935000496757985}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9aa3dc51795447549bea5b45dcca127a, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::LocalPlayerDamageVfxController
+  damageVfxPrefab: {fileID: 1493123572548342, guid: 0b76d277096f4dc4fad0065918f5c9d3, type: 3}
+  customFollowTarget: {fileID: 7900882557392664941}
+  followMainCamera: 0
+  localOffset: {x: 0, y: 0, z: 0}
+  vfxLifeTime: 0.8
+  restartOnContinuousHit: 1
+  playOnFatalHit: 0
+--- !u!114 &3295515617569518490
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8006935000496757985}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3396320edfd5cae40b96c645a730d8b3, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerDefeatVfxController
+  defeatWarpVfxPrefab: {fileID: 159062, guid: e4fc72c1b3da74d4697708bcd2a9db60, type: 3}
+  localSpawnOffset: {x: 0, y: 0, z: 0}
+  vfxLifeTime: 3
+--- !u!114 &4822985171714007280
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8006935000496757985}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2cac6429cc101184680bd8a81d92613b, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerSkillVfxController
+  activationVfxPrefab: {fileID: 185518, guid: 2ef436b6c6313494daf190cd68ebf636, type: 3}
+  activationLocalOffset: {x: 0, y: 0, z: 0}
+  activationVfxLifeTime: 2.5
+  footCircleVfxPrefab: {fileID: 158776, guid: 524b12464dce5b248a893d67a188da05, type: 3}
+  footCircleAttachPoint: {fileID: 7900882557392664941}
+  footCircleLocalOffset: {x: 0, y: 0.05, z: 0}
+  footCircleStopDestroyDelay: 1
 --- !u!1 &8114149245204947776
 GameObject:
   m_ObjectHideFlags: 0

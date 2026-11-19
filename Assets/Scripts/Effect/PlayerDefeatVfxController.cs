@@ -1,7 +1,6 @@
 using Fusion;
 using UnityEngine;
 
-[RequireComponent(typeof(PlayerHealth))]
 public class PlayerDefeatVfxController : NetworkBehaviour
 {
     [Header("Defeat Warp VFX Settings")]
@@ -17,7 +16,7 @@ public class PlayerDefeatVfxController : NetworkBehaviour
 
     private void Awake()
     {
-        playerHealth = GetComponent<PlayerHealth>();
+        playerHealth = GetComponentInParent<PlayerHealth>();
     }
 
     public override void Spawned()
@@ -50,8 +49,9 @@ public class PlayerDefeatVfxController : NetworkBehaviour
             return;
         }
 
-        Vector3 spawnPosition = transform.TransformPoint(localSpawnOffset);
-        Quaternion spawnRotation = transform.rotation;
+        Transform playerRoot = playerHealth.transform;
+        Vector3 spawnPosition = playerRoot.TransformPoint(localSpawnOffset);
+        Quaternion spawnRotation = playerRoot.rotation;
 
         GameObject vfxInstance = Instantiate(defeatWarpVfxPrefab, spawnPosition, spawnRotation);
         if (vfxLifeTime > 0.0f)
