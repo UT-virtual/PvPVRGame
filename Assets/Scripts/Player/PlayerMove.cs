@@ -10,9 +10,12 @@ public class PlayerMove : MonoBehaviour
 {
     [Header("Move")]
     [SerializeField] private float moveSpeed = 5.0f;
+    [Tooltip("銃を撃っていない間の移動速度倍率。1で射撃中と同じ速度。")]
+    [SerializeField, Min(1f)] private float nonFiringMoveSpeedMultiplier = 1.5f;
     private float moveSpeedMultiplier = 1.0f;
     // スキルが設定する倍率とラウンド全体の補正を分離し、更新順による上書きを防ぐ。
-    private float EffectiveMoveSpeed => moveSpeed * moveSpeedMultiplier *
+    private float GetEffectiveMoveSpeed(bool isFiring) => moveSpeed * moveSpeedMultiplier *
+        (isFiring ? 1f : Mathf.Max(1f, nonFiringMoveSpeedMultiplier)) *
         (RoundManager.Instance != null ? RoundManager.Instance.CurrentMoveSpeedMultiplier : 1f);
 
     [Header("Gravity / Jump")]
@@ -204,7 +207,7 @@ public class PlayerMove : MonoBehaviour
         aimForward = Vector3.Cross(aimRight, surfaceUp).normalized;
     }
 
-    public void MoveOnSurface(Vector2 input, float deltaTime)
+    public void MoveOnSurface(Vector2 input, float deltaTime, bool isFiring = false)
     {
         if (input.sqrMagnitude < 0.01f)
         {
@@ -228,14 +231,14 @@ public class PlayerMove : MonoBehaviour
             moveDir.Normalize();
         }
 
-        controller.Move(moveDir * EffectiveMoveSpeed * deltaTime);
+        controller.Move(moveDir * GetEffectiveMoveSpeed(isFiring) * deltaTime);
     }
 
     /// <summary>
     /// HMDの視線を地表へ投影して前後移動の基準にする。
     /// 視線が地表法線と平行ならAimForwardを代用し、右方向は前方と法線から再計算する。
     /// </summary>
-    public void MoveOnSurfaceVR(Vector2 input, float deltaTime, Vector3 moveForward,Vector3 moveRight)
+    public void MoveOnSurfaceVR(Vector2 input, float deltaTime, Vector3 moveForward,Vector3 moveRight, bool isFiring = false)
     {
         if (input.sqrMagnitude < 0.01f)
         {
@@ -271,7 +274,7 @@ public class PlayerMove : MonoBehaviour
             moveDir.Normalize();
         }
 
-        controller.Move(moveDir * EffectiveMoveSpeed * deltaTime);
+        controller.Move(moveDir * GetEffectiveMoveSpeed(isFiring) * deltaTime);
     }
 
     public void AlignToSurface(float deltaTime)

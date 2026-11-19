@@ -166,13 +166,17 @@ public class PlayerController : NetworkBehaviour
 
         ApplyRemoteLookInput(input);
 
+        // 連射の発射間隔で速度が揺れないよう、射撃可能な状態での押し続けを射撃中とする。
+        bool isFiring = input.Buttons.IsSet((int)PlayerInputButton.Fire) && playerWeapon.CurrentAmmo > 0 &&
+            (RoundManager.Instance == null || RoundManager.Instance.CanUseWeapons);
+
         if (input.IsVR)
         {
-            playerMove.MoveOnSurfaceVR(moveInput, deltaTime, playerLook.ViewForward, playerMove.AimRight);
+            playerMove.MoveOnSurfaceVR(moveInput, deltaTime, playerLook.ViewForward, playerMove.AimRight, isFiring);
         }
         else
         {
-            playerMove.MoveOnSurface(moveInput, deltaTime);
+            playerMove.MoveOnSurface(moveInput, deltaTime, isFiring);
         }
 
         // 移動先で法線が変わるため、姿勢整列と重力の前に接地基準を再取得する。
