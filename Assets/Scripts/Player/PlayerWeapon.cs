@@ -67,6 +67,7 @@ public class PlayerWeapon : NetworkBehaviour
 
     public int CurrentAmmo => NetworkedCurrentAmmo;
     public Transform MuzzleTransform => muzzleTransform;
+    private VRWeaponVisualSettings weaponVisuals;
     public int MaxAmmo => maxAmmo;
     public bool IsReloading => NetworkedIsReloading;
 
@@ -82,6 +83,7 @@ public class PlayerWeapon : NetworkBehaviour
         playerHealth = GetComponent<PlayerHealth>();
         playerLook = GetComponent<PlayerLook>();
         playerCamera = GetComponent<PlayerCamera>();
+        weaponVisuals = GetComponent<VRWeaponVisualSettings>();
 
         fireTimer = 0.0f;
         reloadTimer = 0.0f;
@@ -405,7 +407,7 @@ public class PlayerWeapon : NetworkBehaviour
 
         Vector3 endpoint = aimHit.HasHit ? aimHit.Point : aim.GetPoint(raycastMaxDistance);
         Vector3 muzzle = muzzleTransform != null ? muzzleTransform.position : aim.GetPoint(exitOffset);
-        RPC_ShowShotEffects(muzzle, endpoint, Quaternion.LookRotation(aim.direction, aimUp));
+        RPC_ShowShotEffects(muzzle, endpoint, Quaternion.LookRotation(aim.direction, aimUp), aimHit.HasHit);
 
         if (aimHit.HasHit) ApplyHitscan(aimHit, currentDamage);
 
@@ -413,16 +415,24 @@ public class PlayerWeapon : NetworkBehaviour
     }
 
     [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
-    private void RPC_ShowShotEffects(Vector3 origin, Vector3 endpoint, Quaternion rotation)
+    private void RPC_ShowShotEffects(Vector3 origin, Vector3 endpoint, Quaternion rotation, bool hit)
     {
+        Vector3 flashPosition = muzzleTransform != null ? muzzleTransform.position : origin;
+        if (!Object.HasInputAuthority && weaponVisuals != null &&
+            weaponVisuals.TryGetThirdPersonMuzzle(muzzleTransform, out Pose muzzle))
+        {
+            origin = muzzle.position;
+            flashPosition = origin;
+            rotation = muzzle.rotation;
+            if (!hit) endpoint = origin + muzzle.forward * raycastMaxDistance;
+        }
         // 弾の子にあった光だけを複製する。弾本体や通信・衝突コンポーネントは生成しない。
         if (muzzleFlashPrefab != null)
         {
-            Vector3 position = muzzleTransform != null ? muzzleTransform.position : origin;
             Vector3 scale = muzzleFlashPrefab.transform.lossyScale;
-            if (!LocalParticleEffectPool.TryPlay(muzzleFlashPrefab, position, rotation, scale, muzzle: true))
+            if (!LocalParticleEffectPool.TryPlay(muzzleFlashPrefab, flashPosition, rotation, scale, muzzle: true))
             {
-                GameObject flash = Instantiate(muzzleFlashPrefab, position, rotation);
+                GameObject flash = Instantiate(muzzleFlashPrefab, flashPosition, rotation);
                 flash.transform.localScale = scale;
                 ParticleSystem particles = flash.GetComponent<ParticleSystem>();
                 if (particles != null)

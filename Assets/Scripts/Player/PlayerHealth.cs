@@ -30,6 +30,8 @@ public class PlayerHealth : NetworkBehaviour
     public Renderer[] WeaponRenderers => weaponRenderers;
 
     private Renderer[] weaponRenderers;
+    private VRWeaponVisualSettings weaponVisuals;
+    private bool spectatedFirstPerson;
 
     [Networked, OnChangedRender(nameof(OnNetworkedHealthChanged))]
     public float NetworkedCurrentHealth { get; private set; }
@@ -90,6 +92,7 @@ public class PlayerHealth : NetworkBehaviour
         characterController = GetComponent<CharacterController>();
         playerMove = GetComponent<PlayerMove>();
         playerWeapon = GetComponent<PlayerWeapon>();
+        weaponVisuals = GetComponent<VRWeaponVisualSettings>();
         playerCamera = GetComponent<PlayerCamera>();
         ShotHitbox = GetComponentInChildren<PlayerShotHitbox>(true);
 
@@ -795,8 +798,6 @@ public class PlayerHealth : NetworkBehaviour
         bool shouldShowBodyModel =
             alive && !Object.HasInputAuthority;
 
-        bool shouldShowWeapon = alive;
-
         bool shouldShowOverheadIcon =
             alive && !Object.HasInputAuthority;
 
@@ -805,10 +806,7 @@ public class PlayerHealth : NetworkBehaviour
             shouldShowBodyModel
         );
 
-        SetRenderersEnabled(
-            weaponRenderers,
-            shouldShowWeapon
-        );
+        UpdateWeaponVisibility(alive);
 
         if (overheadIconRoot != null)
         {
@@ -862,6 +860,20 @@ public class PlayerHealth : NetworkBehaviour
     public void SetBodySizeMultiplierPublic(float multiplier)
     {
         SetBodySizeMultiplier(multiplier);
+    }
+
+    public void SetSpectatedFirstPerson(bool active)
+    {
+        spectatedFirstPerson = active;
+        if (Object != null && Object.IsValid) UpdateWeaponVisibility(!IsDead);
+    }
+
+    private void UpdateWeaponVisibility(bool alive)
+    {
+        bool thirdPerson = !Object.HasInputAuthority && !spectatedFirstPerson &&
+            weaponVisuals != null && weaponVisuals.HasThirdPersonWeapon;
+        SetRenderersEnabled(weaponRenderers, alive && !thirdPerson);
+        if (weaponVisuals != null) weaponVisuals.SetThirdPersonVisible(alive && thirdPerson);
     }
 
     private void SetRenderersEnabled(
