@@ -8,6 +8,7 @@ public class VRBodyTargetSync : NetworkBehaviour
     [SerializeField] private Transform headTarget;
     [SerializeField] private Transform leftHandTarget;
     [SerializeField] private Transform rightHandTarget;
+    [SerializeField] private Transform avatarFacingRoot;
     [SerializeField] private bool enableVrBodyIk = true;
 
     private Transform xrHmd;
@@ -15,6 +16,7 @@ public class VRBodyTargetSync : NetworkBehaviour
     private Transform xrRightController;
     private VRWeaponVisualSettings weaponVisualSettings;
     private PlayerCamera playerCamera;
+    private PlayerMove playerMove;
     private RootMotion.FinalIK.VRIK[] vrSolvers;
     private Quaternion muzzleRelativeRotation = Quaternion.identity;
     private bool? appliedVrMode;
@@ -25,6 +27,7 @@ public class VRBodyTargetSync : NetworkBehaviour
 
     [Networked] private Vector3 NetworkedHeadPosition { get; set; }
     [Networked] private Quaternion NetworkedHeadRotation { get; set; }
+    [Networked] private NetworkBool NetworkedHeadRotationTracked { get; set; }
 
     [Networked] private Vector3 NetworkedLeftHandPosition { get; set; }
     [Networked] private Quaternion NetworkedLeftHandRotation { get; set; }
@@ -36,6 +39,7 @@ public class VRBodyTargetSync : NetworkBehaviour
     {
         weaponVisualSettings = GetComponent<VRWeaponVisualSettings>();
         playerCamera = GetComponent<PlayerCamera>();
+        playerMove = GetComponent<PlayerMove>();
         vrSolvers = GetComponentsInChildren<RootMotion.FinalIK.VRIK>(true);
         PlayerWeapon weapon = GetComponent<PlayerWeapon>();
         if (weaponVisualSettings != null && weaponVisualSettings.WeaponTransform != null && weapon != null && weapon.MuzzleTransform != null)
@@ -76,6 +80,7 @@ public class VRBodyTargetSync : NetworkBehaviour
     {
         if (Object == null || !Object.HasStateAuthority) return;
         NetworkedIsVr = input.IsVR;
+        NetworkedHeadRotationTracked = input.IsVR && input.HasTrackedWorldHeadRotation;
         NetworkedTargetsInitialized = input.IsVR;
         ApplyPresentation(input.IsVR);
         if (input.IsVR)
@@ -90,6 +95,9 @@ public class VRBodyTargetSync : NetworkBehaviour
         if (IsValidPosition(input.HMDPosition))
         {
             NetworkedHeadPosition = input.HMDPosition;
+        }
+        if (NetworkedHeadRotationTracked || IsValidPosition(input.HMDPosition))
+        {
             NetworkedHeadRotation = NormalizeQuaternion(input.HMDRotation);
         }
 
@@ -132,6 +140,7 @@ public class VRBodyTargetSync : NetworkBehaviour
     {
         if (appliedVrMode == vr) return;
         appliedVrMode = vr;
+        if (!vr && avatarFacingRoot != null) avatarFacingRoot.localRotation = Quaternion.identity;
         foreach (RootMotion.FinalIK.VRIK solver in vrSolvers) solver.enabled = vr && enableVrBodyIk;
         if (vr)
         {
@@ -152,6 +161,9 @@ public class VRBodyTargetSync : NetworkBehaviour
 
     private void ApplyFromXrTransforms()
     {
+        if (xrHmd != null && NetworkInputCollector.IsHeadRotationTracked())
+            ApplyAvatarFacing(xrHmd.rotation);
+
         if (xrHmd != null && headTarget != null)
         {
             headTarget.SetPositionAndRotation(xrHmd.position, xrHmd.rotation);
@@ -186,6 +198,9 @@ public class VRBodyTargetSync : NetworkBehaviour
                 SafeRotation(NetworkedHeadRotation));
         }
 
+        if (NetworkedHeadRotationTracked && !Object.HasInputAuthority)
+            ApplyAvatarFacing(NetworkedHeadRotation);
+
         if (leftHandTarget != null)
         {
             leftHandTarget.SetPositionAndRotation(
@@ -199,6 +214,16 @@ public class VRBodyTargetSync : NetworkBehaviour
                 NetworkedRightHandPosition,
                 SafeRotation(NetworkedRightHandRotation));
         }
+    }
+
+    private void ApplyAvatarFacing(Quaternion headRotation)
+    {
+        if (avatarFacingRoot == null) return;
+        Vector3 up = playerMove.SurfaceUp;
+        Vector3 forward = Vector3.ProjectOnPlane(headRotation * Vector3.forward, up);
+        // 真上・真下付近では水平の向きが不安定になるので、直前のローカル回転を保つ。
+        if (forward.sqrMagnitude > 0.01f)
+            avatarFacingRoot.rotation = Quaternion.LookRotation(forward, up);
     }
 
     private void AttachWeaponToRightHandTarget()
